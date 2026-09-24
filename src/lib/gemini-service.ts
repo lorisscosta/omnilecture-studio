@@ -139,8 +139,63 @@ export async function processAudioDirectly(
       attempts++;
     }
 
-    // Step 4: Run Gemini 2.5 Flash
-    onProgress?.('Analisi multimodale con Gemini 2.5 Flash in corso (formule LaTeX, trascrizione, appunti)...');
+    // Step 4: Discover available models for this API key via ListModels
+    onProgress?.('Rilevamento automatico dei modelli Gemini abilitati per la tua chiave...');
+    let modelsToTry: string[] = [];
+
+    try {
+      const listResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (listResponse.ok) {
+        const listData = await listResponse.json();
+        const available = (listData.models || [])
+          .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+          .map((m: any) => m.name.replace(/^models\//, ''));
+
+        const preferredOrder = [
+          'gemini-2.5-flash',
+          'gemini-2.0-flash',
+          'gemini-2.0-flash-exp',
+          'gemini-1.5-flash-latest',
+          'gemini-1.5-flash-002',
+          'gemini-1.5-flash-001',
+          'gemini-1.5-flash',
+          'gemini-1.5-pro-latest',
+          'gemini-1.5-pro-002',
+          'gemini-1.5-pro',
+        ];
+
+        for (const p of preferredOrder) {
+          if (available.includes(p)) {
+            modelsToTry.push(p);
+          }
+        }
+
+        // Add any remaining flash or pro models
+        for (const a of available) {
+          if (!modelsToTry.includes(a) && (a.includes('flash') || a.includes('pro') || a.includes('gemini'))) {
+            modelsToTry.push(a);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Errore durante la chiamata ListModels:', err);
+    }
+
+    if (modelsToTry.length === 0) {
+      modelsToTry = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-flash-002',
+        'gemini-1.5-flash-001',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro-latest',
+        'gemini-1.5-pro',
+      ];
+    }
+
+    onProgress?.(`Analisi in corso con il modello Gemini (${modelsToTry[0]})...`);
 
     const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria (es. Elaborazione Numerica dei Segnali, Controlli Automatici, Telecomunicazioni, Robotica, Elettronica).
 La lezione audio caricata è tenuta in lingua INGLESE.
@@ -153,7 +208,6 @@ Devi analizzare in profondità l'audio ed estrarre:
 
     const promptText = `Analizza questa lezione del corso di "${course}" intitolata "${title}". Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
     let generationResponse: Response | null = null;
     let successfulModel = '';
 
@@ -196,7 +250,7 @@ Devi analizzare in profondità l'audio ed estrarre:
       }
 
       if (generationResponse.status === 404) {
-        console.warn(`Modello ${model} non trovato (404), provo il modello successivo...`);
+        console.warn(`Modello ${model} ha restituito 404, provo il modello successivo...`);
         continue;
       } else {
         break;
