@@ -149,16 +149,24 @@ export async function processAudioDirectly(
         const listData = await listResponse.json();
         const available = (listData.models || [])
           .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
-          .map((m: any) => m.name.replace(/^models\//, ''));
+          .map((m: any) => m.name.replace(/^models\//, ''))
+          // Exclude text-to-speech, embedding, image-gen models that don't support audio input
+          .filter((name: string) => 
+            !name.includes('tts') && 
+            !name.includes('embedding') && 
+            !name.includes('imagen') && 
+            !name.includes('aqa') &&
+            !name.includes('live')
+          );
 
         const preferredOrder = [
-          'gemini-2.5-flash',
           'gemini-2.0-flash',
           'gemini-2.0-flash-exp',
           'gemini-1.5-flash-latest',
           'gemini-1.5-flash-002',
           'gemini-1.5-flash-001',
           'gemini-1.5-flash',
+          'gemini-2.5-flash',
           'gemini-1.5-pro-latest',
           'gemini-1.5-pro-002',
           'gemini-1.5-pro',
@@ -170,7 +178,7 @@ export async function processAudioDirectly(
           }
         }
 
-        // Add any remaining flash or pro models
+        // Add any remaining multimodal models
         for (const a of available) {
           if (!modelsToTry.includes(a) && (a.includes('flash') || a.includes('pro') || a.includes('gemini'))) {
             modelsToTry.push(a);
@@ -183,13 +191,13 @@ export async function processAudioDirectly(
 
     if (modelsToTry.length === 0) {
       modelsToTry = [
-        'gemini-2.5-flash',
         'gemini-2.0-flash',
         'gemini-2.0-flash-exp',
         'gemini-1.5-flash-latest',
         'gemini-1.5-flash-002',
         'gemini-1.5-flash-001',
         'gemini-1.5-flash',
+        'gemini-2.5-flash',
         'gemini-1.5-pro-latest',
         'gemini-1.5-pro',
       ];
@@ -212,6 +220,7 @@ Devi analizzare in profondità l'audio ed estrarre:
     let successfulModel = '';
 
     for (const model of modelsToTry) {
+      onProgress?.(`Analisi con ${model}...`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const payload = {
         system_instruction: {
@@ -249,8 +258,10 @@ Devi analizzare in profondità l'audio ed estrarre:
         break;
       }
 
-      if (generationResponse.status === 404) {
-        console.warn(`Modello ${model} ha restituito 404, provo il modello successivo...`);
+      // If model returned 404 (not found) or 400 (e.g. audio modality not enabled for this sub-variant)
+      if (generationResponse.status === 404 || generationResponse.status === 400) {
+        const errorText = await generationResponse.clone().text().catch(() => '');
+        console.warn(`Modello ${model} ha restituito ${generationResponse.status} (${errorText.slice(0, 100)}), provo il modello successivo...`);
         continue;
       } else {
         break;
