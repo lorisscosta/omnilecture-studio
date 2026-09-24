@@ -1,0 +1,17 @@
+{
+  "name": "OmniLecture Studio",
+  "short_name": "OmniLecture",
+  "description": "All-in-one lecture recorder & management hub for university STEM students",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141416",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
