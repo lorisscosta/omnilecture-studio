@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, FileAudio, AlertTriangle, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
 import { saveLecture, updateLectureStatus, updateLectureData } from '@/lib/db';
 import { Lecture } from '@/lib/types';
+import { processAudioDirectly } from '@/lib/gemini-service';
 
 interface AudioUploaderProps {
   onLectureCreated: (lectureId: string) => void;
@@ -89,41 +90,68 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       await saveLecture(newLecture);
       onLectureCreated(lectureId);
 
-      // 2. Prepare Form Data for Server-Side Route
-      setProcessingStage('Caricamento su Google AI Studio Files API...');
-      await updateLectureStatus(lectureId, 'processing', undefined, 'Caricamento su Google AI Studio Files API...');
+      // 2. Perform direct multimodal processing with Google AI Studio
+      // (This bypasses Vercel 4.5MB serverless body limit and 10s execution timeout)
+      let lectureData: any = null;
 
-      const formData = new FormData();
-      formData.append('audio', selectedFile);
-      formData.append('course', course);
-      formData.append('title', title);
+      try {
+        const result = await processAudioDirectly(
+          selectedFile,
+          course,
+          title,
+          apiKey,
+          (stage) => {
+            setProcessingStage(stage);
+            updateLectureStatus(lectureId, 'processing', undefined, stage).catch(console.error);
+          }
+        );
+        lectureData = result.data;
+      } catch (directErr: any) {
+        console.warn('Direct upload failed, attempting server proxy fallback...', directErr);
+        setProcessingStage('Tentativo tramite proxy server...');
 
-      // 3. Call Server Endpoint
-      setProcessingStage('Elaborazione multimodale Gemini 2.5 Flash in corso...');
-      await updateLectureStatus(lectureId, 'processing', undefined, 'Analisi Gemini 2.5 Flash (trascrizione, formule LaTeX, guida studio)...');
+        const formData = new FormData();
+        formData.append('audio', selectedFile);
+        formData.append('course', course);
+        formData.append('title', title);
 
-      const response = await fetch('/api/gemini/process-audio', {
-        method: 'POST',
-        headers: {
-          'x-gemini-api-key': apiKey,
-        },
-        body: formData,
-      });
+        const response = await fetch('/api/gemini/process-audio', {
+          method: 'POST',
+          headers: {
+            'x-gemini-api-key': apiKey,
+          },
+          body: formData,
+        });
 
-      if (!response.ok) {
-        const errorJson = await response.json().catch(() => ({ error: 'Errore durante la chiamata server.' }));
-        throw new Error(errorJson.error || `Errore server (${response.status})`);
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          let errDetail = directErr.message || 'Errore durante la chiamata server.';
+          try {
+            const parsed = JSON.parse(errorText);
+            if (parsed.error) errDetail = parsed.error;
+          } catch {
+            if (response.status === 413) {
+              errDetail = 'Il file supera il limite di 4.5MB per il serverless. Verifica che la chiave Google AI Studio sia valida per consentire l\'upload diretto.';
+            } else if (response.status === 504) {
+              errDetail = 'Timeout server. Utilizza un file compresso in MP3 a 128kbps.';
+            } else if (errorText) {
+              errDetail = `${errorText.slice(0, 150)} (${response.status})`;
+            }
+          }
+          throw new Error(errDetail);
+        }
+
+        const serverResult = await response.json();
+        if (!serverResult.success || !serverResult.data) {
+          throw new Error('Dati restituiti dal server non validi.');
+        }
+        lectureData = serverResult.data;
       }
 
       setProcessingStage('Salvataggio dei risultati e generazione appunti...');
-      const result = await response.json();
 
-      if (!result.success || !result.data) {
-        throw new Error('Dati restituiti dall\'AI non validi o mancanti.');
-      }
-
-      // 4. Update Lecture in Dexie.js
-      await updateLectureData(lectureId, result.data);
+      // 3. Update Lecture in Dexie.js
+      await updateLectureData(lectureId, lectureData);
 
       setIsProcessing(false);
       setProcessingStage('');
