@@ -77,57 +77,39 @@ export async function processAudioDirectly(
     const mimeType = audioFile.type || 'audio/mp3';
     const fileName = (audioFile as File).name || 'lecture_audio.mp3';
 
-    // Step 1: Initialize Resumable Upload directly with Google AI Studio
-    onProgress?.('Caricamento audio diretto su Google AI Studio Files API...');
-    const initUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`;
-    const initHeaders: Record<string, string> = {
-      'X-Goog-Upload-Protocol': 'resumable',
-      'X-Goog-Upload-Command': 'start',
-      'X-Goog-Upload-Header-Content-Length': arrayBuffer.byteLength.toString(),
-      'X-Goog-Upload-Header-Content-Type': mimeType,
-      'Content-Type': 'application/json',
-    };
-
-    const initResponse = await fetch(initUrl, {
-      method: 'POST',
-      headers: initHeaders,
-      body: JSON.stringify({
-        file: {
-          display_name: fileName,
-        },
-      }),
+    // Step 1: Upload via single multipart/related request (CORS-compatible, no custom headers required)
+    onProgress?.('Caricamento audio su Google AI Studio Files API...');
+    const boundary = '----OmniLectureBoundary' + Math.random().toString(36).substring(2);
+    const metadataPart = JSON.stringify({
+      file: {
+        display_name: fileName,
+      },
     });
 
-    if (!initResponse.ok) {
-      const errText = await initResponse.text();
+    const prePart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadataPart}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
+    const postPart = `\r\n--${boundary}--`;
+
+    const multipartBlob = new Blob([prePart, arrayBuffer, postPart], {
+      type: `multipart/related; boundary=${boundary}`,
+    });
+
+    const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${apiKey}`;
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body: multipartBlob,
+    });
+
+    if (!uploadResponse.ok) {
+      const errText = await uploadResponse.text();
       let parsedMsg = errText;
       try {
         const errObj = JSON.parse(errText);
         parsedMsg = errObj.error?.message || errText;
       } catch {}
-      throw new Error(`Inizializzazione upload su Google AI Studio fallita (${initResponse.status}): ${parsedMsg}`);
-    }
-
-    const uploadUrl = initResponse.headers.get('x-goog-upload-url') || initResponse.headers.get('X-Goog-Upload-URL');
-    if (!uploadUrl) {
-      throw new Error('Google AI Studio non ha restituito l\'URL di caricamento.');
-    }
-
-    // Step 2: Upload Audio Buffer directly
-    onProgress?.('Trasferimento audio in corso verso Google AI Studio...');
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Length': arrayBuffer.byteLength.toString(),
-        'X-Goog-Upload-Offset': '0',
-        'X-Goog-Upload-Command': 'upload, finalize',
-      },
-      body: arrayBuffer,
-    });
-
-    if (!uploadResponse.ok) {
-      const errText = await uploadResponse.text();
-      throw new Error(`Caricamento buffer audio fallito (${uploadResponse.status}): ${errText}`);
+      throw new Error(`Caricamento su Google AI Studio fallito (${uploadResponse.status}): ${parsedMsg}`);
     }
 
     const uploadResult = await uploadResponse.json();

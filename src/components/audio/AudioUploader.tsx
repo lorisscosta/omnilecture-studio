@@ -107,45 +107,39 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         );
         lectureData = result.data;
       } catch (directErr: any) {
-        console.warn('Direct upload failed, attempting server proxy fallback...', directErr);
-        setProcessingStage('Tentativo tramite proxy server...');
-
-        const formData = new FormData();
-        formData.append('audio', selectedFile);
-        formData.append('course', course);
-        formData.append('title', title);
-
-        const response = await fetch('/api/gemini/process-audio', {
-          method: 'POST',
-          headers: {
-            'x-gemini-api-key': apiKey,
-          },
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => '');
-          let errDetail = directErr.message || 'Errore durante la chiamata server.';
+        console.error('Direct upload failed:', directErr);
+        
+        // If file is smaller than 4MB, try server proxy fallback
+        if (selectedFile.size < 4 * 1024 * 1024) {
           try {
-            const parsed = JSON.parse(errorText);
-            if (parsed.error) errDetail = parsed.error;
-          } catch {
-            if (response.status === 413) {
-              errDetail = 'Il file supera il limite di 4.5MB per il serverless. Verifica che la chiave Google AI Studio sia valida per consentire l\'upload diretto.';
-            } else if (response.status === 504) {
-              errDetail = 'Timeout server. Utilizza un file compresso in MP3 a 128kbps.';
-            } else if (errorText) {
-              errDetail = `${errorText.slice(0, 150)} (${response.status})`;
+            setProcessingStage('Tentativo tramite proxy server...');
+            const formData = new FormData();
+            formData.append('audio', selectedFile);
+            formData.append('course', course);
+            formData.append('title', title);
+
+            const response = await fetch('/api/gemini/process-audio', {
+              method: 'POST',
+              headers: {
+                'x-gemini-api-key': apiKey,
+              },
+              body: formData,
+            });
+
+            if (response.ok) {
+              const serverResult = await response.json();
+              if (serverResult.success && serverResult.data) {
+                lectureData = serverResult.data;
+              }
             }
+          } catch (e) {
+            console.warn('Server fallback failed too:', e);
           }
-          throw new Error(errDetail);
         }
 
-        const serverResult = await response.json();
-        if (!serverResult.success || !serverResult.data) {
-          throw new Error('Dati restituiti dal server non validi.');
+        if (!lectureData) {
+          throw new Error(directErr.message || 'Errore durante l\'elaborazione dell\'audio.');
         }
-        lectureData = serverResult.data;
       }
 
       setProcessingStage('Salvataggio dei risultati e generazione appunti...');
