@@ -347,7 +347,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               <Settings className="w-4 h-4 text-purple-400" />
               <span>Impostazioni API</span>
             </div>
-            <span className="text-[10px] text-zinc-500">Gemini 2.5</span>
+            <span className="text-[10px] text-zinc-500">Gemini</span>
           </button>
         </div>
       </aside>
@@ -416,7 +416,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
                 {currentLecture.processingProgress ||
-                  'Gemini 2.5 Flash sta elaborando la registrazione, generando la trascrizione bilingue, calcolando le formule LaTeX e strutturando gli appunti.'}
+                  'Gemini sta elaborando la registrazione, generando la trascrizione bilingue, calcolando le formule LaTeX e strutturando gli appunti.'}
               </p>
               <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full w-full animate-pulse" />

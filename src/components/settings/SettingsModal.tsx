@@ -49,7 +49,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
         <div className="py-4 space-y-4">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-              Chiave Google AI Studio (Gemini 2.5 Flash)
+              Chiave Google AI Studio (Gemini Flash / Pro)
             </label>
             <div className="relative">
               <input
@@ -71,7 +71,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               <span>Elaborazione Audio Multimodale Diretta</span>
             </div>
             <p className="text-zinc-400">
-              Usa il motore <strong>Gemini 2.5 Flash</strong> per trascrizione audio nativa, calcolo matematico LaTeX e sintesi ad alta fedeltà accademica.
+              Usa i motori multimodali <strong>Gemini 2.0 Flash / 1.5 Flash / Pro</strong> per trascrizione audio nativa, calcolo matematico LaTeX e sintesi ad alta fedeltà accademica.
             </p>
             <a
               href="https://aistudio.google.com/app/apikey"

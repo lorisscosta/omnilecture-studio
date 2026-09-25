@@ -65,7 +65,6 @@ Linee guida per la risposta:
     });
 
     const modelsToTry = [
-      'gemini-2.5-flash',
       'gemini-2.0-flash',
       'gemini-2.0-flash-exp',
       'gemini-1.5-flash-latest',
@@ -96,7 +95,7 @@ Linee guida per la risposta:
       if (chatResponse.ok) {
         break;
       }
-      if (chatResponse.status === 404) {
+      if (chatResponse.status === 404 || chatResponse.status === 400) {
         continue;
       } else {
         break;

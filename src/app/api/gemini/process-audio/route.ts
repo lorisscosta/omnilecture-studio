@@ -210,8 +210,16 @@ Devi analizzare in profondità l'audio ed estrarre:
 
     const promptText = `Analizza questa lezione del corso di "${course}" intitolata "${title}". Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
-    // Attempt generation with gemini-2.5-flash first, fallback to gemini-2.0-flash / gemini-1.5-flash if needed
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    const modelsToTry = [
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash-002',
+      'gemini-1.5-flash-001',
+      'gemini-1.5-pro',
+      'gemini-1.5-pro-latest',
+    ];
     let generationResponse: Response | null = null;
     let successfulModel = '';
 
@@ -253,12 +261,11 @@ Devi analizzare in profondità l'audio ed estrarre:
         break;
       }
 
-      // If model not found (404), try next model in fallback list
-      if (generationResponse.status === 404) {
-        console.warn(`Model ${model} returned 404, trying next available model...`);
+      // If model not found (404) or modality unsupported (400), try next model
+      if (generationResponse.status === 404 || generationResponse.status === 400) {
+        console.warn(`Model ${model} returned ${generationResponse.status}, trying next available model...`);
         continue;
       } else {
-        // Other error (e.g. 400, 401, 429) -> don't cycle endlessly
         break;
       }
     }

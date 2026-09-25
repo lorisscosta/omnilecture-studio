@@ -19,6 +19,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
   const [course, setCourse] = useState('Elaborazione Numerica dei Segnali');
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
@@ -103,7 +104,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           (stage) => {
             setProcessingStage(stage);
             updateLectureStatus(lectureId, 'processing', undefined, stage).catch(console.error);
-          }
+          },
+          selectedModel
         );
         lectureData = result.data;
       } catch (directErr: any) {
@@ -284,6 +286,25 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           />
         </div>
 
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center justify-between">
+            <span>Modello AI Multimodale</span>
+            <span className="text-[10px] text-purple-400 font-normal">Audio Nativo</span>
+          </label>
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            disabled={isProcessing}
+            className="w-full rounded-lg bg-zinc-950 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-purple-500 cursor-pointer"
+          >
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Consigliato - Velocissimo & Multimodale)</option>
+            <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash Latest (Stabile per registrazioni lunghe)</option>
+            <option value="gemini-1.5-flash-002">Gemini 1.5 Flash 002 (Alta efficienza)</option>
+            <option value="gemini-1.5-pro-latest">Gemini 1.5 Pro (Massima precisione accademica & formule)</option>
+            <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash Experimental</option>
+          </select>
+        </div>
+
         {/* Action Button & Processing indicator */}
         <div className="pt-3">
           {isProcessing ? (
@@ -306,7 +327,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Sparkles className="w-4 h-4" />
-              Avvia Analisi con Gemini 2.5 Flash
+              Avvia Analisi Accademica con Gemini
             </button>
           )}
         </div>

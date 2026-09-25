@@ -68,7 +68,8 @@ export async function processAudioDirectly(
   course: string,
   title: string,
   apiKey: string,
-  onProgress?: (stage: string) => void
+  onProgress?: (stage: string) => void,
+  userSelectedModel?: string
 ): Promise<{ success: boolean; data: LectureData; modelUsed: string }> {
   let fileResourceName: string | null = null;
 
@@ -143,16 +144,22 @@ export async function processAudioDirectly(
     onProgress?.('Rilevamento automatico dei modelli Gemini abilitati per la tua chiave...');
     let modelsToTry: string[] = [];
 
+    // If user explicitly chose a model, try that first!
+    if (userSelectedModel && !userSelectedModel.includes('tts') && !userSelectedModel.includes('2.5')) {
+      modelsToTry.push(userSelectedModel);
+    }
+
     try {
       const listResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
       if (listResponse.ok) {
         const listData = await listResponse.json();
-        const available = (listData.models || [])
+        const available: string[] = (listData.models || [])
           .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
           .map((m: any) => m.name.replace(/^models\//, ''))
-          // Exclude text-to-speech, embedding, image-gen models that don't support audio input
+          // Strict filter: Exclude TTS, 2.5 preview, embedding, imagen, aqa
           .filter((name: string) => 
             !name.includes('tts') && 
+            !name.includes('2.5') &&
             !name.includes('embedding') && 
             !name.includes('imagen') && 
             !name.includes('aqa') &&
@@ -162,18 +169,17 @@ export async function processAudioDirectly(
         const preferredOrder = [
           'gemini-2.0-flash',
           'gemini-2.0-flash-exp',
+          'gemini-1.5-flash',
           'gemini-1.5-flash-latest',
           'gemini-1.5-flash-002',
           'gemini-1.5-flash-001',
-          'gemini-1.5-flash',
-          'gemini-2.5-flash',
+          'gemini-1.5-pro',
           'gemini-1.5-pro-latest',
           'gemini-1.5-pro-002',
-          'gemini-1.5-pro',
         ];
 
         for (const p of preferredOrder) {
-          if (available.includes(p)) {
+          if (available.includes(p) && !modelsToTry.includes(p)) {
             modelsToTry.push(p);
           }
         }
@@ -193,17 +199,14 @@ export async function processAudioDirectly(
       modelsToTry = [
         'gemini-2.0-flash',
         'gemini-2.0-flash-exp',
+        'gemini-1.5-flash',
         'gemini-1.5-flash-latest',
         'gemini-1.5-flash-002',
         'gemini-1.5-flash-001',
-        'gemini-1.5-flash',
-        'gemini-2.5-flash',
-        'gemini-1.5-pro-latest',
         'gemini-1.5-pro',
+        'gemini-1.5-pro-latest',
       ];
     }
-
-    onProgress?.(`Analisi in corso con il modello Gemini (${modelsToTry[0]})...`);
 
     const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria (es. Elaborazione Numerica dei Segnali, Controlli Automatici, Telecomunicazioni, Robotica, Elettronica).
 La lezione audio caricata è tenuta in lingua INGLESE.
@@ -218,9 +221,10 @@ Devi analizzare in profondità l'audio ed estrarre:
 
     let generationResponse: Response | null = null;
     let successfulModel = '';
+    const errorLogs: string[] = [];
 
     for (const model of modelsToTry) {
-      onProgress?.(`Analisi con ${model}...`);
+      onProgress?.(`Analisi in corso con il modello: ${model}...`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const payload = {
         system_instruction: {
@@ -247,35 +251,46 @@ Devi analizzare in profondità l'audio ed estrarre:
         },
       };
 
-      generationResponse = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
 
-      if (generationResponse.ok) {
-        successfulModel = model;
-        break;
-      }
+        if (response.ok) {
+          generationResponse = response;
+          successfulModel = model;
+          break;
+        }
 
-      // If model returned 404 (not found) or 400 (e.g. audio modality not enabled for this sub-variant)
-      if (generationResponse.status === 404 || generationResponse.status === 400) {
-        const errorText = await generationResponse.clone().text().catch(() => '');
-        console.warn(`Modello ${model} ha restituito ${generationResponse.status} (${errorText.slice(0, 100)}), provo il modello successivo...`);
+        const errorText = await response.text().catch(() => '');
+        let errMsg = errorText;
+        try {
+          const errObj = JSON.parse(errorText);
+          errMsg = errObj.error?.message || errorText;
+        } catch {}
+
+        errorLogs.push(`${model}: ${errMsg.slice(0, 120)}`);
+        console.warn(`Modello ${model} ha restituito ${response.status}: ${errMsg}`);
+
+        // If 404 or 400 (e.g. audio modality issue on a sub-variant), continue trying next model!
+        if (response.status === 404 || response.status === 400) {
+          continue;
+        } else {
+          // If 401 or 403 (invalid key / quota exhausted), stop immediately
+          generationResponse = response;
+          break;
+        }
+      } catch (fetchErr: any) {
+        errorLogs.push(`${model}: ${fetchErr.message}`);
         continue;
-      } else {
-        break;
       }
     }
 
     if (!generationResponse || !generationResponse.ok) {
-      const errorText = generationResponse ? await generationResponse.text() : 'Nessuna risposta ricevuta.';
-      let parsed = errorText;
-      try {
-        const errObj = JSON.parse(errorText);
-        parsed = errObj.error?.message || errorText;
-      } catch {}
-      throw new Error(`Errore API Gemini (${generationResponse?.status || 500}): ${parsed}`);
+      const summaryMsg = errorLogs.length > 0 ? errorLogs.join(' | ') : 'Nessuna risposta dai modelli.';
+      throw new Error(`Errore generazione Gemini: ${summaryMsg}`);
     }
 
     const genData = await generationResponse.json();

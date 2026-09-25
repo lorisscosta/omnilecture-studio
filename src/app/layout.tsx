@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'OmniLecture Studio | Academic STEM Hub',
-  description: 'Academic-grade lecture recorder & management hub for STEM Master students powered by Gemini 2.5 Flash',
+  description: 'Academic-grade lecture recorder & management hub for STEM Master students powered by Google Gemini',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -47,7 +47,9 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                  navigator.serviceWorker.register('/sw.js').catch((err) => {
+                  navigator.serviceWorker.register('/sw.js').then((reg) => {
+                    reg.update().catch(console.error);
+                  }).catch((err) => {
                     console.log('SW registration failed:', err);
                   });
                 });
