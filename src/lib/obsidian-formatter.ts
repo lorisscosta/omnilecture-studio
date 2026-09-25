@@ -6,9 +6,20 @@ function formatTimestamp(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
+function safeFormatDate(d?: string): string {
+  if (!d) return new Date().toISOString().split('T')[0];
+  try {
+    const parsed = new Date(d);
+    if (isNaN(parsed.getTime())) return d;
+    return parsed.toISOString().split('T')[0];
+  } catch {
+    return d;
+  }
+}
+
 export function generateObsidianMarkdown(lecture: Lecture): string {
   const { title, course, date, duration, data } = lecture;
-  const formattedDate = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  const formattedDate = safeFormatDate(date);
   const durationStr = formatTimestamp(duration);
   const courseSlug = course.toLowerCase().replace(/[^a-z0-9]/g, '-');
 

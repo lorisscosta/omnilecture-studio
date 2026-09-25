@@ -72,7 +72,7 @@ export const LectureChatTab: React.FC<LectureChatTabProps> = ({ lecture, onOpenS
           course: lecture.course,
           studyGuide: lecture.data?.study_guide_it || '',
           glossary: lecture.data?.glossary || [],
-          messages: newMessages.slice(-6), // Send last few messages for continuity
+          messages: messages.slice(-6), // Send previous message history
           question: textToSend.trim(),
         }),
       });

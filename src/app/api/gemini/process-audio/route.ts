@@ -290,7 +290,14 @@ Struttura dei campi JSON richiesta:
       throw new Error('Risposta vuota da Gemini API.');
     }
 
-    const parsedData = JSON.parse(candidateText);
+    let cleanJson = candidateText.trim();
+    if (cleanJson.startsWith('```json')) {
+      cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+    } else if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+    }
+
+    const parsedData = JSON.parse(cleanJson);
 
     // Step 4: Cleanup Google AI Studio temp file
     if (uploadedFileResource) {

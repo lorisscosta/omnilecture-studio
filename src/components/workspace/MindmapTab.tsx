@@ -59,6 +59,8 @@ export const MindmapTab: React.FC<MindmapTabProps> = ({ mindmapCode }) => {
       })
       .catch((err) => {
         console.warn('Mermaid rendering failed:', err);
+        const errorEl = document.getElementById(renderId) || document.getElementById('d' + renderId);
+        if (errorEl) errorEl.remove();
         if (isMounted) {
           setRenderError('Impossibile renderizzare il diagramma Mermaid. Visualizzazione del codice sorgente.');
         }

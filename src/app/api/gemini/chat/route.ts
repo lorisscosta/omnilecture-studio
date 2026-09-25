@@ -46,23 +46,38 @@ Linee guida per la risposta:
 - Utilizza la sintassi LaTeX standard ($...$ per formule inline e $$...$$ per blocchi isolati) per ogni termine matematico, equazione o dimostrazione.
 - Se la domanda non è coperta dal materiale della lezione, rispondi usando le tue conoscenze scientifiche indicando però con trasparenza che si tratta di un approfondimento non esplicitamente menzionato nella registrazione.`;
 
-    // Format chat history for Gemini API
+    // Format chat history for Gemini API (ensuring strict alternating turns and no duplicate user turns)
     const formattedContents: any[] = [];
 
     if (Array.isArray(messages)) {
       for (const msg of messages) {
-        formattedContents.push({
-          role: msg.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: msg.content }],
-        });
+        if (!msg || !msg.content) continue;
+        const role = msg.role === 'assistant' ? 'model' : 'user';
+        
+        // Merge consecutive turns with the same role to satisfy Gemini's strict alternation
+        if (formattedContents.length > 0 && formattedContents[formattedContents.length - 1].role === role) {
+          formattedContents[formattedContents.length - 1].parts[0].text += '\n\n' + msg.content;
+        } else {
+          formattedContents.push({
+            role,
+            parts: [{ text: msg.content }],
+          });
+        }
       }
     }
 
-    // Add current question
-    formattedContents.push({
-      role: 'user',
-      parts: [{ text: question }],
-    });
+    // Add current question if not already the last user turn
+    const lastItem = formattedContents[formattedContents.length - 1];
+    if (lastItem && lastItem.role === 'user') {
+      if (lastItem.parts[0].text !== question) {
+        lastItem.parts[0].text += '\n\n' + question;
+      }
+    } else {
+      formattedContents.push({
+        role: 'user',
+        parts: [{ text: question }],
+      });
+    }
 
     const modelsToTry = [
       'gemini-1.5-flash-latest',

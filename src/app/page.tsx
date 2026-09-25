@@ -478,6 +478,11 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     ref={waveSurferRef}
                     audioBlob={currentLecture.audioBlob}
                     onTimeUpdate={(t) => setCurrentTime(t)}
+                    onDurationChange={(dur) => {
+                      if ((!currentLecture.duration || currentLecture.duration === 0) && dur > 0) {
+                        db.lectures.update(currentLecture.id, { duration: Math.round(dur) }).catch(console.error);
+                      }
+                    }}
                   />
                 </div>
               )}
