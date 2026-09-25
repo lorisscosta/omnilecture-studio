@@ -26,6 +26,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env*
 
 # vercel
 .vercel
@@ -33,4 +34,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-.vercel
+# recordings
+*.wav
+*.mp3
+*.m4a

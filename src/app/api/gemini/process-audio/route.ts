@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { detectAudioMimeType } from '@/lib/gemini-service';
 
 export const maxDuration = 300; // 5 minutes for processing long audio files
 export const dynamic = 'force-dynamic';
 
-// Strict JSON Schema for Gemini 2.5 Flash
+// Strict JSON Schema for Gemini
 const responseSchema = {
   type: 'OBJECT',
   properties: {
@@ -78,7 +79,7 @@ async function uploadToGeminiFilesAPI(
     'X-Goog-Upload-Protocol': 'resumable',
     'X-Goog-Upload-Command': 'start',
     'X-Goog-Upload-Header-Content-Length': audioBuffer.byteLength.toString(),
-    'X-Goog-Upload-Header-Content-Type': mimeType || 'audio/mp3',
+    'X-Goog-Upload-Header-Content-Type': mimeType,
     'Content-Type': 'application/json',
   };
 
@@ -88,6 +89,7 @@ async function uploadToGeminiFilesAPI(
     body: JSON.stringify({
       file: {
         display_name: fileName,
+        mimeType: mimeType,
       },
     }),
   });
@@ -186,8 +188,8 @@ export async function POST(req: NextRequest) {
     }
 
     const arrayBuffer = await audioFile.arrayBuffer();
-    const mimeType = audioFile.type || 'audio/mp3';
-    const fileName = audioFile.name || 'lecture_audio.mp3';
+    const fileName = audioFile.name || 'lecture_audio.wav';
+    const mimeType = detectAudioMimeType(arrayBuffer, fileName, audioFile.type);
 
     // Step 1: Upload to Google AI Studio Files API
     const { fileUri, fileResourceName } = await uploadToGeminiFilesAPI(
@@ -200,12 +202,13 @@ export async function POST(req: NextRequest) {
 
     // Step 2: System prompt and query
     const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria (es. Elaborazione Numerica dei Segnali, Controlli Automatici, Telecomunicazioni, Robotica, Elettronica).
-La lezione audio caricata è tenuta in lingua INGLESE.
+La registrazione audio caricata può essere in lingua INGLESE o ITALIANA (o può essere un test preliminare/registrazione di prova breve).
+Trascrivi con precisione ogni parola pronunciata. Se la registrazione è breve o un test preliminare, elaborala comunque con successo compilando tutti i campi richiesti in modo coerente.
 Devi analizzare in profondità l'audio ed estrarre:
-1. "glossary": Glossario completo di tutti i termini tecnici specialistici con traduzione italiana ufficiale e definizione accademica rigorosa.
-2. "timestamped_transcript": Trascrizione cronologica completa suddivisa in segmenti temporali (start, end in secondi), con il testo originale in inglese (text_en) e l'accurata traduzione italiana a fronte (text_it).
+1. "glossary": Glossario completo di tutti i termini tecnici specialistici con traduzione italiana ufficiale e definizione accademica rigorosa (se non ci sono termini tecnici nell'audio, includi termini specialistici pertinenti al corso "${course}").
+2. "timestamped_transcript": Trascrizione cronologica completa suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana a fronte (text_it).
 3. "study_guide_it": Guida allo studio accademica approfondita e formale in ITALIANO. Strutturata con titoli, paragrafi, formule matematiche LaTeX native (usa $...$ per formule inline e $$...$$ per blocchi), passaggi di dimostrazioni matematiche, teoremi, e callout in stile Obsidian (es. > [!note], > [!important], > [!tip]).
-4. "potential_exam_questions": Almeno 3-5 domande d'esame (scritto/orale) realistiche ed esigenti basate sui concetti chiave spiegati, con le relative soluzioni dettagliate in LaTeX (answer_latex) e livello di importanza ('Medium', 'High', 'Crucial').
+4. "potential_exam_questions": Almeno 3-5 domande d'esame (scritto/orale) realistiche ed esigenti basate sui concetti chiave spiegati o pertinenti al tema del corso, con le relative soluzioni dettagliate in LaTeX (answer_latex) e livello di importanza ('Medium', 'High', 'Crucial').
 5. "mermaid_mindmap": Schema visivo concettuale della lezione scritto in pura sintassi Mermaid.js (es. flowchart TD ...). Assicurati che sia sintatticamente valido senza caratteri vietati nei nodi.`;
 
     const promptText = `Analizza questa lezione del corso di "${course}" intitolata "${title}". Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;

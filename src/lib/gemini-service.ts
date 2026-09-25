@@ -63,6 +63,63 @@ export const responseSchema = {
   ],
 };
 
+export function detectAudioMimeType(buffer: ArrayBuffer, fileName?: string, defaultType?: string): string {
+  if (buffer.byteLength >= 12) {
+    const bytes = new Uint8Array(buffer.slice(0, 12));
+    // RIFF .... WAVE
+    if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+        bytes[8] === 0x57 && bytes[9] === 0x41 && bytes[10] === 0x56 && bytes[11] === 0x45) {
+      return 'audio/wav';
+    }
+    // ID3 or MP3 sync word
+    if ((bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) ||
+        (bytes[0] === 0xFF && (bytes[1] & 0xE0) === 0xE0)) {
+      return 'audio/mp3';
+    }
+    // ftyp (M4A / MP4)
+    if (bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+      return 'audio/m4a';
+    }
+    // OggS
+    if (bytes[0] === 0x4F && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) {
+      return 'audio/ogg';
+    }
+    // fLaC
+    if (bytes[0] === 0x66 && bytes[1] === 0x4C && bytes[2] === 0x61 && bytes[3] === 0x43) {
+      return 'audio/flac';
+    }
+  }
+
+  // Fallback to file extension
+  if (fileName) {
+    const ext = fileName.toLowerCase().split('.').pop() || '';
+    if (ext === 'wav') return 'audio/wav';
+    if (ext === 'mp3') return 'audio/mp3';
+    if (ext === 'm4a') return 'audio/m4a';
+    if (ext === 'aac') return 'audio/aac';
+    if (ext === 'ogg' || ext === 'oga') return 'audio/ogg';
+    if (ext === 'flac') return 'audio/flac';
+    if (ext === 'aiff' || ext === 'aif') return 'audio/aiff';
+    if (ext === 'webm') return 'audio/webm';
+  }
+
+  // Fallback to defaultType if specified
+  if (defaultType && defaultType !== 'application/octet-stream' && defaultType !== '') {
+    const dt = defaultType.toLowerCase();
+    if (dt.includes('wav')) return 'audio/wav';
+    if (dt.includes('mp3') || dt.includes('mpeg')) return 'audio/mp3';
+    if (dt.includes('m4a') || dt.includes('mp4')) return 'audio/m4a';
+    if (dt.includes('aac')) return 'audio/aac';
+    if (dt.includes('ogg')) return 'audio/ogg';
+    if (dt.includes('flac')) return 'audio/flac';
+    if (dt.includes('aiff')) return 'audio/aiff';
+    if (dt.includes('webm')) return 'audio/webm';
+    return defaultType;
+  }
+
+  return 'audio/wav';
+}
+
 export async function processAudioDirectly(
   audioFile: File | Blob,
   course: string,
@@ -75,15 +132,16 @@ export async function processAudioDirectly(
 
   try {
     const arrayBuffer = await audioFile.arrayBuffer();
-    const mimeType = audioFile.type || 'audio/mp3';
-    const fileName = (audioFile as File).name || 'lecture_audio.mp3';
+    const fileName = (audioFile as File).name || 'lecture_audio.wav';
+    const mimeType = detectAudioMimeType(arrayBuffer, fileName, audioFile.type);
 
     // Step 1: Upload via single multipart/related request (CORS-compatible, no custom headers required)
-    onProgress?.('Caricamento audio su Google AI Studio Files API...');
+    onProgress?.(`Caricamento audio (${mimeType}) su Google AI Studio Files API...`);
     const boundary = '----OmniLectureBoundary' + Math.random().toString(36).substring(2);
     const metadataPart = JSON.stringify({
       file: {
         display_name: fileName,
+        mimeType: mimeType,
       },
     });
 
@@ -209,12 +267,13 @@ export async function processAudioDirectly(
     }
 
     const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria (es. Elaborazione Numerica dei Segnali, Controlli Automatici, Telecomunicazioni, Robotica, Elettronica).
-La lezione audio caricata è tenuta in lingua INGLESE.
+La registrazione audio caricata può essere in lingua INGLESE o ITALIANA (o può essere un test preliminare/registrazione di prova breve).
+Trascrivi con precisione ogni parola pronunciata. Se la registrazione è breve o un test preliminare, elaborala comunque con successo compilando tutti i campi richiesti in modo coerente.
 Devi analizzare in profondità l'audio ed estrarre:
-1. "glossary": Glossario completo di tutti i termini tecnici specialistici con traduzione italiana ufficiale e definizione accademica rigorosa.
-2. "timestamped_transcript": Trascrizione cronologica completa suddivisa in segmenti temporali (start, end in secondi), con il testo originale in inglese (text_en) e l'accurata traduzione italiana a fronte (text_it).
+1. "glossary": Glossario completo di tutti i termini tecnici specialistici con traduzione italiana ufficiale e definizione accademica rigorosa (se non ci sono termini tecnici nell'audio, includi termini specialistici pertinenti al corso "${course}").
+2. "timestamped_transcript": Trascrizione cronologica completa suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana a fronte (text_it).
 3. "study_guide_it": Guida allo studio accademica approfondita e formale in ITALIANO. Strutturata con titoli, paragrafi, formule matematiche LaTeX native (usa $...$ per formule inline e $$...$$ per blocchi), passaggi di dimostrazioni matematiche, teoremi, e callout in stile Obsidian (es. > [!note], > [!important], > [!tip]).
-4. "potential_exam_questions": Almeno 3-5 domande d'esame (scritto/orale) realistiche ed esigenti basate sui concetti chiave spiegati, con le relative soluzioni dettagliate in LaTeX (answer_latex) e livello di importanza ('Medium', 'High', 'Crucial').
+4. "potential_exam_questions": Almeno 3-5 domande d'esame (scritto/orale) realistiche ed esigenti basate sui concetti chiave spiegati o pertinenti al tema del corso, con le relative soluzioni dettagliate in LaTeX (answer_latex) e livello di importanza ('Medium', 'High', 'Crucial').
 5. "mermaid_mindmap": Schema visivo concettuale della lezione scritto in pura sintassi Mermaid.js (es. flowchart TD ...). Assicurati che sia sintatticamente valido senza caratteri vietati nei nodi.`;
 
     const promptText = `Analizza questa lezione del corso di "${course}" intitolata "${title}". Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
