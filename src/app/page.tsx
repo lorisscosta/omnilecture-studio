@@ -36,23 +36,28 @@ import { LectureChatTab } from '@/components/workspace/LectureChatTab';
 
 export default function HomePage() {
   const [selectedLectureId, setSelectedLectureId] = useState<string | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [activeTab, setActiveTab] = useState<'guide' | 'transcript' | 'glossary' | 'mindmap' | 'chat'>('guide');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
 
   const waveSurferRef = useRef<WaveSurferPlayerHandle>(null);
+  const hasInitializedRef = useRef(false);
 
   // Live query from IndexedDB
   const lectures = useLiveQuery(() => getAllLectures(), []) || [];
-  const currentLecture = lectures.find((l) => l.id === selectedLectureId);
+  const currentLecture = !isCreatingNew ? lectures.find((l) => l.id === selectedLectureId) : null;
 
-  // If no lecture selected, select first available on load
+  // Auto-select first lecture only once on initial app load if available and not explicitly creating new
   useEffect(() => {
-    if (!selectedLectureId && lectures.length > 0) {
-      setSelectedLectureId(lectures[0].id);
+    if (!hasInitializedRef.current && lectures.length > 0) {
+      hasInitializedRef.current = true;
+      if (!isCreatingNew && selectedLectureId === null) {
+        setSelectedLectureId(lectures[0].id);
+      }
     }
-  }, [lectures, selectedLectureId]);
+  }, [lectures, isCreatingNew, selectedLectureId]);
 
   // Handle seeking from transcript
   const handleSeekFromTranscript = (seconds: number) => {
@@ -257,10 +262,11 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
           <button
             onClick={() => {
               setSelectedLectureId(null);
+              setIsCreatingNew(true);
               setIsSidebarOpen(false);
             }}
             className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-semibold shadow-md transition ${
-              selectedLectureId === null
+              isCreatingNew || selectedLectureId === null
                 ? 'bg-purple-600 text-white shadow-purple-900/30'
                 : 'bg-zinc-900 text-zinc-200 hover:bg-zinc-800 border border-zinc-800'
             }`}
@@ -287,12 +293,13 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
           </div>
 
           {lectures.map((lec) => {
-            const isSelected = lec.id === selectedLectureId;
+            const isSelected = !isCreatingNew && lec.id === selectedLectureId;
             return (
               <div
                 key={lec.id}
                 onClick={() => {
                   setSelectedLectureId(lec.id);
+                  setIsCreatingNew(false);
                   setIsSidebarOpen(false);
                 }}
                 className={`group relative rounded-xl p-3 cursor-pointer transition border ${
@@ -364,7 +371,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               <Menu className="w-5 h-5" />
             </button>
 
-            {currentLecture ? (
+            {currentLecture && !isCreatingNew ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-950 border border-purple-800 text-purple-300">
                   {currentLecture.course}
@@ -381,7 +388,21 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
           </div>
 
           <div className="flex items-center gap-2">
-            {currentLecture && currentLecture.data && (
+            {currentLecture && !isCreatingNew && (
+              <button
+                onClick={() => {
+                  setSelectedLectureId(null);
+                  setIsCreatingNew(true);
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 transition"
+                title="Nuova Registrazione"
+              >
+                <Plus className="w-3.5 h-3.5 text-purple-400" />
+                <span>Nuova</span>
+              </button>
+            )}
+
+            {currentLecture && !isCreatingNew && currentLecture.data && (
               <ObsidianExportButton lecture={currentLecture} />
             )}
 
@@ -397,11 +418,14 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
 
         {/* Dynamic Content View */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
-          {/* View 1: Audio Uploader (when no lecture selected) */}
-          {!currentLecture ? (
+          {/* View 1: Audio Uploader (when no lecture selected or creating new) */}
+          {!currentLecture || isCreatingNew ? (
             <div className="py-6">
               <AudioUploader
-                onLectureCreated={(id) => setSelectedLectureId(id)}
+                onLectureCreated={(id) => {
+                  setSelectedLectureId(id);
+                  setIsCreatingNew(false);
+                }}
                 onOpenSettings={() => setIsSettingsOpen(true)}
               />
             </div>
@@ -435,7 +459,10 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 {currentLecture.errorMessage || 'Si è verificato un errore durante la chiamata alle API.'}
               </p>
               <button
-                onClick={() => setSelectedLectureId(null)}
+                onClick={() => {
+                  setSelectedLectureId(null);
+                  setIsCreatingNew(true);
+                }}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition"
               >
                 Torna al Caricamento
