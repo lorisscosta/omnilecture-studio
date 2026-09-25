@@ -201,17 +201,20 @@ export async function POST(req: NextRequest) {
     uploadedFileResource = fileResourceName;
 
     // Step 2: System prompt and query
-    const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria (es. Elaborazione Numerica dei Segnali, Controlli Automatici, Telecomunicazioni, Robotica, Elettronica).
-La registrazione audio caricata può essere in lingua INGLESE o ITALIANA (o può essere un test preliminare/registrazione di prova breve).
-Trascrivi con precisione ogni parola pronunciata. Se la registrazione è breve o un test preliminare, elaborala comunque con successo compilando tutti i campi richiesti in modo coerente.
-Devi analizzare in profondità l'audio ed estrarre:
-1. "glossary": Glossario completo di tutti i termini tecnici specialistici con traduzione italiana ufficiale e definizione accademica rigorosa (se non ci sono termini tecnici nell'audio, includi termini specialistici pertinenti al corso "${course}").
-2. "timestamped_transcript": Trascrizione cronologica completa suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana a fronte (text_it).
-3. "study_guide_it": Guida allo studio accademica approfondita e formale in ITALIANO. Strutturata con titoli, paragrafi, formule matematiche LaTeX native (usa $...$ per formule inline e $$...$$ per blocchi), passaggi di dimostrazioni matematiche, teoremi, e callout in stile Obsidian (es. > [!note], > [!important], > [!tip]).
-4. "potential_exam_questions": Almeno 3-5 domande d'esame (scritto/orale) realistiche ed esigenti basate sui concetti chiave spiegati o pertinenti al tema del corso, con le relative soluzioni dettagliate in LaTeX (answer_latex) e livello di importanza ('Medium', 'High', 'Crucial').
-5. "mermaid_mindmap": Schema visivo concettuale della lezione scritto in pura sintassi Mermaid.js (es. flowchart TD ...). Assicurati che sia sintatticamente valido senza caratteri vietati nei nodi.`;
+    const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria.
+REGOLA FONDAMENTALE DI FEDELTÀ ALL'AUDIO (STRICT GROUNDING):
+Tutto ciò che generi deve basarsi RIGOROSAMENTE ed ESCLUSIVAMENTE sull'effettivo contenuto audio trascritto.
+NON inventare MAI concetti, argomenti, teoremi o formule che non siano stati trattati o accennati dal docente/oratore nell'audio. Il titolo della lezione e il nome del corso servono solo come contesto terminologico, NON come pretesto per allucinare spiegazioni non presenti nella registrazione.
+Il tuo compito è: prendere ciò che il docente ha realmente spiegato nella registrazione e strutturarlo accademicamente, migliorandone la chiarezza formale, la notazione LaTeX e l'esposizione.
 
-    const promptText = `Analizza questa lezione del corso di "${course}" intitolata "${title}". Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+Struttura dei campi JSON richiesta:
+1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Se l'audio è in italiano, text_it conterrà la trascrizione esatta e text_en la traduzione inglese.
+2. "glossary": Estrai SOLO i termini tecnici realmente pronunciati o spiegati nell'audio con traduzione e definizione accademica. Se nell'audio non sono stati pronunciati termini tecnici (es. registrazioni di prova, test microfono, audio non didattico), restituisci un array VUOTO [].
+3. "study_guide_it": Guida allo studio in ITALIANO basata UNICAMENTE sui temi spiegati nella registrazione. Riorganizza e approfondisci con formule matematiche LaTeX native ($...$ e $$...$$) e callout Obsidian ciò che è stato spiegato. Se la registrazione è solo un breve test vocale (es. "prova prova") o non contiene contenuti didattici, spiega sinteticamente che si tratta di una registrazione di test/prova e non aggiungere materiale teorico fittizio.
+4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].
+5. "mermaid_mindmap": Schema visivo Mermaid.js che riassume esclusivamente la gerarchia dei concetti realmente esposti nell'audio (es. "flowchart TD\\n  A[Test Registrazione] --> B[Verifica Audio]").`;
+
+    const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
     const modelsToTry = [
       'gemini-3.8-flash',
