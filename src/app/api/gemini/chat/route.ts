@@ -65,13 +65,14 @@ Linee guida per la risposta:
     });
 
     const modelsToTry = [
-      'gemini-2.0-flash',
-      'gemini-2.0-flash-exp',
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
       'gemini-1.5-flash-latest',
       'gemini-1.5-flash-002',
       'gemini-1.5-flash-001',
       'gemini-1.5-flash',
       'gemini-1.5-pro-latest',
+      'gemini-1.5-pro-002',
       'gemini-1.5-pro',
     ];
     let chatResponse: Response | null = null;
@@ -95,11 +96,13 @@ Linee guida per la risposta:
       if (chatResponse.ok) {
         break;
       }
-      if (chatResponse.status === 404 || chatResponse.status === 400) {
-        continue;
-      } else {
+      if (chatResponse.status === 401) {
         break;
       }
+      if (chatResponse.status === 429 || chatResponse.status === 503) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      continue;
     }
 
     if (!chatResponse || !chatResponse.ok) {

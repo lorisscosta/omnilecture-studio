@@ -203,7 +203,7 @@ export async function processAudioDirectly(
     let modelsToTry: string[] = [];
 
     // If user explicitly chose a model, try that first!
-    if (userSelectedModel && !userSelectedModel.includes('tts') && !userSelectedModel.includes('2.5')) {
+    if (userSelectedModel && !userSelectedModel.includes('tts') && !userSelectedModel.includes('live')) {
       modelsToTry.push(userSelectedModel);
     }
 
@@ -214,10 +214,9 @@ export async function processAudioDirectly(
         const available: string[] = (listData.models || [])
           .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
           .map((m: any) => m.name.replace(/^models\//, ''))
-          // Strict filter: Exclude TTS, 2.5 preview, embedding, imagen, aqa
+          // Strict filter: Exclude TTS, embedding, imagen, aqa, live
           .filter((name: string) => 
             !name.includes('tts') && 
-            !name.includes('2.5') &&
             !name.includes('embedding') && 
             !name.includes('imagen') && 
             !name.includes('aqa') &&
@@ -225,15 +224,15 @@ export async function processAudioDirectly(
           );
 
         const preferredOrder = [
-          'gemini-2.0-flash',
-          'gemini-2.0-flash-exp',
-          'gemini-1.5-flash',
+          'gemini-3.8-flash',
+          'gemini-3.6-flash',
           'gemini-1.5-flash-latest',
           'gemini-1.5-flash-002',
           'gemini-1.5-flash-001',
-          'gemini-1.5-pro',
+          'gemini-1.5-flash',
           'gemini-1.5-pro-latest',
           'gemini-1.5-pro-002',
+          'gemini-1.5-pro',
         ];
 
         for (const p of preferredOrder) {
@@ -255,14 +254,15 @@ export async function processAudioDirectly(
 
     if (modelsToTry.length === 0) {
       modelsToTry = [
-        'gemini-2.0-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-flash',
+        'gemini-3.8-flash',
+        'gemini-3.6-flash',
         'gemini-1.5-flash-latest',
         'gemini-1.5-flash-002',
         'gemini-1.5-flash-001',
-        'gemini-1.5-pro',
+        'gemini-1.5-flash',
         'gemini-1.5-pro-latest',
+        'gemini-1.5-pro-002',
+        'gemini-1.5-pro',
       ];
     }
 
@@ -333,14 +333,20 @@ Devi analizzare in profondità l'audio ed estrarre:
         errorLogs.push(`${model}: ${errMsg.slice(0, 120)}`);
         console.warn(`Modello ${model} ha restituito ${response.status}: ${errMsg}`);
 
-        // If 404 or 400 (e.g. audio modality issue on a sub-variant), continue trying next model!
-        if (response.status === 404 || response.status === 400) {
-          continue;
-        } else {
-          // If 401 or 403 (invalid key / quota exhausted), stop immediately
+        // If 401 (Invalid API key), stop immediately
+        if (response.status === 401) {
           generationResponse = response;
           break;
         }
+
+        // If high demand spike (503 / 429), wait 1.5s and continue to next model
+        if (response.status === 429 || response.status === 503) {
+          onProgress?.(`Il modello ${model} è temporaneamente saturo, provo il modello successivo...`);
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+
+        // Continue trying next available model in all other cases (404, 400, 500, etc.)
+        continue;
       } catch (fetchErr: any) {
         errorLogs.push(`${model}: ${fetchErr.message}`);
         continue;
