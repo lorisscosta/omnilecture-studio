@@ -65,12 +65,11 @@ Linee guida per la risposta:
     });
 
     const modelsToTry = [
-      'gemini-3.8-flash',
-      'gemini-3.6-flash',
       'gemini-1.5-flash-latest',
       'gemini-1.5-flash-002',
-      'gemini-1.5-flash-001',
       'gemini-1.5-flash',
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
       'gemini-1.5-pro-latest',
       'gemini-1.5-pro-002',
       'gemini-1.5-pro',
