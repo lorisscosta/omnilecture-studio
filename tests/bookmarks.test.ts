@@ -1,37 +1,41 @@
 import { describe, it, expect } from 'vitest';
 import { LectureBookmark } from '../src/lib/types';
+import { sortLectureBookmarks } from '../src/lib/db';
 
 describe('bookmarks: sorting and formatting', () => {
-  it('sorts bookmarks chronologically by timestamp', () => {
+  it('sorts bookmarks chronologically by partIndex and timestamp', () => {
     const rawBookmarks: LectureBookmark[] = [
       {
         id: 'bm_2',
         partIndex: 0,
         timestampSeconds: 340,
-        label: 'Proprietà di traslazione',
+        label: 'Proprietà di traslazione (P1)',
         createdAt: new Date().toISOString(),
       },
       {
         id: 'bm_1',
         partIndex: 0,
         timestampSeconds: 60,
-        label: 'Definizione DFT',
+        label: 'Definizione DFT (P1)',
         createdAt: new Date().toISOString(),
       },
       {
         id: 'bm_3',
         partIndex: 1,
         timestampSeconds: 120,
-        label: 'Filtraggio Overlap-Add',
+        label: 'Filtraggio Overlap-Add (P2)',
         createdAt: new Date().toISOString(),
       },
     ];
 
-    const sorted = [...rawBookmarks].sort((a, b) => a.timestampSeconds - b.timestampSeconds);
+    const sorted = sortLectureBookmarks(rawBookmarks);
 
+    // bm_1 (P1, 60s) comes first
     expect(sorted[0].id).toBe('bm_1');
-    expect(sorted[1].id).toBe('bm_3');
-    expect(sorted[2].id).toBe('bm_2');
+    // bm_2 (P1, 340s) comes second
+    expect(sorted[1].id).toBe('bm_2');
+    // bm_3 (P2, 120s) comes third because it is in Part 2!
+    expect(sorted[2].id).toBe('bm_3');
   });
 
   it('correctly filters out removed bookmarks by id', () => {

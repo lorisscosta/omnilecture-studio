@@ -145,16 +145,11 @@ export async function optimizeAudioFile(
   const sourceNode = offlineContext.createBufferSource();
   sourceNode.buffer = decodedBuffer;
 
-  // If source has multiple channels, mix them into mono
-  if (decodedBuffer.numberOfChannels > 1) {
-    const merger = offlineContext.createChannelMerger(1);
-    sourceNode.connect(merger, 0, 0);
-    sourceNode.connect(merger, 1, 0);
-    merger.connect(offlineContext.destination);
-  } else {
-    sourceNode.connect(offlineContext.destination);
-  }
-
+  // Connect sourceNode to the 1-channel destination.
+  // The W3C Web Audio API specification defines that routing any multi-channel input
+  // to a 1-channel destination automatically downmixes with equal weighting
+  // (e.g. 0.5 * (L + R) for stereo) preventing digital clipping and distortion.
+  sourceNode.connect(offlineContext.destination);
   sourceNode.start(0);
 
   onProgress?.('Rendering audio compresso...', 80);

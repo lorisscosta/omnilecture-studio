@@ -182,15 +182,35 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
       [handleSeekTo]
     );
 
+    // Stable key representing the active audio track to avoid recreating WaveSurfer on parent re-renders
+    const currentTrackKey = React.useMemo(() => {
+      if (audioParts && audioParts[activePartIndex]) {
+        const p = audioParts[activePartIndex];
+        return `part_${activePartIndex}_${p.id || p.fileName}_${p.fileSize}`;
+      }
+      if (currentAudioBlob) {
+        const name = (currentAudioBlob as File).name || 'audio';
+        return `blob_${name}_${currentAudioBlob.size}`;
+      }
+      return audioUrl || '';
+    }, [audioParts, activePartIndex, currentAudioBlob, audioUrl]);
+
+    const audioPartsRef = useRef(audioParts);
+    audioPartsRef.current = audioParts;
+
+    const currentAudioBlobRef = useRef(currentAudioBlob);
+    currentAudioBlobRef.current = currentAudioBlob;
+
     // Initialize WaveSurfer for active audio part / blob
     useEffect(() => {
-      if (!containerRef.current) return;
+      if (!containerRef.current || !currentTrackKey) return;
 
       let objectUrl: string | null = null;
       let targetSource = audioUrl;
 
-      if (currentAudioBlob) {
-        objectUrl = URL.createObjectURL(currentAudioBlob);
+      const blobToLoad = currentAudioBlobRef.current;
+      if (blobToLoad) {
+        objectUrl = URL.createObjectURL(blobToLoad);
         targetSource = objectUrl;
       }
 
@@ -252,7 +272,8 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
 
       ws.on('finish', () => {
         // Auto-advance to next part if available!
-        if (hasMultipleParts && audioParts && activePartIndex < audioParts.length - 1) {
+        const currentParts = audioPartsRef.current;
+        if (hasMultipleParts && currentParts && activePartIndex < currentParts.length - 1) {
           pendingSeekRef.current = 0;
           setActivePartIndex((prev) => prev + 1);
         } else {
@@ -267,7 +288,7 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
           URL.revokeObjectURL(objectUrl);
         }
       };
-    }, [currentAudioBlob, audioUrl, activePartIndex, currentStartOffset, hasMultipleParts, totalDuration, audioParts]);
+    }, [currentTrackKey, audioUrl, activePartIndex, currentStartOffset, hasMultipleParts, totalDuration]);
 
     // Fast updates without recreating WaveSurfer instance
     useEffect(() => {

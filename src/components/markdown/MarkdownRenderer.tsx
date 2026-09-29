@@ -13,7 +13,7 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
-// Helper to parse Obsidian callout syntax: > [!type] Title
+// Helper to parse callout syntax: > [!type] Title
 function parseCallout(text: string) {
   const match = text.match(/^\[!([a-zA-Z0-9_-]+)\][ \t]*(.*)/);
   if (match) {
@@ -25,14 +25,14 @@ function parseCallout(text: string) {
   return null;
 }
 
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className = '' }) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = React.memo(({ content, className = '' }) => {
   return (
     <div className={`academic-markdown prose prose-invert max-w-none ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[rehypeKatex, rehypeHighlight]}
         components={{
-          // Custom Blockquote for Obsidian Callouts
+          // Custom Blockquote for Callouts
           blockquote({ children, node }) {
             // Check if first child paragraph starts with [!type]
             let calloutType = 'note';
@@ -165,4 +165,6 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
       </ReactMarkdown>
     </div>
   );
-};
+});
+
+MarkdownRenderer.displayName = 'MarkdownRenderer';

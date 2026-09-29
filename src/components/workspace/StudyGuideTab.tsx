@@ -32,6 +32,22 @@ interface StudyGuideTabProps {
   onSeek?: (seconds: number, partIndex?: number) => void;
 }
 
+// Helper to format student bookmarks for LaTeX
+function formatBookmarksLatex(bookmarks?: LectureBookmark[]): string {
+  if (!bookmarks || bookmarks.length === 0) return '';
+  return `
+\\section*{Note Personali \\& Segnalibri dello Studente}
+\\begin{itemize}
+${bookmarks
+  .map(
+    (b) =>
+      `  \\item \\textbf{[P${b.partIndex + 1} - ${Math.floor(b.timestampSeconds / 60)}m${(b.timestampSeconds % 60).toString().padStart(2, '0')}s] ${b.label.replace(/[_#%$&]/g, '\\$&')}}${b.note ? `: ${b.note.replace(/[_#%$&]/g, '\\$&')}` : ''}`
+  )
+  .join('\n')}
+\\end{itemize}
+`;
+}
+
 // Helper to convert or ensure full Overleaf-ready LaTeX document
 function formatToOverleafLatex(
   content: string,
@@ -51,9 +67,18 @@ function formatToOverleafLatex(
     cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
   }
 
-  // If already contains documentclass, inject timestamp macro if missing and return
+  // If already contains documentclass, inject timestamp macro and bookmarks
   if (cleaned.includes('\\documentclass')) {
-    return injectTimestampPreambleMacro(cleaned);
+    let result = injectTimestampPreambleMacro(cleaned);
+    if (bookmarks && bookmarks.length > 0) {
+      const bmSection = formatBookmarksLatex(bookmarks);
+      if (result.includes('\\end{document}')) {
+        result = result.replace('\\end{document}', `${bmSection}\n\\end{document}`);
+      } else {
+        result += '\n' + bmSection;
+      }
+    }
+    return result;
   }
 
   // Otherwise convert Markdown notes to valid LaTeX article
@@ -109,28 +134,14 @@ function formatToOverleafLatex(
 \\vspace{0.5cm}
 
 ${latexBody}
-${
-  bookmarks && bookmarks.length > 0
-    ? `
-\\section*{Note Personali \\& Segnalibri dello Studente}
-\\begin{itemize}
-${bookmarks
-  .map(
-    (b) =>
-      `  \\item \\textbf{[P${b.partIndex + 1} - ${Math.floor(b.timestampSeconds / 60)}m${(b.timestampSeconds % 60).toString().padStart(2, '0')}s] ${b.label.replace(/[_#%$&]/g, '\\$&')}}${b.note ? `: ${b.note.replace(/[_#%$&]/g, '\\$&')}` : ''}`
-  )
-  .join('\n')}
-\\end{itemize}
-`
-    : ''
-}
+${formatBookmarksLatex(bookmarks)}
 \\end{document}
 `;
 
   return fullDoc;
 }
 
-export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
+export const StudyGuideTab: React.FC<StudyGuideTabProps> = React.memo(({
   studyGuideIt,
   examQuestions,
   lectureTitle,
@@ -143,8 +154,14 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [showLintDrawer, setShowLintDrawer] = useState(false);
 
-  const overleafLatex = formatToOverleafLatex(studyGuideIt, lectureTitle, course, bookmarks);
-  const lintResult: LatexLintResult = lintLatex(overleafLatex);
+  const overleafLatex = React.useMemo(
+    () => formatToOverleafLatex(studyGuideIt, lectureTitle, course, bookmarks),
+    [studyGuideIt, lectureTitle, course, bookmarks]
+  );
+  const lintResult: LatexLintResult = React.useMemo(
+    () => lintLatex(overleafLatex),
+    [overleafLatex]
+  );
 
   const toggleQuestion = (index: number) => {
     setExpandedQuestions((prev) => ({
@@ -462,4 +479,6 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
       )}
     </div>
   );
-};
+});
+
+StudyGuideTab.displayName = 'StudyGuideTab';

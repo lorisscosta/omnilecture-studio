@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { TranscriptSegment } from '@/lib/types';
 import { Play, Search, Volume2, AlignLeft, ListFilter, Copy, Check } from 'lucide-react';
 
@@ -16,7 +16,7 @@ function formatSeconds(seconds: number): string {
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
-export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentTime, onSeek }) => {
+export const TranscriptTab: React.FC<TranscriptTabProps> = React.memo(({ segments, currentTime, onSeek }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'bilingual' | 'en' | 'it'>('bilingual');
   const [layoutMode, setLayoutMode] = useState<'timestamped' | 'continuous'>('timestamped');
@@ -39,20 +39,24 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
     }
   }, [activeIndex, autoScroll, layoutMode]);
 
-  const filteredSegments = segments.filter((seg) => {
-    if (!searchQuery.trim()) return true;
+  const filteredSegments = useMemo(() => {
+    if (!searchQuery.trim()) return segments;
     const q = searchQuery.toLowerCase();
-    return seg.text_en.toLowerCase().includes(q) || seg.text_it.toLowerCase().includes(q);
-  });
+    return segments.filter(
+      (seg) => seg.text_en.toLowerCase().includes(q) || seg.text_it.toLowerCase().includes(q)
+    );
+  }, [segments, searchQuery]);
 
   // Build continuous text for copying or continuous reading
-  const continuousText = filteredSegments
-    .map((seg) => {
-      if (viewMode === 'it') return seg.text_it;
-      if (viewMode === 'en') return seg.text_en;
-      return `${seg.text_en}\n(Traduzione IT: ${seg.text_it})`;
-    })
-    .join('\n\n');
+  const continuousText = useMemo(() => {
+    return filteredSegments
+      .map((seg) => {
+        if (viewMode === 'it') return seg.text_it;
+        if (viewMode === 'en') return seg.text_en;
+        return `${seg.text_en}\n(Traduzione IT: ${seg.text_it})`;
+      })
+      .join('\n\n');
+  }, [filteredSegments, viewMode]);
 
   const handleCopyContinuous = async () => {
     try {
@@ -305,4 +309,6 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
       )}
     </div>
   );
-};
+});
+
+TranscriptTab.displayName = 'TranscriptTab';

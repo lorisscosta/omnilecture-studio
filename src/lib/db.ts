@@ -131,15 +131,23 @@ export async function updateProcessingChunkStatus(
 }
 
 // Bookmarks Operations
+export function sortLectureBookmarks(
+  bookmarks: NonNullable<Lecture['bookmarks']>
+): NonNullable<Lecture['bookmarks']> {
+  return [...bookmarks].sort((a, b) => {
+    const partDiff = (a.partIndex ?? 0) - (b.partIndex ?? 0);
+    if (partDiff !== 0) return partDiff;
+    return a.timestampSeconds - b.timestampSeconds;
+  });
+}
+
 export async function addLectureBookmark(
   id: string,
   bookmark: NonNullable<Lecture['bookmarks']>[0]
 ): Promise<void> {
   const lecture = await db.lectures.get(id);
   if (lecture) {
-    const updatedBookmarks = [...(lecture.bookmarks || []), bookmark].sort(
-      (a, b) => a.timestampSeconds - b.timestampSeconds
-    );
+    const updatedBookmarks = sortLectureBookmarks([...(lecture.bookmarks || []), bookmark]);
     const updatedData = lecture.data ? { ...lecture.data, bookmarks: updatedBookmarks } : lecture.data;
     await db.lectures.update(id, {
       bookmarks: updatedBookmarks,

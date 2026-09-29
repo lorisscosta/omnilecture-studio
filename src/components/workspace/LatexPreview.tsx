@@ -55,21 +55,18 @@ const LazyLatexSection: React.FC<LazyLatexSectionProps> = ({ children, initialVi
   );
 };
 
-/**
- * Parses LaTeX content, converts standard LaTeX structures into markdown/HTML
- * compatible with KaTeX, and makes \\ts{part}{seconds} interactive.
- */
-export const LatexPreview: React.FC<LatexPreviewProps> = ({ latexContent, onSeek }) => {
-  if (!latexContent || !latexContent.trim()) {
-    return (
-      <div className="p-8 text-center text-zinc-500 italic">
-        Nessun contenuto LaTeX disponibile per l&apos;anteprima.
-      </div>
-    );
-  }
+interface LatexToken {
+  id: string;
+  type: 'md' | 'ts';
+  content?: string;
+  part?: number;
+  seconds?: number;
+  formatted?: string;
+}
 
+function parseLatexTokens(rawLatex: string): LatexToken[][] {
   // 1. Extract body between \begin{document} and \end{document}
-  let body = latexContent;
+  let body = rawLatex;
   const docStart = body.indexOf('\\begin{document}');
   if (docStart !== -1) {
     body = body.slice(docStart + '\\begin{document}'.length);
@@ -89,7 +86,6 @@ export const LatexPreview: React.FC<LatexPreviewProps> = ({ latexContent, onSeek
     .trim();
 
   // 2. Convert LaTeX environments to KaTeX-ready Markdown blocks
-  // Equations
   body = body.replace(/\\begin\{equation\*?\}([\s\S]*?)\\end\{equation\*?\}/g, (_m, eq) => `\n\n$$\n${eq.trim()}\n$$\n\n`);
   body = body.replace(/\\\[([\s\S]*?)\\\]/g, (_m, eq) => `\n\n$$\n${eq.trim()}\n$$\n\n`);
   body = body.replace(/\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}/g, (_m, eq) => `\n\n$$\\begin{aligned}\n${eq.trim()}\n\\end{aligned}$$\n\n`);
@@ -132,8 +128,7 @@ export const LatexPreview: React.FC<LatexPreviewProps> = ({ latexContent, onSeek
   body = body.replace(/\\item\s+/g, '- ');
 
   // Interactive Timestamp Citations: \ts{part}{seconds}
-  // We split text and inject clickable React buttons
-  const segments: React.ReactNode[] = [];
+  const tokens: LatexToken[] = [];
   const tsRegex = /\\ts\{(\d+)\}\{(\d+)\}/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -141,43 +136,63 @@ export const LatexPreview: React.FC<LatexPreviewProps> = ({ latexContent, onSeek
   while ((match = tsRegex.exec(body)) !== null) {
     const textBefore = body.slice(lastIndex, match.index);
     if (textBefore) {
-      segments.push(
-        <MarkdownRenderer key={`md-${lastIndex}`} content={textBefore} />
-      );
+      tokens.push({
+        id: `md-${lastIndex}`,
+        type: 'md',
+        content: textBefore,
+      });
     }
 
     const part = parseInt(match[1], 10);
     const seconds = parseInt(match[2], 10);
     const formatted = formatSecondsToTimestamp(seconds);
 
-    segments.push(
-      <button
-        key={`ts-${match.index}`}
-        type="button"
-        onClick={() => onSeek?.(seconds, part)}
-        title={`Salta alla registrazione: Parte ${part + 1}, minuto ${formatted}`}
-        className="inline-flex items-center gap-1 mx-1.5 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-700/60 hover:border-purple-500 hover:bg-purple-900/90 text-[11px] font-mono font-medium text-purple-300 hover:text-white transition shadow-sm cursor-pointer select-none group align-middle"
-      >
-        <Clock className="w-3 h-3 text-purple-400 group-hover:scale-110 transition-transform" />
-        <span>P{part + 1}:{formatted}</span>
-      </button>
-    );
+    tokens.push({
+      id: `ts-${match.index}`,
+      type: 'ts',
+      part,
+      seconds,
+      formatted,
+    });
 
     lastIndex = match.index + match[0].length;
   }
 
   const remainingText = body.slice(lastIndex);
   if (remainingText) {
-    segments.push(
-      <MarkdownRenderer key={`md-${lastIndex}`} content={remainingText} />
-    );
+    tokens.push({
+      id: `md-${lastIndex}`,
+      type: 'md',
+      content: remainingText,
+    });
   }
 
-  // Chunk segments into groups of 6 for lazy progressive KaTeX rendering
+  // Chunk tokens into groups of 6 for lazy progressive KaTeX rendering
   const CHUNK_SIZE = 6;
-  const chunkedSegments: React.ReactNode[][] = [];
-  for (let i = 0; i < segments.length; i += CHUNK_SIZE) {
-    chunkedSegments.push(segments.slice(i, i + CHUNK_SIZE));
+  const chunked: LatexToken[][] = [];
+  for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
+    chunked.push(tokens.slice(i, i + CHUNK_SIZE));
+  }
+
+  return chunked;
+}
+
+/**
+ * Parses LaTeX content, converts standard LaTeX structures into markdown/HTML
+ * compatible with KaTeX, and makes \\ts{part}{seconds} interactive.
+ */
+export const LatexPreview: React.FC<LatexPreviewProps> = React.memo(({ latexContent, onSeek }) => {
+  const tokenChunks = React.useMemo(() => {
+    if (!latexContent || !latexContent.trim()) return [];
+    return parseLatexTokens(latexContent);
+  }, [latexContent]);
+
+  if (!latexContent || !latexContent.trim() || tokenChunks.length === 0) {
+    return (
+      <div className="p-8 text-center text-zinc-500 italic">
+        Nessun contenuto LaTeX disponibile per l&apos;anteprima.
+      </div>
+    );
   }
 
   return (
@@ -189,12 +204,33 @@ export const LatexPreview: React.FC<LatexPreviewProps> = ({ latexContent, onSeek
         </span>
       </div>
       <div className="prose prose-invert max-w-none space-y-4">
-        {chunkedSegments.map((chunk, idx) => (
+        {tokenChunks.map((chunk, idx) => (
           <LazyLatexSection key={`lazy-chunk-${idx}`} initialVisible={idx < 2}>
-            {chunk}
+            {chunk.map((tok) => {
+              if (tok.type === 'md' && tok.content) {
+                return <MarkdownRenderer key={tok.id} content={tok.content} />;
+              }
+              if (tok.type === 'ts') {
+                return (
+                  <button
+                    key={tok.id}
+                    type="button"
+                    onClick={() => onSeek?.(tok.seconds ?? 0, tok.part ?? 0)}
+                    title={`Salta alla registrazione: Parte ${(tok.part ?? 0) + 1}, minuto ${tok.formatted}`}
+                    className="inline-flex items-center gap-1 mx-1.5 px-2 py-0.5 rounded-md bg-purple-950/70 border border-purple-700/60 hover:border-purple-500 hover:bg-purple-900/90 text-[11px] font-mono font-medium text-purple-300 hover:text-white transition shadow-sm cursor-pointer select-none group align-middle"
+                  >
+                    <Clock className="w-3 h-3 text-purple-400 group-hover:scale-110 transition-transform" />
+                    <span>P{(tok.part ?? 0) + 1}:{tok.formatted}</span>
+                  </button>
+                );
+              }
+              return null;
+            })}
           </LazyLatexSection>
         ))}
       </div>
     </div>
   );
-};
+});
+
+LatexPreview.displayName = 'LatexPreview';
