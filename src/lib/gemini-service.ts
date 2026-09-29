@@ -325,10 +325,10 @@ export async function processAudioDirectly(
           );
 
         const preferredOrder = [
-          'gemini-2.0-flash',
           'gemini-1.5-flash-latest',
-          'gemini-1.5-flash-002',
           'gemini-1.5-flash',
+          'gemini-1.5-flash-002',
+          'gemini-2.0-flash',
           'gemini-2.0-flash-exp',
           'gemini-1.5-pro-latest',
           'gemini-1.5-pro-002',
@@ -353,10 +353,10 @@ export async function processAudioDirectly(
 
     if (modelsToTry.length === 0) {
       modelsToTry = [
-        'gemini-2.0-flash',
         'gemini-1.5-flash-latest',
-        'gemini-1.5-flash-002',
         'gemini-1.5-flash',
+        'gemini-1.5-flash-002',
+        'gemini-2.0-flash',
         'gemini-2.0-flash-exp',
         'gemini-1.5-pro-latest',
         'gemini-1.5-pro-002',
@@ -485,7 +485,7 @@ Struttura dei campi JSON richiesta:
         }
 
         if (response.status === 429 || response.status === 503) {
-          onProgress?.(`Il modello ${model} è temporaneamente saturo, provo il modello successivo...`);
+          onProgress?.(`Il server Google per ${model} è temporaneamente sovraccarico (HTTP ${response.status}), passaggio automatico a modello alternativo...`);
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
 
