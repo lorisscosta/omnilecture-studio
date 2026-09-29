@@ -113,11 +113,11 @@ export const SlidesTab: React.FC<SlidesTabProps> = ({
           {onOpenSlidesModal && (
             <button
               onClick={onOpenSlidesModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition shrink-0"
-              title="Apri gestione e visualizzatore Markdown (.md)"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-950/60 hover:bg-purple-900/60 text-purple-200 border border-purple-800 transition shrink-0"
+              title="Visualizza le slide in Markdown (.md) o carica un nuovo file PDF"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-purple-400" />
-              <span className="hidden sm:inline">Markdown</span>
+              <FileText className="w-3.5 h-3.5 text-purple-400" />
+              <span>Gestione Slide (.md)</span>
             </button>
           )}
         </div>

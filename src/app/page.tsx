@@ -22,6 +22,8 @@ import {
   MessageSquare,
   Bookmark,
   Cloud,
+  CloudUpload,
+  User as UserIcon,
   Check,
   Loader2,
   FileText,
@@ -40,7 +42,6 @@ import { WaveSurferPlayer, WaveSurferPlayerHandle } from '@/components/audio/Wav
 import { AudioUploader } from '@/components/audio/AudioUploader';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { AuthModal } from '@/components/auth/AuthModal';
-import { ObsidianExportButton } from '@/components/export/ObsidianExportButton';
 import { StudyGuideTab } from '@/components/workspace/StudyGuideTab';
 import { TranscriptTab } from '@/components/workspace/TranscriptTab';
 import { GlossaryTab } from '@/components/workspace/GlossaryTab';
@@ -562,7 +563,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
             className="w-full flex items-center justify-between p-2 rounded-xl text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition"
           >
             <div className="flex items-center gap-2">
-              <Cloud className="w-4 h-4 text-purple-400" />
+              <UserIcon className="w-4 h-4 text-purple-400" />
               <span>{currentUser ? 'Account Cloud' : 'Accedi al Cloud'}</span>
             </div>
             <span className="text-[10px] text-zinc-500 font-mono">
@@ -619,7 +620,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
             )}
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Cloud Sync Status Toast */}
             {syncSuccessToast && (
               <span className="text-[11px] font-semibold text-emerald-300 bg-emerald-950/80 border border-emerald-800 px-2.5 py-1 rounded-lg animate-in fade-in hidden sm:inline-block">
@@ -627,14 +628,15 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               </span>
             )}
 
+            {/* Quick New Lecture Button */}
             {currentLecture && !isCreatingNew && (
               <button
                 onClick={() => {
                   setSelectedLectureId(null);
                   setIsCreatingNew(true);
                 }}
-                className="flex items-center gap-1 sm:gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 transition"
-                title="Nuova Registrazione"
+                className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 transition"
+                title="Crea o registra una nuova lezione"
               >
                 <Plus className="w-3.5 h-3.5 text-purple-400" />
                 <span className="hidden sm:inline">Nuova</span>
@@ -646,7 +648,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               <button
                 onClick={() => handleSyncToCloud(currentLecture)}
                 disabled={isSyncing}
-                className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
                   currentLecture.isCloudSynced
                     ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800 hover:bg-emerald-900/80'
                     : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950/40'
@@ -658,7 +660,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 ) : currentLecture.isCloudSynced ? (
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
                 ) : (
-                  <Cloud className="w-3.5 h-3.5" />
+                  <CloudUpload className="w-3.5 h-3.5" />
                 )}
                 <span className="hidden sm:inline">
                   {isSyncing
@@ -670,51 +672,27 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               </button>
             )}
 
-            {/* Slide (.pdf / .md) Management Button */}
-            {currentLecture && !isCreatingNew && currentLecture.data && (
-              <button
-                onClick={() => setIsSlidesModalOpen(true)}
-                className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
-                  currentLecture.hasSlides
-                    ? 'bg-purple-950/70 text-purple-200 border border-purple-800 hover:bg-purple-900/80'
-                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80'
-                }`}
-                title="Gestisci o carica le slide PDF (converte in .md e collega all'audio)"
-              >
-                <FileText className="w-3.5 h-3.5 text-purple-400" />
-                <span className="hidden sm:inline">
-                  {currentLecture.hasSlides ? 'Slide (.md)' : 'Allega Slide'}
-                </span>
-                {currentLecture.hasSlides && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                )}
-              </button>
-            )}
-
-            {currentLecture && !isCreatingNew && currentLecture.data && (
-              <ObsidianExportButton lecture={currentLecture} />
-            )}
-
             {/* Supabase Account Button */}
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className={`flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-medium border transition ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${
                 currentUser
                   ? 'bg-purple-950/40 border-purple-800 text-purple-200 hover:bg-purple-900/50'
                   : 'bg-zinc-900 border-zinc-700/80 text-zinc-300 hover:bg-zinc-800'
               }`}
-              title={currentUser ? `Connesso: ${currentUser.email}` : 'Accedi a Supabase'}
+              title={currentUser ? `Account connesso: ${currentUser.email}` : 'Accedi a Supabase Cloud'}
             >
-              <Cloud className="w-3.5 h-3.5 text-purple-400" />
+              <UserIcon className="w-3.5 h-3.5 text-purple-400" />
               <span className="hidden md:inline">
                 {currentUser ? currentUser.email?.split('@')[0] : 'Accedi'}
               </span>
             </button>
 
+            {/* Gemini API Key Settings Button */}
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="p-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
-              title="Configurazione API Key"
+              title="Configurazione Chiave API Gemini"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -825,48 +803,6 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 </div>
               )}
 
-              {/* Slide Integration Banner / Status */}
-              {currentLecture.hasSlides ? (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-purple-950/30 border border-purple-800/50 text-xs text-purple-200 shadow-sm">
-                  <div className="flex items-center gap-2.5 truncate">
-                    <div className="p-1.5 rounded-lg bg-purple-900/60 border border-purple-700/80 text-purple-300 shrink-0">
-                      <FileText className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="truncate">
-                      <span className="font-semibold text-zinc-100">Slide collegate:</span>{' '}
-                      <span className="text-purple-300 font-mono truncate">{currentLecture.slidesFileName}</span>
-                      <span className="text-zinc-400 hidden sm:inline ml-1.5">• Markdown integrato con la registrazione</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setIsSlidesModalOpen(true)}
-                    className="w-full sm:w-auto text-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-900/60 hover:bg-purple-800 border border-purple-700 text-purple-200 transition shrink-0"
-                  >
-                    Vedi Markdown (.md)
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/80 text-xs text-zinc-400 hover:border-zinc-700 transition shadow-sm">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 shrink-0">
-                      <FileText className="w-3.5 h-3.5" />
-                    </div>
-                    <div>
-                      <span className="font-semibold text-zinc-200">Hai il PDF delle slide di questa lezione?</span>
-                      <span className="text-zinc-400 hidden sm:inline ml-1">
-                        Caricalo per convertirlo in Markdown (.md) e integrare formule e riferimenti puntuali [Slide X] nella Guida Overleaf LaTeX.
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setIsSlidesModalOpen(true)}
-                    className="w-full sm:w-auto text-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-950/40 transition shrink-0"
-                  >
-                    + Allega Slide (PDF)
-                  </button>
-                </div>
-              )}
-
               {/* Workspace Navigation Tabs */}
               <div className="flex items-center gap-1 sm:gap-1.5 border-b border-zinc-800 pb-2 overflow-x-auto no-scrollbar">
                 <button
@@ -919,11 +855,13 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   <Presentation className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Slide & Timeline</span>
                   <span className="sm:hidden">Slide</span>
-                  {(currentLecture.data?.slides_alignment?.length || currentLecture.slidesAlignment?.length || 0) > 0 && (
+                  {(currentLecture.data?.slides_alignment?.length || currentLecture.slidesAlignment?.length || 0) > 0 ? (
                     <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-purple-950 text-purple-200 border border-purple-800">
                       {currentLecture.data?.slides_alignment?.length || currentLecture.slidesAlignment?.length}
                     </span>
-                  )}
+                  ) : currentLecture.hasSlides ? (
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Slide caricate" />
+                  ) : null}
                 </button>
               </div>
 
