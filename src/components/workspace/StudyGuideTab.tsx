@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
+import { LatexPreview } from './LatexPreview';
+import { lintLatex, injectTimestampPreambleMacro, LatexLintResult } from '@/lib/latex-linter';
 import { ExamQuestion } from '@/lib/types';
+import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
 import {
   HelpCircle,
   ChevronDown,
@@ -13,8 +15,11 @@ import {
   Download,
   FileCode,
   Eye,
-  FileText,
-  Sparkles,
+  AlertTriangle,
+  CheckCircle,
+  AlertCircle,
+  Info,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface StudyGuideTabProps {
@@ -22,6 +27,7 @@ interface StudyGuideTabProps {
   examQuestions: ExamQuestion[];
   lectureTitle?: string;
   course?: string;
+  onSeek?: (seconds: number, partIndex?: number) => void;
 }
 
 // Helper to convert or ensure full Overleaf-ready LaTeX document
@@ -38,9 +44,9 @@ function formatToOverleafLatex(content: string, title?: string, course?: string)
     cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
   }
 
-  // If already contains documentclass, return directly
+  // If already contains documentclass, inject timestamp macro if missing and return
   if (cleaned.includes('\\documentclass')) {
-    return cleaned;
+    return injectTimestampPreambleMacro(cleaned);
   }
 
   // Otherwise convert Markdown notes to valid LaTeX article
@@ -48,7 +54,7 @@ function formatToOverleafLatex(content: string, title?: string, course?: string)
   const docCourse = (course || 'Ingegneria / STEM').replace(/[_#%$&]/g, '\\$&');
 
   // Convert markdown headings to LaTeX sections
-  let latexBody = cleaned
+  const latexBody = cleaned
     .replace(/^#\s+(.+)$/gm, '\\section{$1}')
     .replace(/^##\s+(.+)$/gm, '\\subsection{$1}')
     .replace(/^###\s+(.+)$/gm, '\\subsubsection{$1}')
@@ -59,7 +65,7 @@ function formatToOverleafLatex(content: string, title?: string, course?: string)
     .replace(/^>\s*\[!note\]\s*(.+)$/gm, '\\begin{quote}\n\\textbf{Nota:}\\\\ $1')
     .replace(/^>\s*(.+)$/gm, '$1\n\\end{quote}');
 
-  return `\\documentclass[11pt,a4paper]{article}
+  const fullDoc = `\\documentclass[11pt,a4paper]{article}
 \\usepackage[utf8]{inputenc}
 \\usepackage[italian]{babel}
 \\usepackage{amsmath,amssymb,amsthm,mathtools}
@@ -75,6 +81,9 @@ function formatToOverleafLatex(content: string, title?: string, course?: string)
     citecolor=green!50!black,
     urlcolor=purple!70!black
 }
+
+% Macro citazione temporale (sicura per Overleaf / pdflatex)
+\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}
 
 \\newtheorem{theorem}{Teorema}[section]
 \\newtheorem{definition}{Definizione}[section]
@@ -96,6 +105,8 @@ ${latexBody}
 
 \\end{document}
 `;
+
+  return fullDoc;
 }
 
 export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
@@ -103,12 +114,15 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
   examQuestions,
   lectureTitle,
   course,
+  onSeek,
 }) => {
   const [expandedQuestions, setExpandedQuestions] = useState<Record<number, boolean>>({});
-  const [viewMode, setViewMode] = useState<'latex' | 'preview'>('latex');
+  const [viewMode, setViewMode] = useState<'latex' | 'preview'>('preview');
   const [isCopied, setIsCopied] = useState(false);
+  const [showLintDrawer, setShowLintDrawer] = useState(false);
 
   const overleafLatex = formatToOverleafLatex(studyGuideIt, lectureTitle, course);
+  const lintResult: LatexLintResult = lintLatex(overleafLatex);
 
   const toggleQuestion = (index: number) => {
     setExpandedQuestions((prev) => ({
@@ -159,7 +173,7 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
   return (
     <div className="space-y-6 sm:space-y-8 max-w-5xl mx-auto py-1 sm:py-2">
       {/* Overleaf LaTeX Header & Studio Guide */}
-      <div className="bg-zinc-900/90 border border-obsidian-border rounded-2xl p-3.5 sm:p-5 md:p-7 shadow-xl">
+      <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 sm:p-5 md:p-7 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-5 pb-3 sm:pb-4 border-b border-zinc-800">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -169,12 +183,41 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
               </h2>
             </div>
             <p className="text-xs text-zinc-400">
-              Documento <code className="text-purple-300 font-mono">.tex</code> pronto da copiare direttamente in Overleaf con formule, teoremi e notazione matematica.
+              Documento <code className="text-purple-300 font-mono">.tex</code> compilabile in Overleaf con formule, citazioni temporali <code className="text-purple-300 font-mono">\ts&#123;p&#125;&#123;s&#125;</code> e notazione matematica.
             </p>
           </div>
 
           {/* Action Buttons: Copy & Download */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Linter Status Indicator */}
+            <button
+              type="button"
+              onClick={() => setShowLintDrawer(!showLintDrawer)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
+                lintResult.errorsCount > 0
+                  ? 'bg-rose-950/60 border-rose-800 text-rose-300 hover:bg-rose-900/60'
+                  : lintResult.warningsCount > 0
+                  ? 'bg-amber-950/60 border-amber-800 text-amber-300 hover:bg-amber-900/60'
+                  : 'bg-emerald-950/60 border-emerald-800 text-emerald-300 hover:bg-emerald-900/60'
+              }`}
+              title="Verifica bilanciamento ambienti e parentesi LaTeX"
+            >
+              {lintResult.errorsCount > 0 ? (
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+              ) : lintResult.warningsCount > 0 ? (
+                <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+              <span>
+                {lintResult.errorsCount > 0
+                  ? `${lintResult.errorsCount} Errori LaTeX`
+                  : lintResult.warningsCount > 0
+                  ? `${lintResult.warningsCount} Avvisi Sintassi`
+                  : 'LaTeX Valido'}
+              </span>
+            </button>
+
             <button
               onClick={handleCopyLatex}
               className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-semibold shadow-md transition ${
@@ -199,9 +242,63 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
           </div>
         </div>
 
+        {/* Linter Diagnostic Drawer */}
+        {showLintDrawer && (
+          <div className="mb-4 p-4 rounded-xl bg-zinc-950 border border-zinc-800 text-xs space-y-2 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-850">
+              <span className="font-semibold text-zinc-200 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-purple-400" />
+                Diagnostica Sintattica LaTeX
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowLintDrawer(false)}
+                className="text-zinc-500 hover:text-zinc-300"
+              >
+                ✕
+              </button>
+            </div>
+            {lintResult.issues.length === 0 ? (
+              <p className="text-emerald-400 py-1 flex items-center gap-1.5">
+                <CheckCircle className="w-4 h-4" />
+                Tutte le parentesi, ambienti e delimitatori matematici sono perfettamente bilanciati!
+              </p>
+            ) : (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {lintResult.issues.map((issue, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-start gap-2 p-2 rounded-lg border ${
+                      issue.severity === 'error'
+                        ? 'bg-rose-950/30 border-rose-900/50 text-rose-300'
+                        : 'bg-amber-950/30 border-amber-900/50 text-amber-300'
+                    }`}
+                  >
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 shrink-0">
+                      Riga {issue.line}
+                    </span>
+                    <span className="flex-1">{issue.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* View Toggle Bar */}
         <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4 bg-zinc-950 p-1 sm:p-1.5 rounded-xl border border-zinc-800/80">
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setViewMode('preview')}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+                viewMode === 'preview'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span><span className="hidden sm:inline">Anteprima </span>KaTeX Interattiva</span>
+            </button>
             <button
               onClick={() => setViewMode('latex')}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
@@ -212,17 +309,6 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
             >
               <FileCode className="w-3.5 h-3.5" />
               <span><span className="hidden sm:inline">Sorgente </span>LaTeX (.tex)</span>
-            </button>
-            <button
-              onClick={() => setViewMode('preview')}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
-                viewMode === 'preview'
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span><span className="hidden sm:inline">Anteprima </span>Formattato</span>
             </button>
           </div>
 
@@ -239,19 +325,15 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
             </pre>
           </div>
         ) : (
-          <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 max-h-[700px] overflow-y-auto">
-            {studyGuideIt ? (
-              <MarkdownRenderer content={studyGuideIt} />
-            ) : (
-              <p className="text-zinc-500 italic text-sm">Nessuna guida generata per questa lezione.</p>
-            )}
+          <div className="p-3.5 sm:p-5 rounded-xl border border-zinc-800 bg-zinc-950/60 max-h-[750px] overflow-y-auto">
+            <LatexPreview latexContent={overleafLatex} onSeek={onSeek} />
           </div>
         )}
       </div>
 
-      {/* Potential Exam Questions Section (Lasciata intatta com'è su richiesta) */}
+      {/* Potential Exam Questions Section */}
       {examQuestions && examQuestions.length > 0 && (
-        <div className="bg-zinc-900/90 border border-obsidian-border rounded-2xl p-4 sm:p-6 md:p-8 shadow-xl">
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 sm:p-6 md:p-8 shadow-xl">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-800">
             <div className="flex items-center gap-2">
               <span className="text-xl">🎯</span>

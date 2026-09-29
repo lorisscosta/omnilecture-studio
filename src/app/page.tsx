@@ -120,9 +120,9 @@ export default function HomePage() {
     pullFromCloud();
   }, [currentUser]);
 
-  // Handle seeking from transcript
-  const handleSeekFromTranscript = (seconds: number) => {
-    waveSurferRef.current?.seekTo(seconds);
+  // Handle seeking from transcript or LaTeX citations
+  const handleSeekFromTranscript = (seconds: number, partIndex?: number) => {
+    waveSurferRef.current?.seekTo(seconds, partIndex);
   };
 
   // Sync current lecture to Supabase PostgreSQL (Text-Only)
@@ -909,6 +909,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     examQuestions={currentLecture.data.potential_exam_questions}
                     lectureTitle={currentLecture.title}
                     course={currentLecture.course}
+                    onSeek={handleSeekFromTranscript}
                   />
                 )}
 

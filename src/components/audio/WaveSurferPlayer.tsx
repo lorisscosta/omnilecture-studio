@@ -6,7 +6,7 @@ import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, Layers } from 'luci
 import { AudioPart } from '@/lib/types';
 
 export interface WaveSurferPlayerHandle {
-  seekTo: (seconds: number) => void;
+  seekTo: (seconds: number, partIndex?: number) => void;
   play: () => void;
   pause: () => void;
 }
@@ -61,7 +61,25 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
 
     // Expose control methods via ref
     useImperativeHandle(ref, () => ({
-      seekTo: (seconds: number) => {
+      seekTo: (seconds: number, partIndex?: number) => {
+        if (typeof partIndex === 'number' && audioParts && audioParts[partIndex]) {
+          const targetPart = audioParts[partIndex];
+          if (partIndex !== activePartIndex) {
+            pendingSeekRef.current = seconds;
+            setActivePartIndex(partIndex);
+          } else {
+            if (wavesurferRef.current && currentPartDuration > 0) {
+              const progress = Math.min(Math.max(seconds / currentPartDuration, 0), 1);
+              wavesurferRef.current.seekTo(progress);
+              if (!isPlaying) {
+                wavesurferRef.current.play();
+                setIsPlaying(true);
+              }
+            }
+          }
+          return;
+        }
+
         if (!audioParts || audioParts.length <= 1) {
           // Single audio behavior
           if (wavesurferRef.current && currentPartDuration > 0) {
