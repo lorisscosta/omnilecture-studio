@@ -1,4 +1,4 @@
-import { LectureData, AudioPart, LectureProcessingChunk, TranscriptSegment, GlossaryTerm, ExamQuestion } from './types';
+import { LectureData, AudioPart, LectureProcessingChunk, TranscriptSegment, GlossaryTerm, ExamQuestion, SlideAlignment } from './types';
 import { fetchAvailableModels, getModelFallbackChain, normalizeModelName } from './gemini-config';
 import {
   createLectureChunksPlan,
@@ -8,11 +8,13 @@ import {
   consolidateExamQuestions,
   consolidateStudyGuides,
   calculateOverallProgress,
+  consolidateSlidesAlignment,
 } from './chunk-processing';
 import {
   saveProcessingChunks,
   updateProcessingChunkStatus,
 } from './db';
+import { injectTimestampPreambleMacro } from './latex-linter';
 
 // Strict JSON Schema for Gemini
 export const responseSchema = {
@@ -62,6 +64,22 @@ export const responseSchema = {
           importance_level: { type: 'STRING', enum: ['Medium', 'High', 'Crucial'] },
         },
         required: ['question', 'answer_latex', 'importance_level'],
+      },
+    },
+    slides_alignment: {
+      type: 'ARRAY',
+      description: 'Temporal and thematic alignment between the slides in the provided PDF (if any) and audio segments',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          slide_number: { type: 'INTEGER', description: 'Page or slide number from 1 upwards' },
+          title: { type: 'STRING', description: 'Slide title or main topic' },
+          part: { type: 'INTEGER', description: 'Audio part index (0-indexed)' },
+          start_time_seconds: { type: 'INTEGER', description: 'Estimated audio start time in seconds where this slide is discussed' },
+          end_time_seconds: { type: 'INTEGER', description: 'Estimated audio end time in seconds where discussion of this slide concludes' },
+          summary: { type: 'STRING', description: 'Summary of key concepts, formulas, and diagrams for this slide' },
+        },
+        required: ['slide_number', 'title', 'part', 'start_time_seconds', 'end_time_seconds', 'summary'],
       },
     },
   },
@@ -163,7 +181,8 @@ export async function processAudioDirectly(
   apiKey: string,
   onProgress?: (stage: string, percentage?: number) => void,
   userSelectedModel?: string,
-  lectureId?: string
+  lectureId?: string,
+  pdfFile?: File | Blob | null
 ): Promise<{
   success: boolean;
   data: LectureData;
@@ -311,6 +330,52 @@ export async function processAudioDirectly(
       startOffset: Math.round(uf.startOffset),
     }));
 
+    // Step 1b: Optional native PDF slides upload for multimodal alignment
+    let uploadedPdfMeta: { fileResourceName: string; fileUri: string; fileName: string } | null = null;
+    if (pdfFile) {
+      const pdfName = (pdfFile as File).name || 'slides.pdf';
+      const pdfMime = (pdfFile as File).type || 'application/pdf';
+      onProgress?.(`Caricamento e analisi nativa slide PDF (${pdfName}) su Google AI Studio...`);
+
+      const uploadPdfResponse = await retryWithBackoff(async () => {
+        const metadata = {
+          file: {
+            display_name: pdfName,
+          },
+        };
+        const boundary = '-------BOUNDARY' + Math.random().toString(36).substring(2);
+        const metadataPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
+        const fileHeaderPart = `--${boundary}\r\nContent-Type: ${pdfMime}\r\n\r\n`;
+        const closingPart = `\r\n--${boundary}--`;
+
+        const multipartBlob = new Blob([metadataPart, fileHeaderPart, pdfFile, closingPart]);
+        const res = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+          method: 'POST',
+          headers: {
+            'X-Goog-Upload-Protocol': 'multipart',
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+          },
+          body: multipartBlob,
+        });
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          throw new Error(`Upload slide PDF ${pdfName} fallito: ${errText}`);
+        }
+        return res;
+      }, 3, 1500);
+
+      const pdfUploadResult = await uploadPdfResponse.json();
+      if (pdfUploadResult.file?.name && pdfUploadResult.file?.uri) {
+        uploadedResourceNames.push(pdfUploadResult.file.name);
+        uploadedPdfMeta = {
+          fileResourceName: pdfUploadResult.file.name,
+          fileUri: pdfUploadResult.file.uri,
+          fileName: pdfName,
+        };
+      }
+    }
+
     // Step 2: Discover available models
     onProgress?.('Rilevamento automatico dei modelli Gemini abilitati per la tua chiave...');
     const normalizedUserSelected = normalizeModelName(userSelectedModel);
@@ -384,6 +449,7 @@ Struttura dei campi JSON richiesta:
       const chunkGlossaries: GlossaryTerm[][] = [];
       const chunkQuestions: ExamQuestion[][] = [];
       const chunkGuides: string[] = [];
+      const chunkAlignments: SlideAlignment[][] = [];
 
       for (let partIdx = 0; partIdx < uploadedFilesMeta.length; partIdx++) {
         const uf = uploadedFilesMeta[partIdx];
@@ -399,7 +465,29 @@ Struttura dei campi JSON richiesta:
           progressPct
         );
 
-        const partPromptText = `Trascrivi ed elabora questa registrazione audio (Parte ${partNumber} di ${uploadedFilesMeta.length}: "${uf.fileName}") per il corso di "${course}" (lezione: "${title}"). Inserisci citazioni temporali puntuali nella forma \\ts{${partIdx}}{secondi} (es. \\ts{${partIdx}}{120}) per ogni formula e passaggio fondamentale riferiti ai secondi di questa traccia. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+        const partPromptText = `Trascrivi ed elabora questa registrazione audio (Parte ${partNumber} di ${uploadedFilesMeta.length}: "${uf.fileName}") per il corso di "${course}" (lezione: "${title}"). Inserisci citazioni temporali puntuali nella forma \\ts{${partIdx}}{secondi} (es. \\ts{${partIdx}}{120}) per ogni formula e passaggio fondamentale riferiti ai secondi di questa traccia.${
+          uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment.' : ''
+        } Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+
+        const userParts: any[] = [
+          {
+            file_data: {
+              mime_type: uf.mimeType,
+              file_uri: uf.fileUri,
+            },
+          },
+        ];
+
+        if (uploadedPdfMeta) {
+          userParts.push({
+            file_data: {
+              mime_type: 'application/pdf',
+              file_uri: uploadedPdfMeta.fileUri,
+            },
+          });
+        }
+
+        userParts.push({ text: partPromptText });
 
         let partResponse: Response | null = null;
         const partErrorLogs: string[] = [];
@@ -415,15 +503,7 @@ Struttura dei campi JSON richiesta:
             contents: [
               {
                 role: 'user',
-                parts: [
-                  {
-                    file_data: {
-                      mime_type: uf.mimeType,
-                      file_uri: uf.fileUri,
-                    },
-                  },
-                  { text: partPromptText },
-                ],
+                parts: userParts,
               },
             ],
             generationConfig: {
@@ -501,6 +581,7 @@ Struttura dei campi JSON richiesta:
         if (partData.glossary) chunkGlossaries.push(partData.glossary);
         if (partData.potential_exam_questions) chunkQuestions.push(partData.potential_exam_questions);
         if (partData.study_guide_it) chunkGuides.push(partData.study_guide_it);
+        if (partData.slides_alignment) chunkAlignments.push(partData.slides_alignment);
       }
 
       // Step 4: Consolidation Pass on Text & LaTeX
@@ -509,12 +590,16 @@ Struttura dei campi JSON richiesta:
       const consolidatedGlossaryData = consolidateGlossary(chunkGlossaries);
       const consolidatedExamData = consolidateExamQuestions(chunkQuestions);
       const consolidatedGuide = consolidateStudyGuides(chunkGuides, title, course);
+      const consolidatedSlides = consolidateSlidesAlignment(chunkAlignments);
 
       parsedData = {
         timestamped_transcript: consolidatedTranscript,
         glossary: consolidatedGlossaryData,
         potential_exam_questions: consolidatedExamData,
         study_guide_it: consolidatedGuide,
+        slides_alignment: consolidatedSlides.length > 0 ? consolidatedSlides : undefined,
+        has_slides: uploadedPdfMeta ? true : undefined,
+        slides_filename: uploadedPdfMeta ? uploadedPdfMeta.fileName : undefined,
       };
       onProgress?.('Elaborazione completata con successo!', 100);
     } else {
@@ -527,7 +612,29 @@ Struttura dei campi JSON richiesta:
 
       onProgress?.('Trascrizione ed elaborazione accademica con Gemini...', 40);
 
-      const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Inserisci citazioni temporali puntuali nella forma \\ts{0}{secondi} (es. \\ts{0}{120}) per ogni formula e passaggio fondamentale. Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+      const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Inserisci citazioni temporali puntuali nella forma \\ts{0}{secondi} (es. \\ts{0}{120}) per ogni formula e passaggio fondamentale.${
+        uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment.' : ''
+      } Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+
+      const singleUserParts: any[] = [
+        {
+          file_data: {
+            mime_type: uf.mimeType,
+            file_uri: uf.fileUri,
+          },
+        },
+      ];
+
+      if (uploadedPdfMeta) {
+        singleUserParts.push({
+          file_data: {
+            mime_type: 'application/pdf',
+            file_uri: uploadedPdfMeta.fileUri,
+          },
+        });
+      }
+
+      singleUserParts.push({ text: promptText });
 
       let generationResponse: Response | null = null;
       const errorLogs: string[] = [];
@@ -540,15 +647,7 @@ Struttura dei campi JSON richiesta:
           contents: [
             {
               role: 'user',
-              parts: [
-                {
-                  file_data: {
-                    mime_type: uf.mimeType,
-                    file_uri: uf.fileUri,
-                  },
-                },
-                { text: promptText },
-              ],
+              parts: singleUserParts,
             },
           ],
           generationConfig: {
@@ -616,6 +715,16 @@ Struttura dei campi JSON richiesta:
       }
 
       parsedData = JSON.parse(cleanJson);
+      if (parsedData.study_guide_it) {
+        parsedData.study_guide_it = injectTimestampPreambleMacro(parsedData.study_guide_it);
+      }
+      if (Array.isArray(parsedData.slides_alignment)) {
+        parsedData.slides_alignment = consolidateSlidesAlignment([parsedData.slides_alignment]);
+      }
+      if (uploadedPdfMeta) {
+        parsedData.has_slides = true;
+        parsedData.slides_filename = uploadedPdfMeta.fileName;
+      }
 
       if (singleMatchingChunk) {
         await updateProcessingChunkStatus(singleMatchingChunk.id, 'done', undefined, parsedData).catch(console.warn);
@@ -861,6 +970,7 @@ Regole fondamentali di integrazione:
 2. "glossary": Aggiorna ed estendi il glossario includendo sia i termini spiegati a voce sia le definizioni formali chiave presenti nelle slide.
 3. "potential_exam_questions": Genera domande d'esame complete che integrano sia il ragionamento spiegato oralmente dal docente sia i punti formali ed esercizi presenti nelle slide.
 4. "timestamped_transcript": Mantieni i segmenti cronologici dell'audio originale; arricchisci ove opportuno la traduzione/trascrizione italiana (text_it) con il marcatore della slide discussa in quel momento (es. "[Slide 3] ...").
+5. "slides_alignment": Compila rigorosamente l'array correlando ciascuna slide al rispettivo intervallo temporale dell'audio [start_time_seconds, end_time_seconds], indicando numero slide, titolo, parte audio e breve riassunto concettuale.
 
 Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
@@ -876,7 +986,7 @@ ${transcriptSummary}
 === TESTO MARKDOWN DELLE SLIDE DEL DOCENTE ===
 ${slidesMarkdown}
 
-Confronta la registrazione vocale con le slide, unisci i contenuti e restituisci il JSON con la Guida Overleaf LaTeX completa arricchita con i riferimenti alle slide, il glossario aggiornato e le domande d'esame.`;
+Confronta la registrazione vocale con le slide, unisci i contenuti e restituisci il JSON con la Guida Overleaf LaTeX completa arricchita con i riferimenti alle slide, l'allineamento cronologico 'slides_alignment', il glossario aggiornato e le domande d'esame.`;
 
   const modelsToTry = getModelFallbackChain();
 
@@ -943,6 +1053,9 @@ Confronta la registrazione vocale con le slide, unisci i contenuti e restituisci
   const enrichedData: LectureData = JSON.parse(cleanJson);
   enrichedData.slides_markdown = slidesMarkdown;
   enrichedData.has_slides = true;
+  if (Array.isArray(enrichedData.slides_alignment)) {
+    enrichedData.slides_alignment = consolidateSlidesAlignment([enrichedData.slides_alignment]);
+  }
 
   return enrichedData;
 }

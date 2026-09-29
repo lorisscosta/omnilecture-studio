@@ -25,6 +25,7 @@ import {
   Check,
   Loader2,
   FileText,
+  Presentation,
 } from 'lucide-react';
 import { db, getAllLectures, deleteLectureById, saveLecture, getLectureById } from '@/lib/db';
 import { Lecture } from '@/lib/types';
@@ -43,13 +44,14 @@ import { ObsidianExportButton } from '@/components/export/ObsidianExportButton';
 import { StudyGuideTab } from '@/components/workspace/StudyGuideTab';
 import { TranscriptTab } from '@/components/workspace/TranscriptTab';
 import { GlossaryTab } from '@/components/workspace/GlossaryTab';
+import { SlidesTab } from '@/components/workspace/SlidesTab';
 import { SlidesModal } from '@/components/workspace/SlidesModal';
 import type { User } from '@supabase/supabase-js';
 
 export default function HomePage() {
   const [selectedLectureId, setSelectedLectureId] = useState<string | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [activeTab, setActiveTab] = useState<'guide' | 'transcript' | 'glossary'>('guide');
+  const [activeTab, setActiveTab] = useState<'guide' | 'transcript' | 'glossary' | 'slides'>('guide');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -899,6 +901,24 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   <span className="hidden sm:inline">Glossario & Tutor AI</span>
                   <span className="sm:hidden">Glossario & AI</span>
                 </button>
+
+                <button
+                  onClick={() => setActiveTab('slides')}
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
+                    activeTab === 'slides'
+                      ? 'bg-purple-600 text-white shadow-md'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+                  }`}
+                >
+                  <Presentation className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Slide & Timeline</span>
+                  <span className="sm:hidden">Slide</span>
+                  {(currentLecture.data?.slides_alignment?.length || currentLecture.slidesAlignment?.length || 0) > 0 && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-purple-950 text-purple-200 border border-purple-800">
+                      {currentLecture.data?.slides_alignment?.length || currentLecture.slidesAlignment?.length}
+                    </span>
+                  )}
+                </button>
               </div>
 
               {/* Tab Contents */}
@@ -926,6 +946,18 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     glossary={currentLecture.data.glossary}
                     lecture={currentLecture}
                     onOpenSettings={() => setIsSettingsOpen(true)}
+                  />
+                )}
+
+                {activeTab === 'slides' && (
+                  <SlidesTab
+                    slidesAlignment={currentLecture.data?.slides_alignment || currentLecture.slidesAlignment || []}
+                    slidesFileName={currentLecture.slidesFileName}
+                    hasSlides={currentLecture.hasSlides}
+                    currentTime={currentTime}
+                    currentPartIndex={0}
+                    onSeek={handleSeekFromTranscript}
+                    onOpenSlidesModal={() => setIsSlidesModalOpen(true)}
                   />
                 )}
               </div>

@@ -28,11 +28,21 @@ export interface ExamQuestion {
   importance_level: 'High' | 'Medium' | 'Crucial';
 }
 
+export interface SlideAlignment {
+  slide_number: number;
+  title: string;
+  part: number;
+  start_time_seconds: number;
+  end_time_seconds: number;
+  summary: string;
+}
+
 export interface LectureData {
   glossary: GlossaryTerm[];
   timestamped_transcript: TranscriptSegment[];
   study_guide_it: string;
   potential_exam_questions: ExamQuestion[];
+  slides_alignment?: SlideAlignment[];
   mermaid_mindmap?: string;
   slides_markdown?: string;
   slides_filename?: string;
@@ -75,6 +85,7 @@ export interface Lecture {
   audioParts?: AudioPart[]; // ordered list of recordings in this lecture
   slidesFileName?: string;
   slidesMarkdown?: string;
+  slidesAlignment?: SlideAlignment[];
   hasSlides?: boolean;
   status: 'ready' | 'processing' | 'completed' | 'error';
   errorMessage?: string;

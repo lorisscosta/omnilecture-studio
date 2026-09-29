@@ -118,7 +118,8 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
         lecture.id,
         selectedPdf.name,
         slidesMarkdown,
-        enrichedData
+        enrichedData,
+        enrichedData.slides_alignment
       );
 
       const updated = await getLectureById(lecture.id);

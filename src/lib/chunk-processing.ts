@@ -6,6 +6,7 @@ import {
   LectureData,
   ChunkStatus,
   LectureProcessingChunk,
+  SlideAlignment,
 } from './types';
 import { injectTimestampPreambleMacro } from './latex-linter';
 
@@ -304,3 +305,42 @@ export function calculateOverallProgress(
 
   return { percentage, stage };
 }
+
+/**
+ * Consolidates slides alignment from multiple chunks or enrichment passes,
+ * sorting by part and timestamp, and removing duplicate/malformed records.
+ */
+export function consolidateSlidesAlignment(
+  alignmentLists: SlideAlignment[][]
+): SlideAlignment[] {
+  const all: SlideAlignment[] = [];
+  const seenKey = new Set<string>();
+
+  for (const list of alignmentLists) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (!item || typeof item.slide_number !== 'number') continue;
+      const key = `${item.part ?? 0}_${item.slide_number}_${item.start_time_seconds ?? 0}`;
+      if (!seenKey.has(key)) {
+        seenKey.add(key);
+        const startSec = Math.max(0, item.start_time_seconds || 0);
+        const endSec = Math.max(startSec, item.end_time_seconds || 0);
+        all.push({
+          slide_number: item.slide_number,
+          title: item.title?.trim() || `Slide ${item.slide_number}`,
+          part: typeof item.part === 'number' ? item.part : 0,
+          start_time_seconds: startSec,
+          end_time_seconds: endSec,
+          summary: item.summary?.trim() || '',
+        });
+      }
+    }
+  }
+
+  return all.sort((a, b) => {
+    if (a.part !== b.part) return a.part - b.part;
+    if (a.start_time_seconds !== b.start_time_seconds) return a.start_time_seconds - b.start_time_seconds;
+    return a.slide_number - b.slide_number;
+  });
+}
+

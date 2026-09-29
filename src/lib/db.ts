@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import { Lecture, LectureProcessingChunk, ChunkStatus } from './types';
+import { Lecture, LectureProcessingChunk, ChunkStatus, SlideAlignment } from './types';
 
 export class OmniLectureDatabase extends Dexie {
   lectures!: Table<Lecture, string>;
@@ -82,11 +82,14 @@ export async function updateLectureSlides(
   id: string,
   slidesFileName: string,
   slidesMarkdown: string,
-  updatedData: Lecture['data']
+  updatedData: Lecture['data'],
+  slidesAlignment?: SlideAlignment[]
 ): Promise<void> {
+  const alignment = slidesAlignment || updatedData?.slides_alignment;
   await db.lectures.update(id, {
     slidesFileName,
     slidesMarkdown,
+    slidesAlignment: alignment,
     hasSlides: true,
     data: updatedData,
     updatedAt: new Date().toISOString(),

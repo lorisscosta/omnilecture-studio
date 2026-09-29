@@ -230,7 +230,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
             updateLectureProgress(lectureId, typeof pct === 'number' ? pct : 50, stage).catch(console.error);
           },
           selectedModel,
-          lectureId
+          lectureId,
+          selectedPdf
         );
 
         lectureData = result.data;
@@ -272,27 +273,30 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         }
       }
 
-      // 3. Optional: Process Slides PDF and enrich lecture
-      let slidesMarkdown = '';
-      if (selectedPdf) {
-        setProcessingStage('Conversione slide PDF in Markdown (.md)...');
-        await updateLectureStatus(lectureId, 'processing', undefined, 'Conversione slide PDF in Markdown (.md)...');
-        slidesMarkdown = await convertPdfToMarkdown(selectedPdf, selectedPdf.name, apiKey, (stg) => {
-          setProcessingStage(stg);
-        });
-
-        setProcessingStage('Correlazione tra registrazione e slide...');
-        await updateLectureStatus(lectureId, 'processing', undefined, 'Correlazione tra registrazione e slide...');
-        lectureData = await enrichLectureWithSlides(lectureData, slidesMarkdown, effectiveCourse, effectiveTitle, apiKey, (stg) => {
-          setProcessingStage(stg);
-        });
+      // 3. Optional: If PDF was provided, also extract markdown preview for Slides tab
+      let slidesMarkdown = lectureData.slides_markdown || '';
+      if (selectedPdf && !slidesMarkdown) {
+        setProcessingStage('Generazione anteprima Markdown delle slide...');
+        try {
+          slidesMarkdown = await convertPdfToMarkdown(selectedPdf, selectedPdf.name, apiKey, (stg) => {
+            setProcessingStage(stg);
+          });
+        } catch (pdfErr) {
+          console.warn('Estrazione markdown opzionale fallita:', pdfErr);
+        }
       }
 
       setProcessingStage('Salvataggio dei risultati e generazione appunti...');
 
       // 4. Update Lecture in Dexie.js
-      if (selectedPdf && slidesMarkdown) {
-        await updateLectureSlides(lectureId, selectedPdf.name, slidesMarkdown, lectureData);
+      if (selectedPdf) {
+        await updateLectureSlides(
+          lectureId,
+          selectedPdf.name,
+          slidesMarkdown,
+          lectureData,
+          lectureData.slides_alignment
+        );
       } else {
         await updateLectureData(lectureId, lectureData);
       }
