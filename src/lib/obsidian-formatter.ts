@@ -71,14 +71,6 @@ export function generateObsidianMarkdown(lecture: Lecture): string {
     md += `---\n\n`;
   }
 
-  // 4. Mermaid Mindmap
-  if (data.mermaid_mindmap && data.mermaid_mindmap.trim().length > 0) {
-    md += `## 🧠 Mappa Concettuale della Lezione\n\n`;
-    md += `\`\`\`mermaid\n`;
-    md += `${data.mermaid_mindmap.trim()}\n`;
-    md += `\`\`\`\n\n`;
-    md += `---\n\n`;
-  }
 
   // 5. Technical Glossary (EN -> IT)
   if (data.glossary && data.glossary.length > 0) {

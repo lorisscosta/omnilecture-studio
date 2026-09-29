@@ -34,7 +34,7 @@ export const responseSchema = {
     },
     study_guide_it: {
       type: 'STRING',
-      description: 'Deep, comprehensive Italian academic study notes. Must include native LaTeX equations ($...$ inline, $$...$$ block), step-by-step mathematical proofs, key theorems, intuition, and Obsidian callouts like > [!important] or > [!note].',
+      description: 'Documento completo LaTeX (.tex) pronto per essere incollato ed eseguito direttamente su Overleaf. Deve contenere la trascrizione integrale e trattazione accademica completa dell\'audio formattata in LaTeX standard (inclusi \\documentclass[11pt,a4paper]{article}, \\usepackage[utf8]{inputenc}, \\usepackage[italian]{babel}, \\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}, \\geometry{margin=2.5cm}, \\title{...}, \\author{OmniLecture Studio}, \\date{\\today}, \\begin{document}, \\maketitle, sezioni con \\section e \\subsection, equazioni matematiche \\begin{equation} o \\[ ... \\], ambienti definition e theorem, e trattazione integrale discorsiva di tutto l\'audio senza sintesi eccessive, \\end{document}).',
     },
     potential_exam_questions: {
       type: 'ARRAY',
@@ -49,17 +49,12 @@ export const responseSchema = {
         required: ['question', 'answer_latex', 'importance_level'],
       },
     },
-    mermaid_mindmap: {
-      type: 'STRING',
-      description: 'Valid Mermaid.js graph or flowchart syntax representing the lecture hierarchy and concept relationships (e.g. flowchart TD ...)',
-    },
   },
   required: [
     'glossary',
     'timestamped_transcript',
     'study_guide_it',
     'potential_exam_questions',
-    'mermaid_mindmap',
   ],
 };
 
@@ -273,9 +268,8 @@ Il tuo compito è: prendere ciò che il docente ha realmente spiegato nella regi
 Struttura dei campi JSON richiesta:
 1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Se l'audio è in italiano, text_it conterrà la trascrizione esatta e text_en la traduzione inglese.
 2. "glossary": Estrai SOLO i termini tecnici realmente pronunciati o spiegati nell'audio con traduzione e definizione accademica. Se nell'audio non sono stati pronunciati termini tecnici (es. registrazioni di prova, test microfono, audio non didattico), restituisci un array VUOTO [].
-3. "study_guide_it": Guida allo studio in ITALIANO basata UNICAMENTE sui temi spiegati nella registrazione. Riorganizza e approfondisci con formule matematiche LaTeX native ($...$ e $$...$$) e callout Obsidian ciò che è stato spiegato. Se la registrazione è solo un breve test vocale (es. "prova prova") o non contiene contenuti didattici, spiega sinteticamente che si tratta di una registrazione di test/prova e non aggiungere materiale teorico fittizio.
-4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].
-5. "mermaid_mindmap": Schema visivo Mermaid.js che riassume esclusivamente la gerarchia dei concetti realmente esposti nell'audio (es. "flowchart TD\\n  A[Test Registrazione] --> B[Verifica Audio]").`;
+3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, terminando con \\end{document}. Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
+4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].`;
 
     const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 

@@ -23,7 +23,7 @@ export interface LectureData {
   timestamped_transcript: TranscriptSegment[];
   study_guide_it: string;
   potential_exam_questions: ExamQuestion[];
-  mermaid_mindmap: string;
+  mermaid_mindmap?: string;
 }
 
 export interface ChatMessage {

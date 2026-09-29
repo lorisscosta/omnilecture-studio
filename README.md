@@ -29,39 +29,41 @@ OmniLecture bridges this gap by combining **Google Gemini multimodal models** wi
 flowchart LR
     A["🎙️ Audio Lecture\n(FoCase / Phone / Mic)"] --> B["⚡ Client-Side Uploader\n(Bypasses 4.5MB Vercel Limit)"]
     B --> C["🤖 Google Gemini AI\n(1.5-Flash / 2.5 / Pro Fallback)"]
-    C --> D["📝 Verbatim Transcript\n+ Timestamps [MM:SS]"]
-    C --> E["📐 Academic Notes\nKaTeX LaTeX Formulas"]
+    C --> D["📝 Full Transcript\n(Sync Timestamps or Continuous)"]
+    C --> E["📐 Overleaf LaTeX Document\n(.tex Ready with Preambles & Proofs)"]
     C --> F["🎯 Exam Prep\nQuestions & Worked Problems"]
-    C --> G["🧠 Interactive Mindmap\n(Mermaid.js Diagram)"]
-    C --> H["💬 AI Lecture Tutor\n(Contextual Multiturn Chat)"]
-    D & E & F & G --> I["💎 Obsidian Vault Exporter\n(ZIP with Wikilinks & Frontmatter)"]
+    C --> G["📚 Glossary & AI Tutor Chat\n(Interactive RAG per Concept)"]
+    D & E & F & G --> H["💎 Obsidian Vault Exporter\n(ZIP with Wikilinks & Frontmatter)"]
 ```
 
 ---
 
 ## ✨ Key Features
 
-### 📐 1. Full STEM & Mathematical LaTeX Support
-- Native parsing of inline math (`$E=mc^2$`) and display equations (`$$\int_{-\infty}^{\infty} e^{-x^2} dx = \sqrt{\pi}$$`).
-- Rendered via **KaTeX** for speed and typography fidelity.
-- Theorem environments, proofs, definitions, and algorithmic step-by-step breakdowns.
+### 📐 1. Full Overleaf-Ready LaTeX Document (.tex)
+- Generates a complete, ready-to-compile **Overleaf** LaTeX document (`.tex`) containing the entire lecture transcription and academic theory.
+- Includes full document structure (`\documentclass{article}`, `\usepackage{amsmath,amssymb,amsthm}`, `\maketitle`, `\section`, `\begin{equation}`).
+- **One-click "Copia per Overleaf"** button and `.tex` source code downloader.
+- Theorem environments, mathematical proofs, definitions, and equations formatted for publication standards.
 
-### 🎙️ 2. Direct-to-Gemini Client-Side Upload
-- **Zero file size bottlenecks**: Upload audio files exceeding 200MB+.
-- Uses `multipart/related` client-side direct streaming to Google Gemini API endpoints, bypassing standard Vercel serverless request body limitations (4.5MB).
-- Binary magic-byte sniffing (`detectAudioMimeType`) to automatically detect raw PCM WAV headers, MP3, M4A, FLAC, and WebM.
+### 🎙️ 2. Dual Transcript View (Timestamped & Continuous Text)
+- **Segmenti Temporizzati**: synced verbatim timestamps (`[MM:SS]`) with click-to-seek audio playback.
+- **Testo Continuo (Senza Interruzioni)**: continuous uninterrupted full-text narrative without time breaks, perfect for fluent study and export.
+- Instant toggling between Bilingual (Original + Italian), Italian only, and Original only.
 
-### 🎯 3. Strict Grounding (Anti-Hallucination)
+### 📚 3. Integrated Academic Glossary & AI Tutor Chat
+- Contextual technical terminology with academic definitions and translations.
+- Seamlessly integrated **AI Lecture Tutor** with 1-click concept questioning directly from glossary cards.
+- Context-aware RAG answering doubts, theorems, and exercise derivations.
+
+### 🎯 4. Strict Grounding (Anti-Hallucination)
 - Strict grounding prompts ensure notes reflect **only** what was discussed in the lecture audio.
 - Test files or short recordings (e.g., sound checks) are faithfully recognized without generating hallucinated theoretical notes from titles.
 
-### 🧠 4. Interactive Mindmap Generation
-- Automatic synthesis of lecture concept hierarchies into **Mermaid.js** mindmaps.
-- Visual navigation of prerequisites, core concepts, and exam focal points.
-
-### 💬 5. Context-Aware AI Lecture Chat
-- Chat directly with an AI tutor grounded in the full lecture transcript.
-- Built-in turn sanitization algorithm ensuring robust multiturn conversational flow without `HTTP 400` desynchronization.
+### ⚡ 5. Direct-to-Gemini Client-Side Upload
+- **Zero file size bottlenecks**: Upload audio files exceeding 200MB+.
+- Uses `multipart/related` client-side direct streaming to Google Gemini API endpoints, bypassing standard Vercel serverless request body limitations (4.5MB).
+- Binary magic-byte sniffing (`detectAudioMimeType`) to automatically detect raw PCM WAV headers, MP3, M4A, FLAC, and WebM.
 
 ### 💎 6. One-Click Obsidian Vault Exporter
 - Exports an interconnected `.zip` vault ready to open directly in **Obsidian.md**, **Logseq**, or **Notion**.

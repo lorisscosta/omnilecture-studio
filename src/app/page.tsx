@@ -31,13 +31,11 @@ import { ObsidianExportButton } from '@/components/export/ObsidianExportButton';
 import { StudyGuideTab } from '@/components/workspace/StudyGuideTab';
 import { TranscriptTab } from '@/components/workspace/TranscriptTab';
 import { GlossaryTab } from '@/components/workspace/GlossaryTab';
-import { MindmapTab } from '@/components/workspace/MindmapTab';
-import { LectureChatTab } from '@/components/workspace/LectureChatTab';
 
 export default function HomePage() {
   const [selectedLectureId, setSelectedLectureId] = useState<string | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [activeTab, setActiveTab] = useState<'guide' | 'transcript' | 'glossary' | 'mindmap' | 'chat'>('guide');
+  const [activeTab, setActiveTab] = useState<'guide' | 'transcript' | 'glossary'>('guide');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -143,43 +141,103 @@ export default function HomePage() {
             text_it: 'Fate molta attenzione: la moltiplicazione tra due DFT nel dominio della frequenza NON corrisponde alla convoluzione lineare, bensì alla convoluzione circolare a causa della ripetizione periodica implicita.',
           },
         ],
-        study_guide_it: `# Guida Accademica: Trasformata di Fourier Discreta (DFT)
+        study_guide_it: `\\documentclass[11pt,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage[italian]{babel}
+\\usepackage{amsmath,amssymb,amsthm,mathtools}
+\\usepackage{geometry}
+\\geometry{a4paper, margin=2.5cm}
+\\usepackage{hyperref}
+\\usepackage{xcolor}
+\\usepackage{microtype}
 
-> [!important] Concetto Chiave per l'Esame
-> La moltiplicazione puntuale di due DFT nel dominio delle frequenze campionate:
-> $$Y[k] = X[k] \\cdot H[k]$$
-> corrisponde nel dominio temporale alla **convoluzione circolare** $y[n] = x[n] \\circledast_N h[n]$, e non alla convoluzione lineare standard. Per calcolare una convoluzione lineare tramite FFT è obbligatorio applicare lo **zero-padding** ad almeno $L = N_1 + N_2 - 1$ campioni.
+\\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=green!50!black,
+    urlcolor=purple!70!black
+}
 
-## 1. Definizione Matematica e Matrice di Trasformazione
+\\newtheorem{theorem}{Teorema}[section]
+\\newtheorem{definition}{Definizione}[section]
+\\newtheorem{example}{Esempio}[section]
 
-Sia $x[n]$ una sequenza a lunghezza finita di $N$ campioni ($n = 0, 1, \\dots, N-1$). La sua DFT $X[k]$ è definita formalmente come:
+\\title{\\textbf{Lezione 04: Discrete Fourier Transform \\& Fast Convolution}\\\\ \\large \\textit{Corso di Digital Signal Processing (DSP)}}
+\\author{OmniLecture Studio \\and Trascrizione Accademica Integrale}
+\\date{\\today}
 
-$$X[k] = \\sum_{n=0}^{N-1} x[n] W_N^{kn}, \\quad k = 0, 1, \\dots, N-1$$
+\\begin{document}
+\\maketitle
 
-dove il fattore di rotazione (twiddle factor) è:
-$$W_N = e^{-j\\frac{2\\pi}{N}}$$
+\\begin{abstract}
+Questo documento raccoglie la trascrizione e rielaborazione accademica integrale della lezione n. 04 di Digital Signal Processing. Viene affrontata la derivazione rigorosa della Trasformata di Fourier Discreta (DFT), la sua interpretazione geometrica sul cerchio unitario e l'equivalenza fondamentale tra moltiplicazione spettrale e convoluzione circolare nel tempo discreto.
+\\end{abstract}
 
-La trasformata inversa (IDFT) consente la perfetta ricostruzione del segnale temporale:
-$$x[n] = \\frac{1}{N} \\sum_{k=0}^{N-1} X[k] W_N^{-kn}, \\quad n = 0, 1, \\dots, N-1$$
+\\tableofcontents
+\\vspace{1cm}
+\\hrule
+\\vspace{0.5cm}
 
-## 2. Dimostrazione: Equivalenza tra Moltiplicazione in Frequenza e Convoluzione Circolare
+\\section{Introduzione e Trascrizione del Parlato}
+Buongiorno a tutti. Oggi esploreremo la struttura matematica della Trasformata di Fourier Discreta e della convoluzione circolare.
+Ricordate che mentre la DTFT opera nel tempo discreto e nella frequenza continua, la DFT campiona il dominio della frequenza in $N$ punti equidistanti sulla circonferenza unitaria.
 
-Dimostriamo perché l'antitrasformata del prodotto $Y[k] = X[k] H[k]$ produce la convoluzione circolare:
+\\section{Definizione Matematica della Trasformata di Fourier Discreta}
+\\begin{definition}[DFT e IDFT]
+Sia $x[n]$ una sequenza a lunghezza finita di $N$ campioni ($n = 0, 1, \\dots, N-1$). La sua Trasformata di Fourier Discreta $X[k]$ è definita formalmente come:
+\\begin{equation}
+X[k] = \\sum_{n=0}^{N-1} x[n] W_N^{kn}, \\quad k = 0, 1, \\dots, N-1
+\\end{equation}
+dove il fattore di rotazione (twiddle factor) è dato da:
+\\begin{equation}
+W_N = e^{-j \\frac{2\\pi}{N}}
+\\end{equation}
+La trasformata inversa (IDFT) consente la perfetta ricostruzione del segnale temporale campionario:
+\\begin{equation}
+x[n] = \\frac{1}{N} \\sum_{k=0}^{N-1} X[k] W_N^{-kn}, \\quad n = 0, 1, \\dots, N-1
+\\end{equation}
+\\end{definition}
 
-$$y[n] = \\frac{1}{N} \\sum_{k=0}^{N-1} \\left( \\sum_{m=0}^{N-1} x[m] W_N^{km} \\right) \\left( \\sum_{l=0}^{N-1} h[l] W_N^{kl} \\right) W_N^{-kn}$$
+\\section{Teorema della Convoluzione Circolare}
+Fate molta attenzione a quanto spiegato dal docente: la moltiplicazione tra due DFT nel dominio della frequenza \\textbf{NON} corrisponde alla convoluzione lineare, bensì alla convoluzione circolare a causa della ripetizione periodica implicita.
 
+\\begin{theorem}[Moltiplicazione Spettrale]
+Siano $x[n]$ e $h[n]$ due segnali di lunghezza $N$. Il prodotto punto a punto nel dominio trasformato:
+\\begin{equation}
+Y[k] = X[k] \\cdot H[k]
+\\end{equation}
+corrisponde nel dominio del tempo discreto all'operazione di convoluzione circolare:
+\\begin{equation}
+y[n] = x[n] \\circledast_N h[n] = \\sum_{m=0}^{N-1} x[m] h[((n - m))_N]
+\\end{equation}
+\\end{theorem}
+
+\\begin{proof}
+Calcoliamo l'antitrasformata del prodotto $Y[k]$:
+\\begin{equation}
+y[n] = \\frac{1}{N} \\sum_{k=0}^{N-1} \\left( \\sum_{m=0}^{N-1} x[m] W_N^{km} \\right) \\left( \\sum_{l=0}^{N-1} h[l] W_N^{kl} \\right) W_N^{-kn}
+\\end{equation}
 Scambiando l'ordine di sommatoria:
-$$y[n] = \\sum_{m=0}^{N-1} x[m] \\sum_{l=0}^{N-1} h[l] \\left[ \\frac{1}{N} \\sum_{k=0}^{N-1} W_N^{k(m+l-n)} \\right]$$
+\\begin{equation}
+y[n] = \\sum_{m=0}^{N-1} x[m] \\sum_{l=0}^{N-1} h[l] \\left[ \\frac{1}{N} \\sum_{k=0}^{N-1} W_N^{k(m+l-n)} \\right]
+\\end{equation}
+Utilizzando la proprietà di ortogonalità della base esponenziale:
+\\begin{equation}
+\\frac{1}{N} \\sum_{k=0}^{N-1} W_N^{k(m+l-n)} = \\sum_{r=-\\infty}^{+\\infty} \\delta[m+l-n - rN]
+\\end{equation}
+Otteniamo direttamente la formula della convoluzione circolare modulo $N$:
+\\begin{equation}
+y[n] = \\sum_{m=0}^{N-1} x[m] h[((n - m))_N]
+\\end{equation}
+\\end{proof}
 
-Utilizzando la proprietà di ortogonalità degli esponenziali complessi:
-$$\\frac{1}{N} \\sum_{k=0}^{N-1} W_N^{k(m+l-n)} = \\sum_{r=-\\infty}^{+\\infty} \\delta[m+l-n - rN]$$
+\\section{Zero-Padding e Convoluzione Lineare Veloce}
+Per calcolare una convoluzione lineare tramite Fast Fourier Transform (FFT) senza incorrere in aliasing temporale (time-domain aliasing), è condizione necessaria e sufficiente applicare lo zero-padding portando la lunghezza comune ad almeno:
+\\begin{equation}
+N \\ge N_x + N_h - 1
+\\end{equation}
 
-Otteniamo direttamente la formula della convoluzione circolare:
-$$y[n] = \\sum_{m=0}^{N-1} x[m] h[((n - m))_N]$$
-
-> [!tip] Regola Pratica per gli Esercizi
-> Per evitare l'aliasing nel tempo (time-domain aliasing), assicurarsi che la dimensione $N$ della DFT soddisfi:
-> $$N \\ge N_x + N_h - 1$$`,
+\\end{document}`,
         potential_exam_questions: [
           {
             question: 'Dimostrare la condizione minima di zero-padding necessaria per implementare un filtro FIR di lunghezza M su un segnale di lunghezza L tramite FFT.',
@@ -199,20 +257,6 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
             importance_level: 'High',
           },
         ],
-        mermaid_mindmap: `flowchart TD
-    A["Discrete Fourier Transform (DFT)"] --> B["Campionamento Spettrale"]
-    A --> C["Convoluzione Circolare"]
-    A --> D["Algoritmi Fast Fourier Transform (FFT)"]
-    
-    B --> B1["Campionamento su N punti della DTFT"]
-    B --> B2["Fattori di rotazione W_N"]
-    
-    C --> C1["Problema dell'Aliasing Temporale"]
-    C --> C2["Soluzione: Zero-Padding L >= N1 + N2 - 1"]
-    C --> C3["Metodi a Blocchi: Overlap-Add & Overlap-Save"]
-    
-    D --> D1["Cooley-Tukey Radix-2 O(N log N)"]
-    D --> D2["Decimazione nel Tempo e in Frequenza"]`,
       },
     };
 
@@ -498,7 +542,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   }`}
                 >
                   <BookOpen className="w-4 h-4" />
-                  <span>Guida allo Studio (IT & Math)</span>
+                  <span>Guida allo Studio (LaTeX Overleaf)</span>
                 </button>
 
                 <button
@@ -522,31 +566,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   }`}
                 >
                   <Bookmark className="w-4 h-4" />
-                  <span>Glossario Tecnico (EN-IT)</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('mindmap')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
-                    activeTab === 'mindmap'
-                      ? 'bg-purple-600 text-white shadow-md'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-                  }`}
-                >
-                  <Network className="w-4 h-4" />
-                  <span>Mappa Concettuale</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('chat')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
-                    activeTab === 'chat'
-                      ? 'bg-purple-600 text-white shadow-md'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-                  }`}
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  <span>Chat con la Lezione (RAG)</span>
+                  <span>Glossario & Tutor AI</span>
                 </button>
               </div>
 
@@ -556,6 +576,8 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   <StudyGuideTab
                     studyGuideIt={currentLecture.data.study_guide_it}
                     examQuestions={currentLecture.data.potential_exam_questions}
+                    lectureTitle={currentLecture.title}
+                    course={currentLecture.course}
                   />
                 )}
 
@@ -568,15 +590,8 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 )}
 
                 {activeTab === 'glossary' && currentLecture.data && (
-                  <GlossaryTab glossary={currentLecture.data.glossary} />
-                )}
-
-                {activeTab === 'mindmap' && currentLecture.data && (
-                  <MindmapTab mindmapCode={currentLecture.data.mermaid_mindmap} />
-                )}
-
-                {activeTab === 'chat' && (
-                  <LectureChatTab
+                  <GlossaryTab
+                    glossary={currentLecture.data.glossary}
                     lecture={currentLecture}
                     onOpenSettings={() => setIsSettingsOpen(true)}
                   />
