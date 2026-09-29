@@ -60,34 +60,39 @@ flowchart TD
 
 ## ✨ Funzionalità Principali
 
-### 📐 1. Documento LaTeX (.tex) Integrale per Overleaf
+### 📐 1. Documento LaTeX (.tex) per Overleaf, Anteprima KaTeX & Linter
 - Genera un **documento accademico LaTeX completo** pronto per essere copiato e compilato con un solo click su [Overleaf](https://www.overleaf.com/).
 - Include il preambolo accademico standard (`\documentclass{article}`, `\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}`, `babel` italiano, impostazioni margini).
-- Trattazione discorsiva rigorosa ed esaustiva di tutto ciò che il docente ha spiegato, formattando equazioni in ambiente `equation`, definizioni, teoremi e dimostrazioni passo-passo.
-- Pulsante rapido **"Copia per Overleaf"** e download del file sorgente `.tex`.
+- Include la macro compatibile Overleaf `\newcommand{\ts}[2]{\marginpar{\scriptsize\texttt{[P#1 #2s]}}}` per annotare i timestamp audio a margine.
+- **Anteprima KaTeX Interattiva**: visualizzazione immediata delle formule matematiche con supporto "click-to-seek" che porta il player audio esattamente al timestamp della spiegazione.
+- **Linter Sintattico LaTeX Integrato**: pannello diagnostico che analizza in tempo reale il codice `.tex` evidenziando ambienti non chiusi (`\begin{...}` senza `\end{...}`) o parentesi sbilanciate prima dell'esportazione.
+- Pulsanti rapidi **"Copia per Overleaf"** e download del file sorgente `.tex`.
 
-### 🎙️ 2. Supporto Registrazioni Multiple per Lezione
-- Consente di caricare **più registrazioni audio sequenziali** della stessa lezione (es. spegnendo il registratore prima della pausa e riaccendendolo alla ripresa).
+### 🎙️ 2. Registrazioni Multiple & Chunking Robusto per Lezioni Lunghe (>2h)
+- Consente di caricare **più registrazioni audio sequenziali** della stessa lezione (es. prima e dopo la pausa).
 - **Riordinamento visivo** con pulsanti [▲ Sposta Su] e [▼ Sposta Giù] per garantire la cronologia corretta.
-- **Unificazione Automatica**: Gemini riceve tutti gli spezzoni e produce **UN UNICO** documento LaTeX, una trascrizione coerente continua e un glossario globale.
+- **Elaborazione a Blocchi (Chunking)**: per lezioni universitarie oltre le 2 ore, l'audio viene suddiviso ed elaborato con retry automatico a backoff esponenziale (con jitter) in caso di transient rate-limit.
 - **Player WaveSurfer con Playlist Automatica**: al termine di una parte avanza automaticamente alla traccia successiva; cliccando sui timestamp della trascrizione salta direttamente alla parte e al secondo corretti.
 
-### 📜 3. Doppia Modalità Trascrizione (Continua & Segmenti)
+### 📜 3. Doppia Modalità Trascrizione (Continua & Segmentata)
 - **Modalità Continua**: lettura fluida dell'intera lezione come un testo unico e continuo privo di interruzioni temporali, ideale per lo studio e la stampa.
-- **Modalità Segmentata**: blocchi temporizzati con audio player sincronizzato, speaker e badge indicativo della parte audio.
-- Filtri lingua istantanei: **Bilingue (Inglese + Traduzione Italiana)**, **Solo Italiano**, **Solo Inglese**.
+- **Modalità Segmentata**: blocchi temporizzati sincronizzati con il player audio, speaker e indicatore della parte audio (P1, P2...).
+- Filtri lingua istantanei: **Bilingue (Originale + Traduzione Italiana)**, **Solo Italiano**, **Solo Originale**.
+- Ricerca istantanea nel testo con evidenziazione.
 
 ### 📚 4. Glossario Tecnico & Tutor AI della Lezione
-- Estrazione dei termini matematici e tecnici citati nella lezione con traduzione accademica e definizione rigorosa.
-- **Tutor AI interattivo**: possibilità di porre domande e approfondimenti sui concetti spiegati direttamente dalla lezione, sfruttando le risposte basate esclusivamente sul materiale didattico.
+- Estrazione automatica dei termini matematici e tecnici citati nella lezione con traduzione accademica e definizione rigorosa.
+- **Tutor AI interattivo**: chat contestuale basata rigorosamente sulla trascrizione della lezione per chiarire dubbi, verificare dimostrazioni e generare domande tipiche d'esame con soluzioni passo-passo.
 
-### 📄 5. Integrazione Slide della Lezione (PDF $\to$ Markdown)
-- Possibilità opzionale di allegare il **PDF delle slide**.
-- Le slide vengono convertite automaticamente in Markdown formattato (`.md`) e confrontate da Gemini con l'audio registrato per inserire riferimenti puntuali e approfondire formule e diagrammi.
+### 📑 5. Timeline Multimodale Slide PDF & Gestione Markdown (.md)
+- Tab dedicato **Slide & Timeline** con allineamento temporale sincronizzato tra slide del docente e registrazione audio.
+- Conversione automatica delle slide in formato Markdown accademico (`.md`) per consultare rapidamente formule, elenchi e diagrammi.
+- Ricerca interna per argomento e salto audio immediato al momento in cui il docente ha discusso ogni specifica slide.
 
-### 📱 6. Interfaccia Ergonomica per Smartphone (PWA)
-- Piena reattività per schermi da 320px a 430px (iPhone, Android).
-- Touch target comodi, toolbar audio WaveSurfer a due livelli e drawer laterale con chiusura a tocco sullo sfondo.
+### 📱 6. Interfaccia Ergonomica & Responsive (PC & Mobile PWA)
+- **Architettura a 4 Tab Focalizzati**: Guida LaTeX, Trascrizione, Glossario & Tutor AI, Slide & Timeline.
+- **Protezione Anti-Overflow KaTeX**: formule matematiche e matrici complesse scorrono dolcemente in orizzontale (`-webkit-overflow-scrolling: touch`) senza deformare la schermata mobile.
+- Nessuna ridondanza nei controlli: ogni pulsante ha una funzione univoca e ben definita.
 
 ---
 
@@ -122,6 +127,7 @@ CREATE TABLE IF NOT EXISTS public.lectures (
     mermaid_mindmap TEXT DEFAULT '',
     slides_filename TEXT,
     slides_markdown TEXT,
+    slides_alignment JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -165,7 +171,8 @@ L'applicazione utilizza le API multimodali di Google per analizzare direttamente
 3. Copia la chiave generata (inizia con `AIzaSy...`).
 
 ### Dove inserire la chiave nell'applicazione:
-- **Metodo Diretto (Consigliato):** Apri OmniLecture Studio nel browser, clicca sull'icona delle **Impostazioni** (⚙️) in alto a destra e incolla la tua chiave. Verrà salvata in modo sicuro nel `localStorage` del tuo browser (Bring Your Own Key).
+- **Metodo Diretto BYOK (Consigliato):** Apri OmniLecture Studio nel browser, clicca sull'icona delle **Impostazioni** (⚙️) e incolla la tua chiave. Verrà salvata in modo sicuro nel `localStorage` del tuo browser.
+- **Rilevamento Dinamico Modelli & Fallback Automatico:** Una volta inserita la chiave, l'app interroga Google AI Studio per identificare i modelli attivi associati alla tua chiave (es. `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-pro`). Se un modello incontra un rate limit temporaneo (429 o saturazione della quota), il sistema esegue tentativi con backoff esponenziale e fallback intelligente.
 - **Variabile d'Ambiente (Opzionale come fallback):** Puoi anche impostarla nel file `.env.local` come `GEMINI_API_KEY=tua_chiave`.
 
 ---
@@ -229,10 +236,11 @@ npm run dev
 
 Apri [http://localhost:3000](http://localhost:3000) nel tuo browser.
 
-Per verificare la build di produzione in locale:
+Per verificare la suite di test e la build di produzione in locale:
 ```bash
-npm run build
-npm run start
+npm run test     # Esegue 43 test unitari con Vitest
+npm run build    # Verifica il build di produzione Next.js 15
+npm run start    # Avvia la build in locale
 ```
 
 ---
@@ -244,9 +252,11 @@ npm run start
 | **Framework** | [Next.js 15](https://nextjs.org/) (App Router, Server Actions) |
 | **Frontend** | [React 19](https://react.dev/), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/) |
 | **AI Multimodale** | [Google Gemini 1.5 Flash](https://ai.google.dev/) (Predefinito), Gemini 2.0 Flash, Gemini 1.5 Pro |
+| **Formule Matematiche** | [KaTeX](https://katex.org/) (Rendering LaTeX interattivo ad alta velocità con audio seek) |
 | **Audio Waveform** | [WaveSurfer.js 7](https://wavesurfer.xyz/) & HTML5 Web Audio API |
-| **Database Locale** | [Dexie.js](https://dexie.com/) (IndexedDB client-side offline-first) |
+| **Database Locale** | [Dexie.js](https://dexie.com/) (IndexedDB client-side offline-first v2) |
 | **Cloud Sync & Auth** | [Supabase](https://supabase.com/) (PostgreSQL & Row Level Security) |
+| **Testing** | [Vitest](https://vitest.dev/) (Suite di test unitari automatizzati) |
 | **Hosting & Edge** | [Vercel](https://vercel.com/) |
 
 ---
