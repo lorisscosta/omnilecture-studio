@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   UploadCloud,
   FileAudio,
@@ -19,6 +19,13 @@ import {
 import { db, saveLecture, updateLectureStatus, updateLectureData, updateLectureSlides } from '@/lib/db';
 import { Lecture, AudioPart } from '@/lib/types';
 import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
+import {
+  GeminiModelInfo,
+  STATIC_FALLBACK_MODELS,
+  fetchAvailableModels,
+  DEFAULT_MODEL_ID,
+  normalizeModelName,
+} from '@/lib/gemini-config';
 
 interface AudioUploaderProps {
   onLectureCreated: (lectureId: string) => void;
@@ -35,11 +42,36 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
   const [course, setCourse] = useState('');
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedModel, setSelectedModel] = useState('gemini-1.5-flash-latest');
+  const [availableModels, setAvailableModels] = useState<GeminiModelInfo[]>(STATIC_FALLBACK_MODELS);
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('gemini_selected_model');
+      if (saved) return normalizeModelName(saved);
+    }
+    return DEFAULT_MODEL_ID;
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const key = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null;
+    if (key) {
+      fetchAvailableModels(key).then((models) => {
+        if (models && models.length > 0) {
+          setAvailableModels(models);
+        }
+      }).catch(console.warn);
+    }
+  }, []);
+
+  const handleModelChange = (modelId: string) => {
+    setSelectedModel(modelId);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gemini_selected_model', modelId);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -551,14 +583,15 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           </label>
           <select
             value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value)}
+            onChange={(e) => handleModelChange(e.target.value)}
             disabled={isProcessing}
             className="w-full rounded-lg bg-zinc-950 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-purple-500 cursor-pointer"
           >
-            <option value="gemini-1.5-flash-latest">Gemini 1.5 Flash (Consigliato - Immediato, Server Stabili & Massima Quota)</option>
-            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Nuovissima generazione - Soggetto a code di traffico Google)</option>
-            <option value="gemini-1.5-pro-latest">Gemini 1.5 Pro (Massima Precisione Accademica, Formule & Dimostrazioni)</option>
-            <option value="gemini-1.5-flash-002">Gemini 1.5 Flash 002 (Bassa Latenza)</option>
+            {availableModels.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.displayName} {m.isRecommended ? '★ (Consigliato)' : m.isPro ? '◆ (Pro Accademico)' : ''}
+              </option>
+            ))}
           </select>
         </div>
 

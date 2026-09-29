@@ -1,4 +1,5 @@
 import { LectureData, AudioPart } from './types';
+import { fetchAvailableModels, getModelFallbackChain, normalizeModelName } from './gemini-config';
 
 // Strict JSON Schema for Gemini
 export const responseSchema = {
@@ -297,54 +298,20 @@ export async function processAudioDirectly(
 
     // Step 2: Discover available models
     onProgress?.('Rilevamento automatico dei modelli Gemini abilitati per la tua chiave...');
+    const normalizedUserSelected = normalizeModelName(userSelectedModel);
     let modelsToTry: string[] = [];
 
-    // Map legacy or fictitious model names to modern official models
-    let normalizedUserSelectedModel = userSelectedModel;
-    if (normalizedUserSelectedModel === 'gemini-3.8-flash' || normalizedUserSelectedModel === 'gemini-3.6-flash') {
-      normalizedUserSelectedModel = 'gemini-2.0-flash';
-    }
-
-    if (normalizedUserSelectedModel && !normalizedUserSelectedModel.includes('tts') && !normalizedUserSelectedModel.includes('live')) {
-      modelsToTry.push(normalizedUserSelectedModel);
-    }
-
     try {
-      const listResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-      if (listResponse.ok) {
-        const listData = await listResponse.json();
-        const available: string[] = (listData.models || [])
-          .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
-          .map((m: any) => m.name.replace(/^models\//, ''))
-          .filter((name: string) =>
-            !name.includes('tts') &&
-            !name.includes('embedding') &&
-            !name.includes('imagen') &&
-            !name.includes('aqa') &&
-            !name.includes('live')
-          );
+      const availableModels = await fetchAvailableModels(apiKey);
+      const availableIds = availableModels.map((m) => m.id);
 
-        const preferredOrder = [
-          'gemini-1.5-flash-latest',
-          'gemini-1.5-flash',
-          'gemini-1.5-flash-002',
-          'gemini-2.0-flash',
-          'gemini-2.0-flash-exp',
-          'gemini-1.5-pro-latest',
-          'gemini-1.5-pro-002',
-          'gemini-1.5-pro',
-        ];
+      if (availableIds.includes(normalizedUserSelected)) {
+        modelsToTry.push(normalizedUserSelected);
+      }
 
-        for (const p of preferredOrder) {
-          if (available.includes(p) && !modelsToTry.includes(p)) {
-            modelsToTry.push(p);
-          }
-        }
-
-        for (const a of available) {
-          if (!modelsToTry.includes(a) && (a.includes('flash') || a.includes('pro') || a.includes('gemini'))) {
-            modelsToTry.push(a);
-          }
+      for (const m of availableModels) {
+        if (!modelsToTry.includes(m.id)) {
+          modelsToTry.push(m.id);
         }
       }
     } catch (err) {
@@ -352,16 +319,7 @@ export async function processAudioDirectly(
     }
 
     if (modelsToTry.length === 0) {
-      modelsToTry = [
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-002',
-        'gemini-2.0-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-pro-latest',
-        'gemini-1.5-pro-002',
-        'gemini-1.5-pro',
-      ];
+      modelsToTry = getModelFallbackChain(normalizedUserSelected);
     }
 
     const isMultiPart = uploadedFilesMeta.length > 1;
@@ -652,16 +610,7 @@ Regole fondamentali:
 
     const promptText = `Converti tutte le slide di questo documento PDF in Markdown accademico (.md) completo e ben strutturato per lo studio.`;
 
-    const modelsToTry = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-flash-002',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash-exp',
-      'gemini-1.5-pro-latest',
-      'gemini-1.5-pro-002',
-      'gemini-1.5-pro',
-    ];
+    const modelsToTry = getModelFallbackChain();
 
     let generationResponse: Response | null = null;
 
@@ -807,16 +756,7 @@ ${slidesMarkdown}
 
 Confronta la registrazione vocale con le slide, unisci i contenuti e restituisci il JSON con la Guida Overleaf LaTeX completa arricchita con i riferimenti alle slide, il glossario aggiornato e le domande d'esame.`;
 
-  const modelsToTry = [
-    'gemini-2.0-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash-002',
-    'gemini-1.5-flash',
-    'gemini-2.0-flash-exp',
-    'gemini-1.5-pro-latest',
-    'gemini-1.5-pro-002',
-    'gemini-1.5-pro',
-  ];
+  const modelsToTry = getModelFallbackChain();
 
   let generationResponse: Response | null = null;
 

@@ -1,7 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Key, X, Check, ExternalLink, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Key, X, Check, ExternalLink, ShieldCheck, Cpu, RefreshCw, AlertCircle } from 'lucide-react';
+import {
+  GeminiModelInfo,
+  STATIC_FALLBACK_MODELS,
+  fetchAvailableModels,
+  DEFAULT_MODEL_ID,
+  normalizeModelName,
+} from '@/lib/gemini-config';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -12,18 +19,66 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onSaved }) => {
   const [apiKey, setApiKey] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+  const [models, setModels] = useState<GeminiModelInfo[]>(STATIC_FALLBACK_MODELS);
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
+  const [isValidating, setIsValidating] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('gemini_api_key') || '';
-    setApiKey(saved);
+    if (!isOpen) return;
+
+    const savedKey = localStorage.getItem('gemini_api_key') || '';
+    setApiKey(savedKey);
+
+    const savedModel = localStorage.getItem('gemini_selected_model') || DEFAULT_MODEL_ID;
+    setSelectedModel(normalizeModelName(savedModel));
+
+    if (savedKey) {
+      setIsValidating(true);
+      fetchAvailableModels(savedKey)
+        .then((fetched) => {
+          if (fetched && fetched.length > 0) {
+            setModels(fetched);
+            setValidationMessage(`${fetched.length} modelli multimodali verificati.`);
+          }
+        })
+        .catch(() => {
+          setValidationMessage('Utilizzo modelli predefiniti offline.');
+        })
+        .finally(() => {
+          setIsValidating(false);
+        });
+    }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const handleTestKey = async () => {
+    if (!apiKey.trim()) {
+      setValidationMessage('Inserisci una chiave prima di verificare.');
+      return;
+    }
+
+    setIsValidating(true);
+    setValidationMessage(null);
+
+    try {
+      const fetched = await fetchAvailableModels(apiKey.trim());
+      setModels(fetched);
+      setValidationMessage(`Chiave valida! ${fetched.length} modelli rilevati.`);
+    } catch {
+      setValidationMessage('Impossibile verificare la chiave. Controlla la connessione.');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
   const handleSave = () => {
-    localStorage.setItem('gemini_api_key', apiKey.trim());
+    const cleanKey = apiKey.trim();
+    localStorage.setItem('gemini_api_key', cleanKey);
+    localStorage.setItem('gemini_selected_model', selectedModel);
     setIsSaved(true);
-    onSaved?.(apiKey.trim());
+    onSaved?.(cleanKey);
     setTimeout(() => {
       setIsSaved(false);
       onClose();
@@ -32,11 +87,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-2xl bg-zinc-900 border border-obsidian-border p-6 shadow-2xl text-zinc-100 animate-in fade-in zoom-in-95 duration-150">
+      <div className="w-full max-w-lg rounded-2xl bg-zinc-900 border border-zinc-800 p-6 shadow-2xl text-zinc-100 animate-in fade-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <Key className="w-5 h-5 text-purple-400" />
-            <h2 className="text-lg font-semibold text-zinc-100">Impostazioni API</h2>
+            <h2 className="text-lg font-semibold text-zinc-100">Impostazioni AI & Chiavi</h2>
           </div>
           <button
             onClick={onClose}
@@ -48,9 +103,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
 
         <div className="py-4 space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
-              Chiave Google AI Studio (Gemini Flash / Pro)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Chiave Google AI Studio (BYOK)
+              </label>
+              {apiKey && (
+                <button
+                  type="button"
+                  onClick={handleTestKey}
+                  disabled={isValidating}
+                  className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1 transition"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isValidating ? 'animate-spin' : ''}`} />
+                  <span>Verifica Modelli</span>
+                </button>
+              )}
+            </div>
             <div className="relative">
               <input
                 type="password"
@@ -60,8 +128,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 className="w-full rounded-lg bg-zinc-950 border border-zinc-700 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono"
               />
             </div>
+            {validationMessage && (
+              <p className="mt-1.5 text-xs text-purple-300 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 text-purple-400" />
+                {validationMessage}
+              </p>
+            )}
             <p className="mt-1.5 text-xs text-zinc-400">
-              La chiave è memorizzata esclusivamente nel tuo browser (`localStorage`) e viene inviata alle route Next.js server-side per bypassare il blocco CORS.
+              La chiave è salvata nel tuo browser (`localStorage`) per l&apos;accesso diretto ad altissima quota.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5 flex items-center gap-1.5">
+              <Cpu className="w-3.5 h-3.5 text-purple-400" />
+              <span>Modello Predefinito</span>
+            </label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="w-full rounded-lg bg-zinc-950 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-purple-500 cursor-pointer"
+            >
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.displayName} {m.isRecommended ? '★ (Consigliato)' : m.isPro ? '◆ (Pro)' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-zinc-500">
+              {models.find((m) => m.id === selectedModel)?.description ||
+                'Modello multimodale ottimizzato per sintesi e trascrizione.'}
             </p>
           </div>
 
@@ -71,7 +167,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
               <span>Elaborazione Audio Multimodale Diretta</span>
             </div>
             <p className="text-zinc-400">
-              Usa i motori multimodali <strong>Gemini 2.0 Flash / 1.5 Flash / Pro</strong> per trascrizione audio nativa, calcolo matematico LaTeX e sintesi ad alta fedeltà accademica.
+              Usa i motori multimodali per trascrizione audio nativa, calcolo matematico LaTeX e sintesi ad alta fedeltà accademica.
             </p>
             <a
               href="https://aistudio.google.com/app/apikey"
@@ -102,7 +198,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 Salvato!
               </>
             ) : (
-              'Salva Chiave'
+              'Salva Impostazioni'
             )}
           </button>
         </div>

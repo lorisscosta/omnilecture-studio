@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { detectAudioMimeType } from '@/lib/gemini-service';
+import { authenticateAndRateLimit, createRateLimitResponse } from '@/lib/server-rate-limiter';
+import { getModelFallbackChain, normalizeModelName } from '@/lib/gemini-config';
 
 export const maxDuration = 300; // 5 minutes for processing long audio files
 export const dynamic = 'force-dynamic';
@@ -157,16 +159,28 @@ async function deleteGeminiFile(fileResourceName: string, apiKey: string): Promi
 
 export async function POST(req: NextRequest) {
   let uploadedFileResource: string | null = null;
-  let apiKey = req.headers.get('x-gemini-api-key') || '';
+  let apiKey = '';
 
   try {
+    // Check authentication & atomic rate limits
+    const rateLimitCheck = await authenticateAndRateLimit(req);
+    if (!rateLimitCheck.allowed) {
+      return createRateLimitResponse(rateLimitCheck);
+    }
+
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File | null;
     const course = (formData.get('course') as string) || 'Ingegneria / STEM';
     const title = (formData.get('title') as string) || 'Lezione Magistrale';
+    const requestedModel = (formData.get('model') as string) || undefined;
 
+    apiKey = req.headers.get('x-gemini-api-key') || '';
     if (!apiKey) {
       apiKey = (formData.get('apiKey') as string) || '';
+    }
+    // Fallback to server key if BYOK not provided and user is authenticated
+    if (!apiKey) {
+      apiKey = process.env.GEMINI_API_KEY || '';
     }
 
     if (!apiKey) {
@@ -211,16 +225,7 @@ Struttura dei campi JSON richiesta:
 
     const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
-    const modelsToTry = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-flash-002',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash-exp',
-      'gemini-1.5-pro-latest',
-      'gemini-1.5-pro-002',
-      'gemini-1.5-pro',
-    ];
+    const modelsToTry = getModelFallbackChain(requestedModel);
     let generationResponse: Response | null = null;
     let successfulModel = '';
 

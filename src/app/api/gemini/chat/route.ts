@@ -1,15 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateAndRateLimit, createRateLimitResponse } from '@/lib/server-rate-limiter';
+import { getModelFallbackChain } from '@/lib/gemini-config';
 
 export const dynamic = 'force-dynamic';
 
+interface ContentTurn {
+  role: 'user' | 'model';
+  parts: Array<{ text: string }>;
+}
+
 export async function POST(req: NextRequest) {
   try {
+    // Check authentication & atomic rate limits
+    const rateLimitCheck = await authenticateAndRateLimit(req);
+    if (!rateLimitCheck.allowed) {
+      return createRateLimitResponse(rateLimitCheck);
+    }
+
     let apiKey = req.headers.get('x-gemini-api-key') || '';
     const body = await req.json();
-    const { lectureTitle, course, studyGuide, glossary, messages, question } = body;
+    const { lectureTitle, course, studyGuide, glossary, messages, question, model: requestedModel } = body;
 
     if (!apiKey) {
       apiKey = body.apiKey || '';
+    }
+    // Fallback to server key if BYOK not provided and user is authenticated
+    if (!apiKey) {
+      apiKey = process.env.GEMINI_API_KEY || '';
     }
 
     if (!apiKey) {
@@ -47,12 +64,12 @@ Linee guida per la risposta:
 - Se la domanda non è coperta dal materiale della lezione, rispondi usando le tue conoscenze scientifiche indicando però con trasparenza che si tratta di un approfondimento non esplicitamente menzionato nella registrazione.`;
 
     // Format chat history for Gemini API (ensuring strict alternating turns and no duplicate user turns)
-    const formattedContents: any[] = [];
+    const formattedContents: ContentTurn[] = [];
 
     if (Array.isArray(messages)) {
       for (const msg of messages) {
         if (!msg || !msg.content) continue;
-        const role = msg.role === 'assistant' ? 'model' : 'user';
+        const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
         
         // Merge consecutive turns with the same role to satisfy Gemini's strict alternation
         if (formattedContents.length > 0 && formattedContents[formattedContents.length - 1].role === role) {
@@ -79,16 +96,7 @@ Linee guida per la risposta:
       });
     }
 
-    const modelsToTry = [
-      'gemini-2.0-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-flash-002',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash-exp',
-      'gemini-1.5-pro-latest',
-      'gemini-1.5-pro-002',
-      'gemini-1.5-pro',
-    ];
+    const modelsToTry = getModelFallbackChain(requestedModel);
     let chatResponse: Response | null = null;
 
     for (const model of modelsToTry) {

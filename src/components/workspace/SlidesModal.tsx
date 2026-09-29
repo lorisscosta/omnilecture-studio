@@ -195,7 +195,7 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
                 )}
               </h3>
               <p className="text-[11px] sm:text-xs text-zinc-400 line-clamp-1">
-                Carica il PDF delle slide per convertirle in Markdown e correlarle con l'audio
+                Carica il PDF delle slide per convertirle in Markdown e correlarle con l&apos;audio
               </p>
             </div>
           </div>
@@ -337,7 +337,7 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
                   <div className="space-y-1">
                     <p className="text-sm font-semibold text-zinc-100">{selectedPdf.name}</p>
                     <p className="text-xs text-zinc-400">
-                      {(selectedPdf.size / (1024 * 1024)).toFixed(2)} MB • Pronto per l'elaborazione
+                      {(selectedPdf.size / (1024 * 1024)).toFixed(2)} MB • Pronto per l&apos;elaborazione
                     </p>
                   </div>
                 ) : (
@@ -396,12 +396,12 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
 
               {/* Informative Note */}
               <div className="p-3.5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 text-[11px] text-zinc-400 space-y-1">
-                <p className="font-semibold text-zinc-300">💡 Come funziona l'integrazione con Gemini:</p>
+                <p className="font-semibold text-zinc-300">💡 Come funziona l&apos;integrazione con Gemini:</p>
                 <ul className="list-disc list-inside space-y-0.5 text-zinc-400">
                   <li>Il PDF viene convertito in un documento Markdown pulito con formule LaTeX ($...$).</li>
-                  <li>Gemini confronta l'audio parlato con le slide proiettate dal docente.</li>
+                  <li>Gemini confronta l&apos;audio parlato con le slide proiettate dal docente.</li>
                   <li>La Guida allo Studio Overleaf LaTeX viene arricchita con riferimenti puntuali es. <code>\subsection&#123;... [Rif. Slide 3]&#125;</code>.</li>
-                  <li>Glossario e domande d'esame integrano sia ciò che è stato spiegato a voce sia ciò che è scritto sulle slide.</li>
+                  <li>Glossario e domande d&apos;esame integrano sia ciò che è stato spiegato a voce sia ciò che è scritto sulle slide.</li>
                 </ul>
               </div>
             </div>
