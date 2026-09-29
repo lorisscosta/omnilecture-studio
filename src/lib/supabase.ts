@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { Lecture } from './types';
+import { db } from './db';
 
 // Clean Supabase URL (strip /rest/v1 or trailing slashes if present)
 const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -18,6 +19,8 @@ export const supabase = isSupabaseConfigured
     })
   : null;
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Text-Only Cloud Sync: Upserts AI-generated lecture text & JSON into Supabase PostgreSQL.
  * NEVER uploads the audio file (.mp3 / .wav) to preserve free tier storage limits and bandwidth.
@@ -25,14 +28,34 @@ export const supabase = isSupabaseConfigured
 export async function syncLectureToSupabase(
   lecture: Lecture,
   userId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; updatedId?: string }> {
   if (!supabase) {
     return { success: false, error: 'Configurazione Supabase mancante.' };
   }
 
   try {
+    let targetId = lecture.id;
+
+    // Backward compatibility: If ID is not a valid UUID (e.g. legacy 'lec_...' or 'demo_dsp_...'),
+    // generate a valid UUID and safely migrate the local Dexie record to prevent PostgreSQL 22P02 error.
+    if (!UUID_REGEX.test(targetId)) {
+      const newUuid = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
+
+      try {
+        await db.lectures.delete(lecture.id);
+        lecture.id = newUuid;
+        await db.lectures.put(lecture);
+        targetId = newUuid;
+      } catch (migrationErr) {
+        console.warn('Could not migrate legacy lecture ID in Dexie:', migrationErr);
+        targetId = newUuid;
+      }
+    }
+
     const payload = {
-      id: lecture.id,
+      id: targetId,
       user_id: userId,
       title: lecture.title,
       course: lecture.course,
@@ -57,7 +80,7 @@ export async function syncLectureToSupabase(
       return { success: false, error: error.message };
     }
 
-    return { success: true };
+    return { success: true, updatedId: targetId };
   } catch (err: any) {
     console.error('Exception during Supabase sync:', err);
     return { success: false, error: err.message || 'Errore durante la sincronizzazione.' };

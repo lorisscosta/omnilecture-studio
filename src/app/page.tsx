@@ -139,7 +139,12 @@ export default function HomePage() {
         return;
       }
 
-      await db.lectures.update(lecture.id, {
+      const activeId = res.updatedId || lecture.id;
+      if (res.updatedId && selectedLectureId === lecture.id) {
+        setSelectedLectureId(res.updatedId);
+      }
+
+      await db.lectures.update(activeId, {
         isCloudSynced: true,
         cloudSyncedAt: new Date().toISOString(),
         userId: currentUser.id,
@@ -170,7 +175,9 @@ export default function HomePage() {
 
   // Demo Lecture Generator for immediate testing
   const loadDemoLecture = async () => {
-    const demoId = 'demo_dsp_' + Date.now();
+    const demoId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
     const demoLecture: Lecture = {
       id: demoId,
       title: 'Lezione 04: Discrete Fourier Transform & Fast Convolution',

@@ -54,10 +54,26 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
     }
   }, [messages, isLoading, activeSubTab]);
 
-  const handleCopy = (term: string, textToCopy: string) => {
-    navigator.clipboard.writeText(textToCopy);
-    setCopiedTerm(term);
-    setTimeout(() => setCopiedTerm(null), 2000);
+  const handleCopy = async (term: string, textToCopy: string) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = textToCopy;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedTerm(term);
+      setTimeout(() => setCopiedTerm(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy glossary term:', err);
+    }
   };
 
   const handleAskAboutTerm = (term: GlossaryTerm) => {

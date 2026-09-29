@@ -56,7 +56,19 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
 
   const handleCopyContinuous = async () => {
     try {
-      await navigator.clipboard.writeText(continuousText);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(continuousText);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = continuousText;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
