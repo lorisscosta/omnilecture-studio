@@ -129,3 +129,35 @@ export async function updateProcessingChunkStatus(
     updatedAt: new Date().toISOString(),
   });
 }
+
+// Bookmarks Operations
+export async function addLectureBookmark(
+  id: string,
+  bookmark: NonNullable<Lecture['bookmarks']>[0]
+): Promise<void> {
+  const lecture = await db.lectures.get(id);
+  if (lecture) {
+    const updatedBookmarks = [...(lecture.bookmarks || []), bookmark].sort(
+      (a, b) => a.timestampSeconds - b.timestampSeconds
+    );
+    const updatedData = lecture.data ? { ...lecture.data, bookmarks: updatedBookmarks } : lecture.data;
+    await db.lectures.update(id, {
+      bookmarks: updatedBookmarks,
+      data: updatedData,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+}
+
+export async function removeLectureBookmark(id: string, bookmarkId: string): Promise<void> {
+  const lecture = await db.lectures.get(id);
+  if (lecture) {
+    const updatedBookmarks = (lecture.bookmarks || []).filter((b) => b.id !== bookmarkId);
+    const updatedData = lecture.data ? { ...lecture.data, bookmarks: updatedBookmarks } : lecture.data;
+    await db.lectures.update(id, {
+      bookmarks: updatedBookmarks,
+      data: updatedData,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+}

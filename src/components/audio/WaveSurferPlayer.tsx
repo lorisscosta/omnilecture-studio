@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, Layers } from 'lucide-react';
-import { AudioPart } from '@/lib/types';
+import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, Layers, BookmarkPlus, Bookmark, X, Check } from 'lucide-react';
+import { AudioPart, LectureBookmark } from '@/lib/types';
 
 export interface WaveSurferPlayerHandle {
   seekTo: (seconds: number, partIndex?: number) => void;
@@ -15,8 +15,11 @@ interface WaveSurferPlayerProps {
   audioBlob?: Blob;
   audioUrl?: string;
   audioParts?: AudioPart[];
+  bookmarks?: LectureBookmark[];
   onTimeUpdate?: (currentTime: number) => void;
   onDurationChange?: (duration: number) => void;
+  onAddBookmark?: (timeSeconds: number, partIndex: number, label: string, note?: string) => void;
+  onRemoveBookmark?: (id: string) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -27,7 +30,19 @@ function formatTime(seconds: number): string {
 }
 
 export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPlayerProps>(
-  ({ audioBlob, audioUrl, audioParts, onTimeUpdate, onDurationChange }, ref) => {
+  (
+    {
+      audioBlob,
+      audioUrl,
+      audioParts,
+      bookmarks,
+      onTimeUpdate,
+      onDurationChange,
+      onAddBookmark,
+      onRemoveBookmark,
+    },
+    ref
+  ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const wavesurferRef = useRef<WaveSurfer | null>(null);
     const [activePartIndex, setActivePartIndex] = useState(0);
@@ -37,8 +52,25 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
     const [playbackRate, setPlaybackRate] = useState(1.0);
     const [isMuted, setIsMuted] = useState(false);
     const [isReady, setIsReady] = useState(false);
+    const [isBookmarkModalOpen, setIsBookmarkModalOpen] = useState(false);
+    const [bookmarkLabel, setBookmarkLabel] = useState('');
+    const [bookmarkNote, setBookmarkNote] = useState('');
 
     const pendingSeekRef = useRef<number | null>(null);
+
+    const handleSaveBookmark = (e?: React.FormEvent) => {
+      e?.preventDefault();
+      if (!bookmarkLabel.trim()) return;
+      onAddBookmark?.(
+        Math.round(currentPartTime),
+        activePartIndex,
+        bookmarkLabel.trim(),
+        bookmarkNote.trim() || undefined
+      );
+      setBookmarkLabel('');
+      setBookmarkNote('');
+      setIsBookmarkModalOpen(false);
+    };
 
     const hasMultipleParts = Boolean(audioParts && audioParts.length > 1);
     const totalDuration = audioParts && audioParts.length > 0
@@ -71,9 +103,9 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
     // Speed options
     const speeds = [0.8, 1.0, 1.25, 1.5, 2.0];
 
-    // Expose control methods via ref
-    useImperativeHandle(ref, () => ({
-      seekTo: (seconds: number, partIndex?: number) => {
+    // Handle Seeking across single or multiple parts
+    const handleSeekTo = useCallback(
+      (seconds: number, partIndex?: number) => {
         if (typeof partIndex === 'number' && audioParts && audioParts[partIndex]) {
           const targetPart = audioParts[partIndex];
           if (partIndex !== activePartIndex) {
@@ -130,15 +162,25 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
           }
         }
       },
-      play: () => {
-        wavesurferRef.current?.play();
-        setIsPlaying(true);
-      },
-      pause: () => {
-        wavesurferRef.current?.pause();
-        setIsPlaying(false);
-      },
-    }), [currentPartDuration, isPlaying, audioParts, activePartIndex, totalDuration]);
+      [activePartIndex, audioParts, currentPartDuration, isPlaying, totalDuration]
+    );
+
+    // Expose control methods via ref
+    useImperativeHandle(
+      ref,
+      () => ({
+        seekTo: handleSeekTo,
+        play: () => {
+          wavesurferRef.current?.play();
+          setIsPlaying(true);
+        },
+        pause: () => {
+          wavesurferRef.current?.pause();
+          setIsPlaying(false);
+        },
+      }),
+      [handleSeekTo]
+    );
 
     // Initialize WaveSurfer for active audio part / blob
     useEffect(() => {
@@ -351,6 +393,18 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
               >
                 <RotateCw className="w-4 h-4" />
               </button>
+              {/* Add Bookmark button */}
+              {onAddBookmark && (
+                <button
+                  type="button"
+                  onClick={() => setIsBookmarkModalOpen(true)}
+                  disabled={!isReady}
+                  title="Aggiungi Segnalibro e Nota a questo timestamp"
+                  className="p-2 sm:p-2.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/80 border border-purple-800/60 text-purple-300 hover:text-white transition disabled:opacity-40 touch-manipulation active:scale-95"
+                >
+                  <BookmarkPlus className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {/* Time display */}
@@ -395,6 +449,119 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
             </button>
           </div>
         </div>
+
+        {/* Bookmarks Carousel / Chips */}
+        {bookmarks && bookmarks.length > 0 && (
+          <div className="pt-2 border-t border-zinc-800/60 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider shrink-0 flex items-center gap-1 mr-1">
+              <Bookmark className="w-3 h-3 text-purple-400" />
+              Note ({bookmarks.length}):
+            </span>
+            {bookmarks.map((bm) => (
+              <div
+                key={bm.id}
+                className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800/80 hover:bg-purple-950 border border-zinc-700 hover:border-purple-700 text-xs transition shrink-0 cursor-pointer"
+                onClick={() => handleSeekTo(bm.timestampSeconds, bm.partIndex)}
+                title={`P${bm.partIndex + 1} ${formatTime(bm.timestampSeconds)}: ${bm.note || bm.label}`}
+              >
+                <span className="font-mono text-purple-300 text-[10px] font-bold">
+                  P{bm.partIndex + 1}:{formatTime(bm.timestampSeconds)}
+                </span>
+                <span className="text-zinc-200 truncate max-w-[120px] sm:max-w-[200px]">
+                  {bm.label}
+                </span>
+                {onRemoveBookmark && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveBookmark(bm.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-400 hover:text-rose-400 transition"
+                    title="Elimina nota"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Bookmark Modal */}
+        {isBookmarkModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <BookmarkPlus className="w-4 h-4 text-purple-400" />
+                  <h3 className="text-sm font-bold text-zinc-100">Aggiungi Segnalibro & Nota</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsBookmarkModalOpen(false)}
+                  className="p-1 text-zinc-400 hover:text-zinc-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveBookmark} className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-zinc-400 bg-zinc-950 p-2 rounded-lg border border-zinc-800">
+                  <span>Posizione Audio:</span>
+                  <span className="font-mono text-purple-300 font-semibold">
+                    {hasMultipleParts ? `Parte ${activePartIndex + 1} • ` : ''}
+                    {formatTime(currentPartTime)}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-zinc-300 mb-1">
+                    Titolo / Concetto chiave
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={bookmarkLabel}
+                    onChange={(e) => setBookmarkLabel(e.target.value)}
+                    placeholder="es. Teorema di convoluzione circolare"
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-zinc-300 mb-1">
+                    Nota Personale (opzionale)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={bookmarkNote}
+                    onChange={(e) => setBookmarkNote(e.target.value)}
+                    placeholder="es. Domanda tipica d'esame. Rivedere la dimostrazione."
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500 resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsBookmarkModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 bg-zinc-800 hover:bg-zinc-700 transition"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-500 transition shadow-md"
+                  >
+                    Salva Segnalibro
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

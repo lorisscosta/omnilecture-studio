@@ -45,3 +45,9 @@
 .katex-display::-webkit-scrollbar {
   height: 4px;
 }
+
+/* Lazy Progressive KaTeX Section Virtualization */
+.latex-section-block {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 180px;
+}

@@ -69,6 +69,7 @@ export async function syncLectureToSupabase(
       mermaid_mindmap: lecture.data?.mermaid_mindmap || '',
       slides_filename: lecture.slidesFileName || null,
       slides_markdown: lecture.slidesMarkdown || null,
+      bookmarks: lecture.bookmarks || lecture.data?.bookmarks || [],
       created_at: lecture.createdAt || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -77,11 +78,12 @@ export async function syncLectureToSupabase(
       .from('lectures')
       .upsert(payload, { onConflict: 'id' });
 
-    // Fallback: If remote Postgres doesn't have slides_filename / slides_markdown columns yet, retry without them
-    if (error && (error.message.includes('slides_') || error.message.includes('schema cache'))) {
-      console.warn('Supabase lectures table lacks slide columns, falling back to core fields.');
+    // Fallback: If remote Postgres doesn't have slides or bookmarks columns yet, retry without them
+    if (error && (error.message.includes('slides_') || error.message.includes('bookmarks') || error.message.includes('schema cache'))) {
+      console.warn('Supabase lectures table lacks optional columns, falling back to core fields.');
       delete payload.slides_filename;
       delete payload.slides_markdown;
+      delete payload.bookmarks;
       const retryResult = await supabase
         .from('lectures')
         .upsert(payload, { onConflict: 'id' });
@@ -132,6 +134,7 @@ export async function fetchCloudLectures(userId: string): Promise<Lecture[]> {
       slidesFileName: row.slides_filename || undefined,
       slidesMarkdown: row.slides_markdown || undefined,
       hasSlides: !!row.slides_markdown,
+      bookmarks: Array.isArray(row.bookmarks) ? row.bookmarks : [],
       status: 'completed',
       chatMessages: [],
       userId: row.user_id,
@@ -148,6 +151,7 @@ export async function fetchCloudLectures(userId: string): Promise<Lecture[]> {
         potential_exam_questions: Array.isArray(row.potential_exam_questions)
           ? row.potential_exam_questions
           : [],
+        bookmarks: Array.isArray(row.bookmarks) ? row.bookmarks : [],
         mermaid_mindmap: row.mermaid_mindmap || '',
         slides_markdown: row.slides_markdown || undefined,
         slides_filename: row.slides_filename || undefined,

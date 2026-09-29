@@ -37,12 +37,22 @@ export interface SlideAlignment {
   summary: string;
 }
 
+export interface LectureBookmark {
+  id: string;
+  partIndex: number;
+  timestampSeconds: number;
+  label: string;
+  note?: string;
+  createdAt: string;
+}
+
 export interface LectureData {
   glossary: GlossaryTerm[];
   timestamped_transcript: TranscriptSegment[];
   study_guide_it: string;
   potential_exam_questions: ExamQuestion[];
   slides_alignment?: SlideAlignment[];
+  bookmarks?: LectureBookmark[];
   mermaid_mindmap?: string;
   slides_markdown?: string;
   slides_filename?: string;
@@ -93,6 +103,7 @@ export interface Lecture {
   processingPercentage?: number;
   processingChunks?: LectureProcessingChunk[];
   data?: LectureData;
+  bookmarks?: LectureBookmark[];
   chatMessages: ChatMessage[];
   userId?: string;
   isCloudSynced?: boolean;

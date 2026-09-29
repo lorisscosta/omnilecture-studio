@@ -29,7 +29,7 @@ import {
   FileText,
   Presentation,
 } from 'lucide-react';
-import { db, getAllLectures, deleteLectureById, saveLecture, getLectureById } from '@/lib/db';
+import { db, getAllLectures, deleteLectureById, saveLecture, getLectureById, addLectureBookmark, removeLectureBookmark } from '@/lib/db';
 import { Lecture } from '@/lib/types';
 import {
   supabase,
@@ -183,6 +183,33 @@ export default function HomePage() {
     }
   };
 
+  // Add personal note / bookmark to active lecture
+  const handleAddBookmark = async (
+    timeSeconds: number,
+    partIndex: number,
+    label: string,
+    note?: string
+  ) => {
+    if (!currentLecture) return;
+    const bookmarkId =
+      'bm_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+    const newBookmark = {
+      id: bookmarkId,
+      partIndex,
+      timestampSeconds: timeSeconds,
+      label,
+      note,
+      createdAt: new Date().toISOString(),
+    };
+    await addLectureBookmark(currentLecture.id, newBookmark);
+  };
+
+  // Remove personal note / bookmark from active lecture
+  const handleRemoveBookmark = async (bookmarkId: string) => {
+    if (!currentLecture) return;
+    await removeLectureBookmark(currentLecture.id, bookmarkId);
+  };
+
   // Demo Lecture Generator for immediate testing
   const loadDemoLecture = async () => {
     const demoId = typeof crypto !== 'undefined' && crypto.randomUUID
@@ -225,6 +252,24 @@ export default function HomePage() {
 - Permettono il filtraggio continuo di segnali lunghi tramite blocchi FFT veloci.
 - [Descrizione Schema: Diagramma a blocchi con partizionamento del segnale $x[n]$, calcolo FFT, moltiplicazione spettrale con $H[k]$, e ricomposizione con overlap-add].`,
       status: 'completed',
+      bookmarks: [
+        {
+          id: 'demo_bm_1',
+          partIndex: 0,
+          timestampSeconds: 65,
+          label: 'Fattore di rotazione W_N (Twiddle Factor)',
+          note: 'Ricorda la formula W_N = e^(-j 2pi/N). Il docente ha evidenziato che compare spesso all\'esame.',
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: 'demo_bm_2',
+          partIndex: 0,
+          timestampSeconds: 190,
+          label: 'Condizione Convoluzione Circolare',
+          note: 'Condizione N >= L1 + L2 - 1 per evitare aliasing nel dominio del tempo.',
+          createdAt: new Date().toISOString(),
+        },
+      ],
       chatMessages: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -761,12 +806,15 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     ref={waveSurferRef}
                     audioParts={currentLecture.audioParts}
                     audioBlob={currentLecture.audioBlob}
+                    bookmarks={currentLecture.bookmarks || currentLecture.data?.bookmarks || []}
                     onTimeUpdate={(t) => setCurrentTime(t)}
                     onDurationChange={(dur) => {
                       if ((!currentLecture.duration || currentLecture.duration === 0) && dur > 0) {
                         db.lectures.update(currentLecture.id, { duration: Math.round(dur) }).catch(console.error);
                       }
                     }}
+                    onAddBookmark={handleAddBookmark}
+                    onRemoveBookmark={handleRemoveBookmark}
                   />
                 </div>
               ) : currentLecture.audioBlob ? (
@@ -774,12 +822,15 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   <WaveSurferPlayer
                     ref={waveSurferRef}
                     audioBlob={currentLecture.audioBlob}
+                    bookmarks={currentLecture.bookmarks || currentLecture.data?.bookmarks || []}
                     onTimeUpdate={(t) => setCurrentTime(t)}
                     onDurationChange={(dur) => {
                       if ((!currentLecture.duration || currentLecture.duration === 0) && dur > 0) {
                         db.lectures.update(currentLecture.id, { duration: Math.round(dur) }).catch(console.error);
                       }
                     }}
+                    onAddBookmark={handleAddBookmark}
+                    onRemoveBookmark={handleRemoveBookmark}
                   />
                 </div>
               ) : (
@@ -873,6 +924,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     examQuestions={currentLecture.data.potential_exam_questions}
                     lectureTitle={currentLecture.title}
                     course={currentLecture.course}
+                    bookmarks={currentLecture.bookmarks || currentLecture.data?.bookmarks || []}
                     onSeek={handleSeekFromTranscript}
                   />
                 )}

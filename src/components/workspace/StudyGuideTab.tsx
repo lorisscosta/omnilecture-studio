@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { LatexPreview } from './LatexPreview';
 import { lintLatex, injectTimestampPreambleMacro, LatexLintResult } from '@/lib/latex-linter';
-import { ExamQuestion } from '@/lib/types';
+import { ExamQuestion, LectureBookmark } from '@/lib/types';
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
 import {
   HelpCircle,
@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Info,
   ShieldCheck,
+  Bookmark,
 } from 'lucide-react';
 
 interface StudyGuideTabProps {
@@ -27,11 +28,17 @@ interface StudyGuideTabProps {
   examQuestions: ExamQuestion[];
   lectureTitle?: string;
   course?: string;
+  bookmarks?: LectureBookmark[];
   onSeek?: (seconds: number, partIndex?: number) => void;
 }
 
 // Helper to convert or ensure full Overleaf-ready LaTeX document
-function formatToOverleafLatex(content: string, title?: string, course?: string): string {
+function formatToOverleafLatex(
+  content: string,
+  title?: string,
+  course?: string,
+  bookmarks?: LectureBookmark[]
+): string {
   if (!content) return '';
   let cleaned = content.trim();
 
@@ -102,7 +109,21 @@ function formatToOverleafLatex(content: string, title?: string, course?: string)
 \\vspace{0.5cm}
 
 ${latexBody}
-
+${
+  bookmarks && bookmarks.length > 0
+    ? `
+\\section*{Note Personali \\& Segnalibri dello Studente}
+\\begin{itemize}
+${bookmarks
+  .map(
+    (b) =>
+      `  \\item \\textbf{[P${b.partIndex + 1} - ${Math.floor(b.timestampSeconds / 60)}m${(b.timestampSeconds % 60).toString().padStart(2, '0')}s] ${b.label.replace(/[_#%$&]/g, '\\$&')}}${b.note ? `: ${b.note.replace(/[_#%$&]/g, '\\$&')}` : ''}`
+  )
+  .join('\n')}
+\\end{itemize}
+`
+    : ''
+}
 \\end{document}
 `;
 
@@ -114,6 +135,7 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
   examQuestions,
   lectureTitle,
   course,
+  bookmarks,
   onSeek,
 }) => {
   const [expandedQuestions, setExpandedQuestions] = useState<Record<number, boolean>>({});
@@ -121,7 +143,7 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
   const [isCopied, setIsCopied] = useState(false);
   const [showLintDrawer, setShowLintDrawer] = useState(false);
 
-  const overleafLatex = formatToOverleafLatex(studyGuideIt, lectureTitle, course);
+  const overleafLatex = formatToOverleafLatex(studyGuideIt, lectureTitle, course, bookmarks);
   const lintResult: LatexLintResult = lintLatex(overleafLatex);
 
   const toggleQuestion = (index: number) => {
@@ -282,6 +304,45 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Personal Bookmarks and Notes Section */}
+        {bookmarks && bookmarks.length > 0 && (
+          <div className="mb-4 p-3.5 sm:p-4 rounded-xl bg-purple-950/20 border border-purple-800/50 text-xs space-y-2.5 shadow-sm">
+            <div className="flex items-center justify-between pb-1.5 border-b border-purple-900/40">
+              <span className="font-semibold text-purple-200 flex items-center gap-1.5">
+                <Bookmark className="w-4 h-4 text-purple-400" />
+                Note & Segnalibri Personali ({bookmarks.length})
+              </span>
+              <span className="text-[10px] text-zinc-400 hidden sm:inline">
+                Inclusi automaticamente nell&apos;esportazione LaTeX
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+              {bookmarks.map((b) => (
+                <div
+                  key={b.id}
+                  onClick={() => onSeek?.(b.timestampSeconds, b.partIndex)}
+                  className="p-2.5 rounded-lg bg-zinc-900/80 border border-zinc-800 hover:border-purple-600 transition cursor-pointer flex flex-col justify-between group"
+                  title="Clicca per ascoltare l'audio a questo timestamp"
+                >
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="font-semibold text-zinc-100 truncate group-hover:text-purple-300 transition">
+                      {b.label}
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 shrink-0">
+                      P{b.partIndex + 1} {Math.floor(b.timestampSeconds / 60)}:{(b.timestampSeconds % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  {b.note && (
+                    <p className="text-[11px] text-zinc-400 mt-1 line-clamp-2 italic">
+                      &ldquo;{b.note}&rdquo;
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

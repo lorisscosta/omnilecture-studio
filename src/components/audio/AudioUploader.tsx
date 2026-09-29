@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   UploadCloud,
   FileAudio,
@@ -15,10 +15,12 @@ import {
   Trash2,
   Plus,
   Layers,
+  Zap,
 } from 'lucide-react';
 import { db, saveLecture, updateLectureStatus, updateLectureProgress, updateLectureData, updateLectureSlides } from '@/lib/db';
 import { Lecture, AudioPart } from '@/lib/types';
 import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
+import { shouldOptimizeAudio, optimizeAudioFile } from '@/lib/audio-compressor';
 import {
   GeminiModelInfo,
   STATIC_FALLBACK_MODELS,
@@ -55,6 +57,12 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
   const [processingPercentage, setProcessingPercentage] = useState(0);
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [autoOptimizeAudio, setAutoOptimizeAudio] = useState(true);
+
+  const hasHeavyFiles = useMemo(
+    () => audioFiles.some((f) => shouldOptimizeAudio(f)),
+    [audioFiles]
+  );
 
   useEffect(() => {
     const key = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null;
@@ -181,11 +189,41 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
     const effectiveTitle = title.trim() || 'Lezione Senza Titolo';
 
     try {
+      // 0. Client-side audio downsampling / optimization for heavy files
+      let processedAudioFiles = [...audioFiles];
+      if (autoOptimizeAudio && hasHeavyFiles) {
+        setProcessingStage('Ottimizzazione vocale file ad alta fedeltà...');
+        setProcessingPercentage(8);
+
+        const optimizedList: File[] = [];
+        for (let i = 0; i < audioFiles.length; i++) {
+          const file = audioFiles[i];
+          if (shouldOptimizeAudio(file)) {
+            setProcessingStage(`Ottimizzazione audio vocale (16kHz): ${file.name}...`);
+            try {
+              const optResult = await optimizeAudioFile(file, 16000, (stg, pct) => {
+                setProcessingStage(`File ${i + 1}/${audioFiles.length}: ${stg}`);
+                setProcessingPercentage(Math.round(8 + pct * 0.15));
+              });
+              optimizedList.push(optResult.file);
+            } catch (err) {
+              console.warn('Ottimizzazione audio fallita, procedo con file originale:', err);
+              optimizedList.push(file);
+            }
+          } else {
+            optimizedList.push(file);
+          }
+        }
+        processedAudioFiles = optimizedList;
+      }
+
+      const effectiveTotalBytes = processedAudioFiles.reduce((acc, f) => acc + f.size, 0);
+
       // 1. Save initially in Dexie.js
       const primaryFileName =
-        audioFiles.length === 1
-          ? audioFiles[0].name
-          : `${audioFiles.length} registrazioni: ${audioFiles.map((f) => f.name).join(', ')}`;
+        processedAudioFiles.length === 1
+          ? processedAudioFiles[0].name
+          : `${processedAudioFiles.length} registrazioni: ${processedAudioFiles.map((f) => f.name).join(', ')}`;
 
       const newLecture: Lecture = {
         id: lectureId,
@@ -193,15 +231,15 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         course: effectiveCourse,
         date: date || new Date().toISOString(),
         duration: 0,
-        fileSize: totalBytes,
+        fileSize: effectiveTotalBytes,
         fileName: primaryFileName,
-        audioBlob: audioFiles[0], // primary or part 0 for fallback
+        audioBlob: processedAudioFiles[0], // primary or part 0 for fallback
         slidesFileName: selectedPdf ? selectedPdf.name : undefined,
         hasSlides: !!selectedPdf,
         status: 'processing',
         processingProgress:
-          audioFiles.length > 1
-            ? `Inizializzazione elaborazione unificata (${audioFiles.length} parti)...`
+          processedAudioFiles.length > 1
+            ? `Inizializzazione elaborazione unificata (${processedAudioFiles.length} parti)...`
             : 'Inizializzazione elaborazione...',
         chatMessages: [],
         createdAt: new Date().toISOString(),
@@ -218,7 +256,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
 
       try {
         const result = await processAudioDirectly(
-          audioFiles,
+          processedAudioFiles,
           effectiveCourse,
           effectiveTitle,
           apiKey,
@@ -424,6 +462,29 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
                 </button>
               </div>
             </div>
+
+            {hasHeavyFiles && (
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-purple-950/40 border border-purple-800/60 text-xs text-purple-200">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Zap className="w-4 h-4 text-purple-400 shrink-0" />
+                  <span className="truncate">
+                    File ad alta risoluzione (&gt;25MB WAV). <strong>Downsampling 16kHz</strong> attivo per velocizzare l&apos;upload.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAutoOptimizeAudio(!autoOptimizeAudio)}
+                  disabled={isProcessing}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition shrink-0 ${
+                    autoOptimizeAudio
+                      ? 'bg-purple-600 border-purple-500 text-white'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+                  }`}
+                >
+                  {autoOptimizeAudio ? 'Attivo' : 'Disattivo'}
+                </button>
+              </div>
+            )}
 
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {audioFiles.map((file, idx) => (

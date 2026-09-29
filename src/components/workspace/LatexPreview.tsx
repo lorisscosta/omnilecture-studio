@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
-import { Clock, BookOpen } from 'lucide-react';
+import { Clock, BookOpen, Layers } from 'lucide-react';
 
 interface LatexPreviewProps {
   latexContent: string;
@@ -14,6 +14,46 @@ function formatSecondsToTimestamp(totalSeconds: number): string {
   const secs = Math.floor(totalSeconds % 60);
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
+
+interface LazyLatexSectionProps {
+  children: React.ReactNode;
+  initialVisible?: boolean;
+}
+
+const LazyLatexSection: React.FC<LazyLatexSectionProps> = ({ children, initialVisible = false }) => {
+  const [isVisible, setIsVisible] = useState(initialVisible);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isVisible) return;
+    const el = sectionRef.current;
+    if (!el) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '600px 0px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isVisible]);
+
+  return (
+    <div ref={sectionRef} className="latex-section-block min-h-[30px]">
+      {isVisible ? children : <div className="h-16 animate-pulse bg-zinc-900/30 rounded-xl my-3" />}
+    </div>
+  );
+};
 
 /**
  * Parses LaTeX content, converts standard LaTeX structures into markdown/HTML
@@ -133,16 +173,27 @@ export const LatexPreview: React.FC<LatexPreviewProps> = ({ latexContent, onSeek
     );
   }
 
+  // Chunk segments into groups of 6 for lazy progressive KaTeX rendering
+  const CHUNK_SIZE = 6;
+  const chunkedSegments: React.ReactNode[][] = [];
+  for (let i = 0; i < segments.length; i += CHUNK_SIZE) {
+    chunkedSegments.push(segments.slice(i, i + CHUNK_SIZE));
+  }
+
   return (
     <div className="space-y-4 text-zinc-200 leading-relaxed font-sans">
       <div className="flex items-center gap-2 p-2.5 rounded-lg bg-purple-950/30 border border-purple-800/40 text-xs text-purple-300">
         <BookOpen className="w-4 h-4 text-purple-400 shrink-0" />
         <span>
-          Anteprima accademica con formule matematiche KaTeX. Clicca sui badge temporali per riprodurre l&apos;audio corrispondente.
+          Anteprima accademica con formule matematiche KaTeX e rendering progressivo. Clicca sui badge temporali per riprodurre l&apos;audio corrispondente.
         </span>
       </div>
       <div className="prose prose-invert max-w-none space-y-4">
-        {segments}
+        {chunkedSegments.map((chunk, idx) => (
+          <LazyLatexSection key={`lazy-chunk-${idx}`} initialVisible={idx < 2}>
+            {chunk}
+          </LazyLatexSection>
+        ))}
       </div>
     </div>
   );
