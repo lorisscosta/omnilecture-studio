@@ -298,8 +298,15 @@ export async function processAudioDirectly(
     // Step 2: Discover available models
     onProgress?.('Rilevamento automatico dei modelli Gemini abilitati per la tua chiave...');
     let modelsToTry: string[] = [];
-    if (userSelectedModel && !userSelectedModel.includes('tts') && !userSelectedModel.includes('live')) {
-      modelsToTry.push(userSelectedModel);
+
+    // Map legacy or fictitious model names to modern official models
+    let normalizedUserSelectedModel = userSelectedModel;
+    if (normalizedUserSelectedModel === 'gemini-3.8-flash' || normalizedUserSelectedModel === 'gemini-3.6-flash') {
+      normalizedUserSelectedModel = 'gemini-2.0-flash';
+    }
+
+    if (normalizedUserSelectedModel && !normalizedUserSelectedModel.includes('tts') && !normalizedUserSelectedModel.includes('live')) {
+      modelsToTry.push(normalizedUserSelectedModel);
     }
 
     try {
@@ -318,11 +325,11 @@ export async function processAudioDirectly(
           );
 
         const preferredOrder = [
+          'gemini-2.0-flash',
           'gemini-1.5-flash-latest',
           'gemini-1.5-flash-002',
           'gemini-1.5-flash',
-          'gemini-3.8-flash',
-          'gemini-3.6-flash',
+          'gemini-2.0-flash-exp',
           'gemini-1.5-pro-latest',
           'gemini-1.5-pro-002',
           'gemini-1.5-pro',
@@ -346,11 +353,11 @@ export async function processAudioDirectly(
 
     if (modelsToTry.length === 0) {
       modelsToTry = [
+        'gemini-2.0-flash',
         'gemini-1.5-flash-latest',
         'gemini-1.5-flash-002',
         'gemini-1.5-flash',
-        'gemini-3.8-flash',
-        'gemini-3.6-flash',
+        'gemini-2.0-flash-exp',
         'gemini-1.5-pro-latest',
         'gemini-1.5-pro-002',
         'gemini-1.5-pro',
@@ -646,13 +653,11 @@ Regole fondamentali:
     const promptText = `Converti tutte le slide di questo documento PDF in Markdown accademico (.md) completo e ben strutturato per lo studio.`;
 
     const modelsToTry = [
+      'gemini-2.0-flash',
       'gemini-1.5-flash-latest',
       'gemini-1.5-flash-002',
       'gemini-1.5-flash',
-      'gemini-2.0-flash',
       'gemini-2.0-flash-exp',
-      'gemini-3.8-flash',
-      'gemini-3.6-flash',
       'gemini-1.5-pro-latest',
       'gemini-1.5-pro-002',
       'gemini-1.5-pro',
@@ -803,13 +808,11 @@ ${slidesMarkdown}
 Confronta la registrazione vocale con le slide, unisci i contenuti e restituisci il JSON con la Guida Overleaf LaTeX completa arricchita con i riferimenti alle slide, il glossario aggiornato e le domande d'esame.`;
 
   const modelsToTry = [
+    'gemini-2.0-flash',
     'gemini-1.5-flash-latest',
     'gemini-1.5-flash-002',
     'gemini-1.5-flash',
-    'gemini-2.0-flash',
     'gemini-2.0-flash-exp',
-    'gemini-3.8-flash',
-    'gemini-3.6-flash',
     'gemini-1.5-pro-latest',
     'gemini-1.5-pro-002',
     'gemini-1.5-pro',
