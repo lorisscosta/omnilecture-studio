@@ -47,6 +47,9 @@ export interface Lecture {
   processingProgress?: string;
   data?: LectureData;
   chatMessages: ChatMessage[];
+  userId?: string;
+  isCloudSynced?: boolean;
+  cloudSyncedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

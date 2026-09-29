@@ -38,3 +38,6 @@ yarn-error.log*
 *.wav
 *.mp3
 *.m4a
+
+.vercel
+.env*

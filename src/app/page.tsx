@@ -21,16 +21,28 @@ import {
   Network,
   MessageSquare,
   Bookmark,
+  Cloud,
+  Check,
+  Loader2,
 } from 'lucide-react';
-import { db, getAllLectures, deleteLectureById, saveLecture } from '@/lib/db';
+import { db, getAllLectures, deleteLectureById, saveLecture, getLectureById } from '@/lib/db';
 import { Lecture } from '@/lib/types';
+import {
+  supabase,
+  syncLectureToSupabase,
+  fetchCloudLectures,
+  deleteCloudLecture,
+  isSupabaseConfigured,
+} from '@/lib/supabase';
 import { WaveSurferPlayer, WaveSurferPlayerHandle } from '@/components/audio/WaveSurferPlayer';
 import { AudioUploader } from '@/components/audio/AudioUploader';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import { AuthModal } from '@/components/auth/AuthModal';
 import { ObsidianExportButton } from '@/components/export/ObsidianExportButton';
 import { StudyGuideTab } from '@/components/workspace/StudyGuideTab';
 import { TranscriptTab } from '@/components/workspace/TranscriptTab';
 import { GlossaryTab } from '@/components/workspace/GlossaryTab';
+import type { User } from '@supabase/supabase-js';
 
 export default function HomePage() {
   const [selectedLectureId, setSelectedLectureId] = useState<string | null>(null);
@@ -38,6 +50,10 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'guide' | 'transcript' | 'glossary'>('guide');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncSuccessToast, setSyncSuccessToast] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
 
   const waveSurferRef = useRef<WaveSurferPlayerHandle>(null);
@@ -57,16 +73,95 @@ export default function HomePage() {
     }
   }, [lectures, isCreatingNew, selectedLectureId]);
 
+  // Supabase Auth Listener
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUser(session?.user ?? null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Pull cloud lectures on login and merge into local Dexie IndexedDB
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const pullFromCloud = async () => {
+      try {
+        const cloudLectures = await fetchCloudLectures(currentUser.id);
+        for (const cloudLec of cloudLectures) {
+          const localLec = await getLectureById(cloudLec.id);
+          if (!localLec) {
+            await saveLecture(cloudLec);
+          } else {
+            await db.lectures.update(cloudLec.id, {
+              isCloudSynced: true,
+              cloudSyncedAt: cloudLec.cloudSyncedAt,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Error pulling cloud lectures:', err);
+      }
+    };
+
+    pullFromCloud();
+  }, [currentUser]);
+
   // Handle seeking from transcript
   const handleSeekFromTranscript = (seconds: number) => {
     waveSurferRef.current?.seekTo(seconds);
   };
 
-  // Delete lecture
+  // Sync current lecture to Supabase PostgreSQL (Text-Only)
+  const handleSyncToCloud = async (lecture: Lecture) => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncSuccessToast(null);
+
+    try {
+      const res = await syncLectureToSupabase(lecture, currentUser.id);
+      if (!res.success) {
+        alert('Errore sincronizzazione: ' + (res.error || 'Errore sconosciuto'));
+        return;
+      }
+
+      await db.lectures.update(lecture.id, {
+        isCloudSynced: true,
+        cloudSyncedAt: new Date().toISOString(),
+        userId: currentUser.id,
+      });
+
+      setSyncSuccessToast('Sincronizzato nel Cloud Supabase!');
+      setTimeout(() => setSyncSuccessToast(null), 3000);
+    } catch (err: any) {
+      alert('Errore durante la sincronizzazione: ' + err.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Delete lecture locally and from cloud if synced
   const handleDeleteLecture = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Sei sicuro di voler eliminare questa lezione?')) {
       await deleteLectureById(id);
+      if (currentUser) {
+        await deleteCloudLecture(id);
+      }
       if (selectedLectureId === id) {
         setSelectedLectureId(null);
       }
@@ -272,6 +367,14 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
         onClose={() => setIsSettingsOpen(false)}
       />
 
+      {/* Supabase Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={currentUser}
+        onUserChange={setCurrentUser}
+      />
+
       {/* Sidebar - Desktop & Mobile */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-72 bg-zinc-950 border-r border-obsidian-border flex flex-col transition-transform duration-200 md:static md:translate-x-0 ${
@@ -353,9 +456,16 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 }`}
               >
                 <div className="flex items-start justify-between gap-1 mb-1">
-                  <span className="text-[10px] font-bold text-purple-400 truncate max-w-[170px] uppercase">
-                    {lec.course}
-                  </span>
+                  <div className="flex items-center gap-1.5 truncate max-w-[170px]">
+                    <span className="text-[10px] font-bold text-purple-400 uppercase truncate">
+                      {lec.course}
+                    </span>
+                    {lec.isCloudSynced && (
+                      <span title="Sincronizzato su Supabase (Solo Testo)">
+                        <Cloud className="w-3 h-3 text-emerald-400 shrink-0" />
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={(e) => handleDeleteLecture(lec.id, e)}
                     className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 transition"
@@ -389,7 +499,20 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-zinc-800/80 bg-zinc-950">
+        <div className="p-3 border-t border-zinc-800/80 bg-zinc-950 space-y-1.5">
+          <button
+            onClick={() => setIsAuthModalOpen(true)}
+            className="w-full flex items-center justify-between p-2 rounded-xl text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition"
+          >
+            <div className="flex items-center gap-2">
+              <Cloud className="w-4 h-4 text-purple-400" />
+              <span>{currentUser ? 'Account Cloud' : 'Accedi al Cloud'}</span>
+            </div>
+            <span className="text-[10px] text-zinc-500 font-mono">
+              {currentUser ? currentUser.email?.split('@')[0] : 'Supabase'}
+            </span>
+          </button>
+
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="w-full flex items-center justify-between p-2 rounded-xl text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 transition"
@@ -432,6 +555,13 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Cloud Sync Status Toast */}
+            {syncSuccessToast && (
+              <span className="text-[11px] font-semibold text-emerald-300 bg-emerald-950/80 border border-emerald-800 px-2.5 py-1 rounded-lg animate-in fade-in">
+                ✓ {syncSuccessToast}
+              </span>
+            )}
+
             {currentLecture && !isCreatingNew && (
               <button
                 onClick={() => {
@@ -446,9 +576,54 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               </button>
             )}
 
+            {/* Sync to Cloud Button (Text-Only to Supabase) */}
+            {currentLecture && !isCreatingNew && currentLecture.data && (
+              <button
+                onClick={() => handleSyncToCloud(currentLecture)}
+                disabled={isSyncing}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
+                  currentLecture.isCloudSynced
+                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800 hover:bg-emerald-900/80'
+                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950/40'
+                }`}
+                title="Sincronizza testi, formule Overleaf e trascrizioni su Supabase (audio escluso)"
+              >
+                {isSyncing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : currentLecture.isCloudSynced ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Cloud className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">
+                  {isSyncing
+                    ? 'Sincronizzazione...'
+                    : currentLecture.isCloudSynced
+                    ? 'Nel Cloud'
+                    : 'Sync su Cloud'}
+                </span>
+              </button>
+            )}
+
             {currentLecture && !isCreatingNew && currentLecture.data && (
               <ObsidianExportButton lecture={currentLecture} />
             )}
+
+            {/* Supabase Account Button */}
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${
+                currentUser
+                  ? 'bg-purple-950/40 border-purple-800 text-purple-200 hover:bg-purple-900/50'
+                  : 'bg-zinc-900 border-zinc-700/80 text-zinc-300 hover:bg-zinc-800'
+              }`}
+              title={currentUser ? `Connesso: ${currentUser.email}` : 'Accedi a Supabase'}
+            >
+              <Cloud className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden md:inline">
+                {currentUser ? currentUser.email?.split('@')[0] : 'Accedi'}
+              </span>
+            </button>
 
             <button
               onClick={() => setIsSettingsOpen(true)}
@@ -515,8 +690,8 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
           ) : (
             /* View 4: Completed Lecture Workspace */
             <div className="max-w-6xl mx-auto space-y-6">
-              {/* Audio WaveSurfer Bar (Always Present) */}
-              {currentLecture.audioBlob && (
+              {/* Audio WaveSurfer Bar or Cloud Sync Text-Only Banner */}
+              {currentLecture.audioBlob ? (
                 <div className="sticky top-0 z-30 pt-1 pb-3 backdrop-blur-md">
                   <WaveSurferPlayer
                     ref={waveSurferRef}
@@ -528,6 +703,25 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                       }
                     }}
                   />
+                </div>
+              ) : (
+                <div className="sticky top-0 z-30 pt-1 pb-3 backdrop-blur-md">
+                  <div className="flex items-center justify-between p-3.5 rounded-xl bg-zinc-900/90 border border-purple-900/50 text-xs text-zinc-300 shadow-md">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-purple-950 text-purple-400 border border-purple-800/60">
+                        <Cloud className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-semibold text-zinc-200">Sincronizzazione Cloud Solo Testo:</span>
+                        <span className="text-zinc-400 ml-1">
+                          Il file audio originale risiede sul dispositivo di registrazione locale. Tutti i contenuti testuali, formule Overleaf LaTeX e trascrizioni sono sincronizzati e pronti per lo studio.
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950 border border-purple-800 text-purple-300 shrink-0 ml-2">
+                      Text-Only Sync
+                    </span>
+                  </div>
                 </div>
               )}
 

@@ -68,7 +68,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
     setErrorMessage(null);
     setProcessingStage('Salvataggio audio locale nel database IndexedDB...');
 
-    const lectureId = 'lec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const lectureId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
 
     try {
       // 1. Save initially in Dexie.js
