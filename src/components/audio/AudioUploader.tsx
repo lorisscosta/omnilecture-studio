@@ -1,9 +1,23 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileAudio, AlertTriangle, Loader2, Sparkles, CheckCircle2, FileText, X } from 'lucide-react';
-import { saveLecture, updateLectureStatus, updateLectureData, updateLectureSlides } from '@/lib/db';
-import { Lecture } from '@/lib/types';
+import {
+  UploadCloud,
+  FileAudio,
+  AlertTriangle,
+  Loader2,
+  Sparkles,
+  CheckCircle2,
+  FileText,
+  X,
+  ChevronUp,
+  ChevronDown,
+  Trash2,
+  Plus,
+  Layers,
+} from 'lucide-react';
+import { db, saveLecture, updateLectureStatus, updateLectureData, updateLectureSlides } from '@/lib/db';
+import { Lecture, AudioPart } from '@/lib/types';
 import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
 
 interface AudioUploaderProps {
@@ -11,12 +25,12 @@ interface AudioUploaderProps {
   onOpenSettings: () => void;
 }
 
-const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024; // 250 MB
+const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024; // 250 MB per file
 
 export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, onOpenSettings }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [audioFiles, setAudioFiles] = useState<File[]>([]);
   const [selectedPdf, setSelectedPdf] = useState<File | null>(null);
   const [course, setCourse] = useState('Elaborazione Numerica dei Segnali');
   const [title, setTitle] = useState('');
@@ -28,29 +42,70 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setSizeWarning(null);
     setErrorMessage(null);
 
-    // 250MB check
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      setSizeWarning(
-        'File too large. Please ensure your dictaphone is set to MP3 128kbps/192kbps for optimal API processing.'
-      );
-      setSelectedFile(null);
+    const validFiles: File[] = [];
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setSizeWarning(
+          `Il file "${file.name}" supera i 250MB. Consigliamo di registrare in formato MP3 a 128/192 kbps.`
+        );
+      } else {
+        validFiles.push(file);
+      }
+    }
+
+    if (validFiles.length === 0) {
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    setSelectedFile(file);
+    setAudioFiles((prev) => {
+      const updated = [...prev, ...validFiles];
+      // Auto-fill title if empty from the first file
+      if (!title && updated.length > 0) {
+        const nameWithoutExt = updated[0].name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+        setTitle(nameWithoutExt);
+      }
+      return updated;
+    });
 
-    // Auto-fill title if empty
-    if (!title) {
-      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
-      setTitle(nameWithoutExt);
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const moveUp = (index: number) => {
+    if (index <= 0) return;
+    setAudioFiles((prev) => {
+      const copy = [...prev];
+      const temp = copy[index - 1];
+      copy[index - 1] = copy[index];
+      copy[index] = temp;
+      return copy;
+    });
+  };
+
+  const moveDown = (index: number) => {
+    if (index >= audioFiles.length - 1) return;
+    setAudioFiles((prev) => {
+      const copy = [...prev];
+      const temp = copy[index + 1];
+      copy[index + 1] = copy[index];
+      copy[index] = temp;
+      return copy;
+    });
+  };
+
+  const removeFile = (index: number) => {
+    setAudioFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const clearFiles = () => {
+    setAudioFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,9 +119,11 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
     setErrorMessage(null);
   };
 
+  const totalBytes = audioFiles.reduce((acc, f) => acc + f.size, 0);
+
   const handleProcess = async () => {
-    if (!selectedFile) {
-      setErrorMessage('Seleziona prima un file audio.');
+    if (audioFiles.length === 0) {
+      setErrorMessage('Seleziona almeno un file audio della lezione.');
       return;
     }
 
@@ -79,25 +136,36 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
 
     setIsProcessing(true);
     setErrorMessage(null);
-    setProcessingStage('Salvataggio audio locale nel database IndexedDB...');
+    setProcessingStage('Inizializzazione sessione di studio...');
 
-    const lectureId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
+    const lectureId =
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
 
     try {
       // 1. Save initially in Dexie.js
+      const primaryFileName =
+        audioFiles.length === 1
+          ? audioFiles[0].name
+          : `${audioFiles.length} registrazioni: ${audioFiles.map((f) => f.name).join(', ')}`;
+
       const newLecture: Lecture = {
         id: lectureId,
         title: title.trim() || 'Lezione Senza Titolo',
         course: course.trim() || 'Ingegneria',
         date: date || new Date().toISOString(),
         duration: 0,
-        fileSize: selectedFile.size,
-        fileName: selectedFile.name,
-        audioBlob: selectedFile,
+        fileSize: totalBytes,
+        fileName: primaryFileName,
+        audioBlob: audioFiles[0], // primary or part 0 for fallback
         slidesFileName: selectedPdf ? selectedPdf.name : undefined,
         hasSlides: !!selectedPdf,
         status: 'processing',
-        processingProgress: 'Inizializzazione elaborazione...',
+        processingProgress:
+          audioFiles.length > 1
+            ? `Inizializzazione elaborazione unificata (${audioFiles.length} parti)...`
+            : 'Inizializzazione elaborazione...',
         chatMessages: [],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -107,12 +175,13 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       onLectureCreated(lectureId);
 
       // 2. Perform direct multimodal processing with Google AI Studio
-      // (This bypasses Vercel 4.5MB serverless body limit and 10s execution timeout)
       let lectureData: any = null;
+      let calculatedTotalDuration = 0;
+      let finalAudioParts: AudioPart[] = [];
 
       try {
         const result = await processAudioDirectly(
-          selectedFile,
+          audioFiles,
           course,
           title,
           apiKey,
@@ -122,16 +191,19 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           },
           selectedModel
         );
+
         lectureData = result.data;
+        calculatedTotalDuration = result.totalDuration || 0;
+        finalAudioParts = result.audioParts || [];
       } catch (directErr: any) {
         console.error('Direct upload failed:', directErr);
-        
-        // If file is smaller than 4MB, try server proxy fallback
-        if (selectedFile.size < 4 * 1024 * 1024) {
+
+        // Fallback for single file under 4MB via server proxy
+        if (audioFiles.length === 1 && audioFiles[0].size < 4 * 1024 * 1024) {
           try {
             setProcessingStage('Tentativo tramite proxy server...');
             const formData = new FormData();
-            formData.append('audio', selectedFile);
+            formData.append('audio', audioFiles[0]);
             formData.append('course', course);
             formData.append('title', title);
 
@@ -184,9 +256,15 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         await updateLectureData(lectureId, lectureData);
       }
 
+      // Update duration and audio parts
+      await db.lectures.update(lectureId, {
+        duration: calculatedTotalDuration,
+        audioParts: finalAudioParts.length > 0 ? finalAudioParts : undefined,
+      });
+
       setIsProcessing(false);
       setProcessingStage('');
-      setSelectedFile(null);
+      setAudioFiles([]);
       setSelectedPdf(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (pdfInputRef.current) pdfInputRef.current.value = '';
@@ -200,7 +278,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
   };
 
   return (
-    <div className="bg-zinc-900 border border-obsidian-border rounded-2xl p-6 shadow-xl text-zinc-100 max-w-2xl mx-auto">
+    <div className="bg-zinc-900 border border-obsidian-border rounded-2xl p-4 sm:p-6 shadow-xl text-zinc-100 max-w-2xl mx-auto">
       <div className="flex items-center gap-3 mb-6 pb-4 border-b border-zinc-800">
         <div className="p-3 bg-purple-950/60 border border-purple-800/50 rounded-xl text-purple-400">
           <UploadCloud className="w-6 h-6" />
@@ -208,7 +286,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         <div>
           <h2 className="text-xl font-bold text-zinc-100">Nuova Registrazione / Lezione</h2>
           <p className="text-xs text-zinc-400">
-            Carica la registrazione audio da registratore vocale OTG, Bluetooth o file locale
+            Carica una o più registrazioni audio ordinate della stessa lezione (es. prima e dopo la pausa)
           </p>
         </div>
       </div>
@@ -236,48 +314,132 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       )}
 
       <div className="space-y-4">
-        {/* File Input Box */}
-        <div
-          onClick={() => !isProcessing && fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center ${
-            selectedFile
-              ? 'border-purple-500/70 bg-purple-950/10'
-              : 'border-zinc-700 hover:border-purple-500/50 hover:bg-zinc-800/50'
-          } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="audio/*"
-            onChange={handleFileChange}
-            disabled={isProcessing}
-            className="hidden"
-          />
+        {/* Hidden Multi-file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="audio/*"
+          onChange={handleFileChange}
+          disabled={isProcessing}
+          className="hidden"
+        />
 
-          {selectedFile ? (
-            <div className="flex items-center gap-3">
-              <FileAudio className="w-8 h-8 text-purple-400" />
-              <div className="text-left">
-                <p className="font-medium text-sm text-zinc-100 truncate max-w-sm">
-                  {selectedFile.name}
-                </p>
-                <p className="text-xs text-zinc-400">
-                  {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • {selectedFile.type || 'audio'}
-                </p>
+        {/* Audio Files Management Area */}
+        {audioFiles.length === 0 ? (
+          /* Empty state: big dropzone */
+          <div
+            onClick={() => !isProcessing && fileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition flex flex-col items-center justify-center border-zinc-700 hover:border-purple-500/50 hover:bg-zinc-800/50 ${
+              isProcessing ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <UploadCloud className="w-10 h-10 text-zinc-400 mb-2" />
+            <p className="text-sm font-medium text-zinc-200">
+              Clicca per selezionare i file audio della lezione
+            </p>
+            <p className="text-xs text-zinc-400 mt-1 max-w-md">
+              Puoi selezionare <span className="text-purple-300 font-semibold">uno o più file audio</span> contemporaneamente (MP3, WAV, M4A) se hai registrato a spezzoni con pause.
+            </p>
+            <span className="mt-3 px-3 py-1 rounded-full bg-zinc-800/80 border border-zinc-700 text-[11px] text-zinc-400">
+              Supporta registratori vocali OTG, smartphone o file locali (max 250MB per file)
+            </span>
+          </div>
+        ) : (
+          /* Selected Audio Files Ordered List */
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-800/70">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-300">
+                  Registrazioni Audio in Ordine Cronologico ({audioFiles.length})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => !isProcessing && fileInputRef.current?.click()}
+                  disabled={isProcessing}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-purple-950/80 border border-purple-800/60 hover:bg-purple-900 text-purple-300 transition"
+                  title="Aggiungi altri spezzoni audio a questa lezione"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Aggiungi parte</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={clearFiles}
+                  disabled={isProcessing}
+                  className="px-2 py-1 rounded-lg text-xs text-zinc-400 hover:text-rose-400 transition"
+                  title="Rimuovi tutte le registrazioni"
+                >
+                  Svuota
+                </button>
               </div>
             </div>
-          ) : (
-            <>
-              <UploadCloud className="w-10 h-10 text-zinc-400 mb-2" />
-              <p className="text-sm font-medium text-zinc-200">
-                Clicca per selezionare il file audio (MP3, WAV, M4A)
-              </p>
-              <p className="text-xs text-zinc-500 mt-1">
-                Supporta registratori vocali OTG, cartelle download o file locali (max 250MB)
-              </p>
-            </>
-          )}
-        </div>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {audioFiles.map((file, idx) => (
+                <div
+                  key={`${file.name}-${idx}`}
+                  className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-zinc-900/90 border border-zinc-800/80 hover:border-zinc-700 transition"
+                >
+                  <div className="flex items-center gap-2.5 sm:gap-3 truncate min-w-0">
+                    <span className="w-6 h-6 shrink-0 rounded-full bg-purple-950 border border-purple-800 text-purple-300 text-xs font-bold flex items-center justify-center">
+                      {idx + 1}
+                    </span>
+                    <FileAudio className="w-4 h-4 text-purple-400 shrink-0" />
+                    <div className="truncate">
+                      <p className="text-xs font-semibold text-zinc-200 truncate">
+                        {file.name}
+                      </p>
+                      <p className="text-[10px] text-zinc-400">
+                        Parte {idx + 1} • {(file.size / (1024 * 1024)).toFixed(1)} MB
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <button
+                      type="button"
+                      onClick={() => moveUp(idx)}
+                      disabled={isProcessing || idx === 0}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition disabled:opacity-30 disabled:hover:bg-transparent"
+                      title="Sposta prima (anticipa)"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveDown(idx)}
+                      disabled={isProcessing || idx === audioFiles.length - 1}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition disabled:opacity-30 disabled:hover:bg-transparent"
+                      title="Sposta dopo (posticipa)"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(idx)}
+                      disabled={isProcessing}
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-950/40 transition"
+                      title="Rimuovi questa registrazione"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 flex items-center justify-between text-[11px] text-zinc-400 border-t border-zinc-800/70">
+              <span>Totale: {(totalBytes / (1024 * 1024)).toFixed(1)} MB</span>
+              <span className="text-purple-300 font-medium">
+                Verranno unificate in un&apos;unica trascrizione e Guida LaTeX
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Optional Slide PDF Input Box */}
         <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3.5 space-y-2">
@@ -330,7 +492,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
               className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-dashed border-zinc-700/80 hover:border-purple-500/60 bg-zinc-900/40 hover:bg-zinc-900/80 text-xs text-zinc-400 hover:text-zinc-200 transition"
             >
               <UploadCloud className="w-3.5 h-3.5 text-purple-400" />
-              <span>Allega PDF delle slide (opzionale - converte in .md e collega all'audio)</span>
+              <span>Allega PDF delle slide (opzionale - converte in .md e collega all&apos;audio)</span>
             </button>
           )}
         </div>
@@ -416,11 +578,15 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           ) : (
             <button
               onClick={handleProcess}
-              disabled={!selectedFile}
+              disabled={audioFiles.length === 0}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Sparkles className="w-4 h-4" />
-              Avvia Analisi Accademica con Gemini
+              <span>
+                {audioFiles.length <= 1
+                  ? 'Avvia Analisi Accademica con Gemini'
+                  : `Avvia Analisi Accademica Unificata (${audioFiles.length} parti)`}
+              </span>
             </button>
           )}
         </div>

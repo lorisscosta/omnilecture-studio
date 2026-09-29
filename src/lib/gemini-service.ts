@@ -1,4 +1,4 @@
-import { LectureData } from './types';
+import { LectureData, AudioPart } from './types';
 
 // Strict JSON Schema for Gemini
 export const responseSchema = {
@@ -28,6 +28,7 @@ export const responseSchema = {
           speaker: { type: 'STRING', description: 'Speaker label e.g. Professor or Student' },
           text_en: { type: 'STRING', description: 'Original verbatim or cleaned English spoken text' },
           text_it: { type: 'STRING', description: 'Accurate Italian translation' },
+          partIndex: { type: 'INTEGER', description: '0-indexed audio part index (0 for Part 1, 1 for Part 2...)' },
         },
         required: ['start', 'end', 'speaker', 'text_en', 'text_it'],
       },
@@ -115,89 +116,188 @@ export function detectAudioMimeType(buffer: ArrayBuffer, fileName?: string, defa
   return 'audio/wav';
 }
 
+/**
+ * Measures the duration in seconds of an audio blob using an in-browser Audio element.
+ */
+export async function getAudioDuration(blob: Blob): Promise<number> {
+  if (typeof window === 'undefined') return 0;
+  return new Promise((resolve) => {
+    try {
+      const audio = document.createElement('audio');
+      audio.preload = 'metadata';
+      const url = URL.createObjectURL(blob);
+      audio.src = url;
+      audio.onloadedmetadata = () => {
+        const d = audio.duration;
+        URL.revokeObjectURL(url);
+        resolve(isNaN(d) || !isFinite(d) ? 0 : d);
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(0);
+      };
+    } catch {
+      resolve(0);
+    }
+  });
+}
+
 export async function processAudioDirectly(
-  audioFile: File | Blob,
+  audioInput: File | Blob | Array<File | Blob>,
   course: string,
   title: string,
   apiKey: string,
   onProgress?: (stage: string) => void,
   userSelectedModel?: string
-): Promise<{ success: boolean; data: LectureData; modelUsed: string }> {
-  let fileResourceName: string | null = null;
+): Promise<{
+  success: boolean;
+  data: LectureData;
+  modelUsed: string;
+  totalDuration: number;
+  audioParts: AudioPart[];
+}> {
+  const rawFiles = Array.isArray(audioInput) ? audioInput : [audioInput];
+  if (rawFiles.length === 0) {
+    throw new Error('Nessun file audio selezionato per l\'elaborazione.');
+  }
+
+  const uploadedResourceNames: string[] = [];
+  const uploadedFilesMeta: Array<{
+    fileResourceName: string;
+    fileUri: string;
+    mimeType: string;
+    fileName: string;
+    size: number;
+    duration: number;
+    startOffset: number;
+    blob: Blob;
+  }> = [];
 
   try {
-    const arrayBuffer = await audioFile.arrayBuffer();
-    const fileName = (audioFile as File).name || 'lecture_audio.wav';
-    const mimeType = detectAudioMimeType(arrayBuffer, fileName, audioFile.type);
+    let currentCumulativeOffset = 0;
 
-    // Step 1: Upload via single multipart/related request (CORS-compatible, no custom headers required)
-    onProgress?.(`Caricamento audio (${mimeType}) su Google AI Studio Files API...`);
-    const boundary = '----OmniLectureBoundary' + Math.random().toString(36).substring(2);
-    const metadataPart = JSON.stringify({
-      file: {
-        display_name: fileName,
-        mimeType: mimeType,
-      },
-    });
+    // Step 1: Upload all audio files to Google AI Studio Files API
+    for (let i = 0; i < rawFiles.length; i++) {
+      const currentFile = rawFiles[i];
+      const partNumber = i + 1;
+      const fileName = (currentFile as File).name || `audio_parte_${partNumber}.wav`;
 
-    const prePart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadataPart}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
-    const postPart = `\r\n--${boundary}--`;
-
-    const multipartBlob = new Blob([prePart, arrayBuffer, postPart], {
-      type: `multipart/related; boundary=${boundary}`,
-    });
-
-    const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${apiKey}`;
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': `multipart/related; boundary=${boundary}`,
-      },
-      body: multipartBlob,
-    });
-
-    if (!uploadResponse.ok) {
-      const errText = await uploadResponse.text();
-      let parsedMsg = errText;
-      try {
-        const errObj = JSON.parse(errText);
-        parsedMsg = errObj.error?.message || errText;
-      } catch {}
-      throw new Error(`Caricamento su Google AI Studio fallito (${uploadResponse.status}): ${parsedMsg}`);
-    }
-
-    const uploadResult = await uploadResponse.json();
-    fileResourceName = uploadResult.file?.name;
-    const fileUri = uploadResult.file?.uri;
-
-    if (!fileResourceName || !fileUri) {
-      throw new Error('Metadati del file audio non validi da Google AI Studio.');
-    }
-
-    // Step 3: Polling if file in PROCESSING
-    let state = uploadResult.file?.state;
-    let attempts = 0;
-    while (state === 'PROCESSING' && attempts < 30) {
-      onProgress?.('Elaborazione audio sui server Google in corso...');
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const checkResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`
+      // Measure duration
+      onProgress?.(
+        rawFiles.length > 1
+          ? `Analisi durata traccia ${partNumber} di ${rawFiles.length} (${fileName})...`
+          : 'Analisi durata audio...'
       );
-      if (checkResponse.ok) {
-        const checkResult = await checkResponse.json();
-        state = checkResult.state;
-        if (state === 'FAILED') {
-          throw new Error('Elaborazione audio fallita sui server Google AI Studio.');
-        }
+      const measuredDuration = await getAudioDuration(currentFile);
+      const durationSeconds = measuredDuration > 0 ? measuredDuration : 0;
+
+      const arrayBuffer = await currentFile.arrayBuffer();
+      const mimeType = detectAudioMimeType(arrayBuffer, fileName, currentFile.type);
+
+      onProgress?.(
+        rawFiles.length > 1
+          ? `Caricamento parte ${partNumber} di ${rawFiles.length} (${fileName}) su Google AI Studio...`
+          : `Caricamento audio (${mimeType}) su Google AI Studio Files API...`
+      );
+
+      const boundary = '----OmniLectureBoundary' + Math.random().toString(36).substring(2);
+      const metadataPart = JSON.stringify({
+        file: {
+          display_name: fileName,
+          mimeType: mimeType,
+        },
+      });
+
+      const prePart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadataPart}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
+      const postPart = `\r\n--${boundary}--`;
+
+      const multipartBlob = new Blob([prePart, arrayBuffer, postPart], {
+        type: `multipart/related; boundary=${boundary}`,
+      });
+
+      const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${apiKey}`;
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/related; boundary=${boundary}`,
+        },
+        body: multipartBlob,
+      });
+
+      if (!uploadResponse.ok) {
+        const errText = await uploadResponse.text();
+        let parsedMsg = errText;
+        try {
+          const errObj = JSON.parse(errText);
+          parsedMsg = errObj.error?.message || errText;
+        } catch {}
+        throw new Error(
+          `Caricamento ${fileName} su Google AI Studio fallito (${uploadResponse.status}): ${parsedMsg}`
+        );
       }
-      attempts++;
+
+      const uploadResult = await uploadResponse.json();
+      const fileResourceName = uploadResult.file?.name;
+      const fileUri = uploadResult.file?.uri;
+
+      if (!fileResourceName || !fileUri) {
+        throw new Error(`Metadati del file audio ${fileName} non validi da Google AI Studio.`);
+      }
+
+      uploadedResourceNames.push(fileResourceName);
+
+      // Polling if file in PROCESSING
+      let state = uploadResult.file?.state;
+      let attempts = 0;
+      while (state === 'PROCESSING' && attempts < 30) {
+        onProgress?.(
+          rawFiles.length > 1
+            ? `Elaborazione server Google per parte ${partNumber}/${rawFiles.length}...`
+            : 'Elaborazione audio sui server Google in corso...'
+        );
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const checkResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`
+        );
+        if (checkResponse.ok) {
+          const checkResult = await checkResponse.json();
+          state = checkResult.state;
+          if (state === 'FAILED') {
+            throw new Error(`Elaborazione audio ${fileName} fallita sui server Google AI Studio.`);
+          }
+        }
+        attempts++;
+      }
+
+      uploadedFilesMeta.push({
+        fileResourceName,
+        fileUri,
+        mimeType,
+        fileName,
+        size: currentFile.size,
+        duration: durationSeconds,
+        startOffset: currentCumulativeOffset,
+        blob: currentFile,
+      });
+
+      currentCumulativeOffset += durationSeconds;
     }
 
-    // Step 4: Discover available models for this API key via ListModels
+    const totalCalculatedDuration = Math.round(currentCumulativeOffset);
+
+    // Build audioParts array for persistence and player
+    const audioParts: AudioPart[] = uploadedFilesMeta.map((uf, idx) => ({
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${idx + 1}-${Date.now()}`,
+      fileName: uf.fileName,
+      fileSize: uf.size,
+      duration: Math.round(uf.duration),
+      audioBlob: uf.blob,
+      startOffset: Math.round(uf.startOffset),
+    }));
+
+    // Step 2: Discover available models
     onProgress?.('Rilevamento automatico dei modelli Gemini abilitati per la tua chiave...');
     let modelsToTry: string[] = [];
-
-    // If user explicitly chose a model, try that first!
     if (userSelectedModel && !userSelectedModel.includes('tts') && !userSelectedModel.includes('live')) {
       modelsToTry.push(userSelectedModel);
     }
@@ -209,11 +309,10 @@ export async function processAudioDirectly(
         const available: string[] = (listData.models || [])
           .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
           .map((m: any) => m.name.replace(/^models\//, ''))
-          // Strict filter: Exclude TTS, embedding, imagen, aqa, live
-          .filter((name: string) => 
-            !name.includes('tts') && 
-            !name.includes('embedding') && 
-            !name.includes('imagen') && 
+          .filter((name: string) =>
+            !name.includes('tts') &&
+            !name.includes('embedding') &&
+            !name.includes('imagen') &&
             !name.includes('aqa') &&
             !name.includes('live')
           );
@@ -235,7 +334,6 @@ export async function processAudioDirectly(
           }
         }
 
-        // Add any remaining multimodal models
         for (const a of available) {
           if (!modelsToTry.includes(a) && (a.includes('flash') || a.includes('pro') || a.includes('gemini'))) {
             modelsToTry.push(a);
@@ -259,19 +357,73 @@ export async function processAudioDirectly(
       ];
     }
 
+    const isMultiPart = uploadedFilesMeta.length > 1;
+
+    // Step 3: Define prompts
     const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria.
 REGOLA FONDAMENTALE DI FEDELTÀ ALL'AUDIO (STRICT GROUNDING):
 Tutto ciò che generi deve basarsi RIGOROSAMENTE ed ESCLUSIVAMENTE sull'effettivo contenuto audio trascritto.
 NON inventare MAI concetti, argomenti, teoremi o formule che non siano stati trattati o accennati dal docente/oratore nell'audio. Il titolo della lezione e il nome del corso servono solo come contesto terminologico, NON come pretesto per allucinare spiegazioni non presenti nella registrazione.
 Il tuo compito è: prendere ciò che il docente ha realmente spiegato nella registrazione e strutturarlo accademicamente, migliorandone la chiarezza formale, la notazione LaTeX e l'esposizione.
+${
+  isMultiPart
+    ? `\nISTRUZIONI SPECIFICHE PER LEZIONE IN PIÙ REGISTRAZIONI (${uploadedFilesMeta.length} PARTI ORDINATE):
+La lezione è stata registrata a spezzoni (ad esempio fermando il registratore prima della pausa e riaccendendolo alla ripresa).
+Devi trattare le registrazioni come UN'UNICA LEZIONE ORGANICA CONTINUA:
+1. "study_guide_it": UN UNICO documento LaTeX completo per Overleaf (.tex) che sviluppa TUTTA la lezione in modo coeso dall'inizio della Parte 1 fino alla fine della Parte ${uploadedFilesMeta.length}, unificando la spiegazione senza cesure artificiali.
+2. "timestamped_transcript": Trascrizione cronologica coerente e ordinata di tutte le parti. Per ogni segmento temporale, calcola il tempo continuo complessivo in secondi cumulativi sommando l'offset della parte a cui appartiene, e valorizza partIndex (da 0 a ${uploadedFilesMeta.length - 1}).
+3. "glossary": Glossario accademico unificato di tutti i termini spiegati nell'intero arco delle registrazioni.
+4. "potential_exam_questions": Domande d'esame complete che coprono l'intero programma affrontato in tutte le parti.`
+    : ''
+}
 
 Struttura dei campi JSON richiesta:
-1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Se l'audio è in italiano, text_it conterrà la trascrizione esatta e text_en la traduzione inglese.
+1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Se l'audio è in italiano, text_it conterrà la trascrizione esatta e text_en la traduzione inglese. Includi partIndex indicando l'indice (0-based) della registrazione di riferimento.
 2. "glossary": Estrai SOLO i termini tecnici realmente pronunciati o spiegati nell'audio con traduzione e definizione accademica. Se nell'audio non sono stati pronunciati termini tecnici (es. registrazioni di prova, test microfono, audio non didattico), restituisci un array VUOTO [].
 3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, terminando con \\end{document}. Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
 4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].`;
 
-    const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+    // Construct content parts
+    const contentParts: any[] = [];
+
+    if (isMultiPart) {
+      let overviewText = `Questa lezione del corso "${course}" (titolo: "${title}") è composta da ${uploadedFilesMeta.length} registrazioni audio continue effettuate in sequenza:\n`;
+      uploadedFilesMeta.forEach((uf, idx) => {
+        overviewText += `- Parte ${idx + 1}: ${uf.fileName} (offset: ${Math.round(uf.startOffset)}s, durata: ~${Math.round(uf.duration)}s)\n`;
+      });
+      overviewText += `\nGenera un UNICO output completo con Guida Overleaf LaTeX unificata, Glossario unificato, Domande d'esame e Trascrizione continua.`;
+      contentParts.push({ text: overviewText });
+
+      for (let i = 0; i < uploadedFilesMeta.length; i++) {
+        const uf = uploadedFilesMeta[i];
+        contentParts.push({
+          text: `=== REGISTRAZIONE PARTE ${i + 1} DI ${uploadedFilesMeta.length}: "${uf.fileName}" (Inizio al secondo continuo ${Math.round(uf.startOffset)}) ===`,
+        });
+        contentParts.push({
+          file_data: {
+            mime_type: uf.mimeType,
+            file_uri: uf.fileUri,
+          },
+        });
+        contentParts.push({
+          text: `=== FINE REGISTRAZIONE PARTE ${i + 1} ===`,
+        });
+      }
+
+      contentParts.push({
+        text: `Procedi ora con l'elaborazione unificata completa secondo lo schema JSON indicato.`,
+      });
+    } else {
+      contentParts.push({
+        file_data: {
+          mime_type: uploadedFilesMeta[0].mimeType,
+          file_uri: uploadedFilesMeta[0].fileUri,
+        },
+      });
+      contentParts.push({
+        text: `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`,
+      });
+    }
 
     let generationResponse: Response | null = null;
     let successfulModel = '';
@@ -287,15 +439,7 @@ Struttura dei campi JSON richiesta:
         contents: [
           {
             role: 'user',
-            parts: [
-              {
-                file_data: {
-                  mime_type: mimeType,
-                  file_uri: fileUri,
-                },
-              },
-              { text: promptText },
-            ],
+            parts: contentParts,
           },
         ],
         generationConfig: {
@@ -328,19 +472,16 @@ Struttura dei campi JSON richiesta:
         errorLogs.push(`${model}: ${errMsg.slice(0, 120)}`);
         console.warn(`Modello ${model} ha restituito ${response.status}: ${errMsg}`);
 
-        // If 401 (Invalid API key), stop immediately
         if (response.status === 401) {
           generationResponse = response;
           break;
         }
 
-        // If high demand spike (503 / 429), wait 1.5s and continue to next model
         if (response.status === 429 || response.status === 503) {
           onProgress?.(`Il modello ${model} è temporaneamente saturo, provo il modello successivo...`);
           await new Promise((resolve) => setTimeout(resolve, 1500));
         }
 
-        // Continue trying next available model in all other cases (404, 400, 500, etc.)
         continue;
       } catch (fetchErr: any) {
         errorLogs.push(`${model}: ${fetchErr.message}`);
@@ -369,32 +510,50 @@ Struttura dei campi JSON richiesta:
 
     const parsedData: LectureData = JSON.parse(cleanJson);
 
-    // Step 5: Clean up temp file
-    if (fileResourceName) {
-      try {
-        await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`, {
-          method: 'DELETE',
-        });
-        fileResourceName = null;
-      } catch (e) {
-        console.warn('Pulizia file temporaneo fallita:', e);
-      }
+    // Defensive Timestamp Normalization for Multi-Part
+    if (isMultiPart && Array.isArray(parsedData.timestamped_transcript)) {
+      parsedData.timestamped_transcript = parsedData.timestamped_transcript.map((seg, idx) => {
+        let pIdx = typeof seg.partIndex === 'number' && seg.partIndex >= 0 && seg.partIndex < audioParts.length
+          ? seg.partIndex
+          : 0;
+
+        // Check if start is relative to that part rather than cumulative
+        const partOffset = audioParts[pIdx]?.startOffset || 0;
+        let s = seg.start;
+        let e = seg.end;
+
+        if (partOffset > 0 && s < partOffset) {
+          s += partOffset;
+          e += partOffset;
+        }
+
+        return {
+          ...seg,
+          start: Math.round(s * 10) / 10,
+          end: Math.round(Math.max(e, s + 1) * 10) / 10,
+          partIndex: pIdx,
+        };
+      });
     }
 
     return {
       success: true,
       data: parsedData,
       modelUsed: successfulModel,
+      totalDuration: totalCalculatedDuration,
+      audioParts,
     };
-  } catch (err: any) {
-    if (fileResourceName && apiKey) {
+  } finally {
+    // Step 5: Clean up all uploaded temp files on Google AI Studio
+    for (const resName of uploadedResourceNames) {
       try {
-        await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`, {
+        await fetch(`https://generativelanguage.googleapis.com/v1beta/${resName}?key=${apiKey}`, {
           method: 'DELETE',
         });
-      } catch {}
+      } catch (e) {
+        console.warn('Pulizia file temporaneo fallita:', e);
+      }
     }
-    throw err;
   }
 }
 

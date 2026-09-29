@@ -530,6 +530,11 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     <Calendar className="w-3 h-3" />
                     {lec.date ? new Date(lec.date).toLocaleDateString() : 'N/D'}
                   </span>
+                  {lec.audioParts && lec.audioParts.length > 1 && (
+                    <span className="text-[9px] font-mono text-purple-300 bg-purple-950/80 px-1 py-0.5 rounded border border-purple-800/50">
+                      {lec.audioParts.length} parti
+                    </span>
+                  )}
                   {lec.status === 'processing' && (
                     <span className="text-amber-400 font-semibold animate-pulse">
                       • In analisi...
@@ -593,6 +598,11 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 <h2 className="text-sm font-bold text-zinc-100 truncate max-w-xs md:max-w-md hidden sm:block">
                   {currentLecture.title}
                 </h2>
+                {currentLecture.audioParts && currentLecture.audioParts.length > 1 && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950/80 border border-purple-800 text-purple-300 hidden md:inline-block">
+                    {currentLecture.audioParts.length} registrazioni unite
+                  </span>
+                )}
               </div>
             ) : (
               <span className="text-xs sm:text-sm font-semibold text-zinc-300 truncate">
@@ -759,7 +769,21 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
             /* View 4: Completed Lecture Workspace */
             <div className="max-w-6xl mx-auto space-y-6">
               {/* Audio WaveSurfer Bar or Cloud Sync Text-Only Banner */}
-              {currentLecture.audioBlob ? (
+              {currentLecture.audioParts && currentLecture.audioParts.length > 0 ? (
+                <div className="sticky top-0 z-30 pt-1 pb-3 backdrop-blur-md">
+                  <WaveSurferPlayer
+                    ref={waveSurferRef}
+                    audioParts={currentLecture.audioParts}
+                    audioBlob={currentLecture.audioBlob}
+                    onTimeUpdate={(t) => setCurrentTime(t)}
+                    onDurationChange={(dur) => {
+                      if ((!currentLecture.duration || currentLecture.duration === 0) && dur > 0) {
+                        db.lectures.update(currentLecture.id, { duration: Math.round(dur) }).catch(console.error);
+                      }
+                    }}
+                  />
+                </div>
+              ) : currentLecture.audioBlob ? (
                 <div className="sticky top-0 z-30 pt-1 pb-3 backdrop-blur-md">
                   <WaveSurferPlayer
                     ref={waveSurferRef}

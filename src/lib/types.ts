@@ -5,11 +5,21 @@ export interface GlossaryTerm {
 }
 
 export interface TranscriptSegment {
-  start: number; // in seconds
+  start: number; // in seconds (continuous from 0)
   end: number;   // in seconds
   speaker: string;
   text_en: string;
   text_it: string;
+  partIndex?: number; // 0-indexed audio part this segment belongs to
+}
+
+export interface AudioPart {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  duration: number; // in seconds
+  audioBlob?: Blob;
+  startOffset: number; // cumulative start time in seconds in the continuous lecture
 }
 
 export interface ExamQuestion {
@@ -41,10 +51,11 @@ export interface Lecture {
   title: string;
   course: string;
   date: string;
-  duration: number; // in seconds
-  fileSize: number; // in bytes
+  duration: number; // in seconds (total sum of all audio parts)
+  fileSize: number; // in bytes (total sum)
   fileName: string;
-  audioBlob?: Blob;
+  audioBlob?: Blob; // for backward compatibility, part 0 blob
+  audioParts?: AudioPart[]; // ordered list of recordings in this lecture
   slidesFileName?: string;
   slidesMarkdown?: string;
   hasSlides?: boolean;

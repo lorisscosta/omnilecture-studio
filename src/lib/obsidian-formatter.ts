@@ -32,6 +32,9 @@ export function generateObsidianMarkdown(lecture: Lecture): string {
   md += `date: ${formattedDate}\n`;
   md += `duration: "${durationStr}"\n`;
   md += `source: "OmniLecture Studio"\n`;
+  if (lecture.audioParts && lecture.audioParts.length > 1) {
+    md += `audio_parts: ${lecture.audioParts.length}\n`;
+  }
   md += `tags:\n`;
   md += `  - university\n`;
   md += `  - stem\n`;
@@ -41,7 +44,8 @@ export function generateObsidianMarkdown(lecture: Lecture): string {
 
   // Header
   md += `# ${title}\n\n`;
-  md += `**Corso:** ${course} | **Data:** ${formattedDate} | **Durata:** ${durationStr}\n\n`;
+  const partsStr = lecture.audioParts && lecture.audioParts.length > 1 ? ` | **Registrazioni:** ${lecture.audioParts.length} parti unite` : '';
+  md += `**Corso:** ${course} | **Data:** ${formattedDate} | **Durata:** ${durationStr}${partsStr}\n\n`;
   md += `---\n\n`;
 
   if (!data) {

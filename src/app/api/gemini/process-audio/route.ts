@@ -32,6 +32,7 @@ const responseSchema = {
           speaker: { type: 'STRING', description: 'Speaker label e.g. Professor or Student' },
           text_en: { type: 'STRING', description: 'Original verbatim or cleaned English spoken text' },
           text_it: { type: 'STRING', description: 'Accurate Italian translation' },
+          partIndex: { type: 'INTEGER', description: '0-indexed audio part index' },
         },
         required: ['start', 'end', 'speaker', 'text_en', 'text_it'],
       },

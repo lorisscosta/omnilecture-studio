@@ -268,6 +268,12 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
                       <span className="text-xs font-semibold text-zinc-400">
                         {seg.speaker || 'Docente'}
                       </span>
+
+                      {typeof seg.partIndex === 'number' && (
+                        <span className="text-[10px] font-semibold text-purple-400/90 bg-purple-950/60 border border-purple-800/40 px-1.5 py-0.5 rounded">
+                          Parte {seg.partIndex + 1}
+                        </span>
+                      )}
                     </div>
 
                     {isActive && (
