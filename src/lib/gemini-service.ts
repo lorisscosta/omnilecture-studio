@@ -397,3 +397,328 @@ Struttura dei campi JSON richiesta:
     throw err;
   }
 }
+
+/**
+ * Uploads a slide PDF to Google AI Studio Files API and converts each slide
+ * into a rich, structured Markdown (.md) document with LaTeX math and slide markers.
+ */
+export async function convertPdfToMarkdown(
+  pdfFile: File | Blob,
+  fileName: string,
+  apiKey: string,
+  onProgress?: (stage: string) => void
+): Promise<string> {
+  let fileResourceName: string | null = null;
+
+  try {
+    onProgress?.('Caricamento PDF slide su Google AI Studio Files API...');
+    const arrayBuffer = await pdfFile.arrayBuffer();
+
+    const boundary = '----OmniLectureSlideBoundary' + Math.random().toString(36).substring(2);
+    const metadataPart = JSON.stringify({
+      file: {
+        display_name: fileName || 'lecture_slides.pdf',
+        mimeType: 'application/pdf',
+      },
+    });
+
+    const prePart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadataPart}\r\n--${boundary}\r\nContent-Type: application/pdf\r\n\r\n`;
+    const postPart = `\r\n--${boundary}--`;
+
+    const multipartBlob = new Blob([prePart, arrayBuffer, postPart], {
+      type: `multipart/related; boundary=${boundary}`,
+    });
+
+    const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${apiKey}`;
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body: multipartBlob,
+    });
+
+    if (!uploadResponse.ok) {
+      const errText = await uploadResponse.text();
+      let parsedMsg = errText;
+      try {
+        const errObj = JSON.parse(errText);
+        parsedMsg = errObj.error?.message || errText;
+      } catch {}
+      throw new Error(`Upload PDF su Google AI Studio fallito (${uploadResponse.status}): ${parsedMsg}`);
+    }
+
+    const uploadResult = await uploadResponse.json();
+    fileResourceName = uploadResult.file?.name;
+    const fileUri = uploadResult.file?.uri;
+
+    if (!fileResourceName || !fileUri) {
+      throw new Error('Metadati PDF non validi restituiti da Google AI Studio.');
+    }
+
+    // Wait if state is PROCESSING
+    let state = uploadResult.file?.state;
+    let attempts = 0;
+    while (state === 'PROCESSING' && attempts < 30) {
+      onProgress?.('Elaborazione PDF su Google AI Studio in corso...');
+      await new Promise((r) => setTimeout(r, 2000));
+      attempts++;
+      const checkRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`
+      );
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        state = checkData.state;
+      }
+    }
+
+    onProgress?.('Conversione slide PDF in Markdown (.md) tramite Gemini Multimodal OCR...');
+
+    const systemPrompt = `Sei un convertitore accademico avanzato per documenti universitari STEM (Ingegneria, Matematica, Fisica).
+Il tuo compito è convertire questo file PDF di slide della lezione in un documento Markdown (.md) dettagliato, rigoroso e strutturato.
+Regole fondamentali:
+1. Per ciascuna slide, crea un'intestazione di secondo livello: '## Slide [Numero]: [Titolo Slide]'.
+2. Trascrivi fedelmente tutti i punti elenco, concetti chiave, teoremi e definizioni.
+3. Formatta TUTTE le formule matematiche in notazione LaTeX rigorosa ($...$ per formule in linea, $$...$$ per equazioni su riga separata).
+4. Se una slide presenta tabelle, convertile in tabelle Markdown.
+5. Se una slide presenta grafici, schemi a blocchi o figure, descrivi in modo chiaro il loro contenuto tra parentesi quadre: [Descrizione Grafico/Schema: ...].
+6. Restituisci SOLO ed esclusivamente il testo Markdown (.md), senza racchiuderlo in ulteriori blocchi di codice markdown tripli (\`\`\`markdown ... \`\`\`).`;
+
+    const promptText = `Converti tutte le slide di questo documento PDF in Markdown accademico (.md) completo e ben strutturato per lo studio.`;
+
+    const modelsToTry = [
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash-002',
+      'gemini-1.5-flash',
+      'gemini-2.0-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-3.8-flash',
+      'gemini-3.6-flash',
+      'gemini-1.5-pro-latest',
+      'gemini-1.5-pro-002',
+      'gemini-1.5-pro',
+    ];
+
+    let generationResponse: Response | null = null;
+
+    for (const model of modelsToTry) {
+      onProgress?.(`Estrazione Markdown slide con ${model}...`);
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        system_instruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                file_data: {
+                  mime_type: 'application/pdf',
+                  file_uri: fileUri,
+                },
+              },
+              { text: promptText },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+        },
+      };
+
+      generationResponse = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (generationResponse.ok) {
+        break;
+      }
+
+      if (generationResponse.status === 401) {
+        break;
+      }
+
+      if (generationResponse.status === 429 || generationResponse.status === 503) {
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+
+    if (!generationResponse || !generationResponse.ok) {
+      const errText = generationResponse ? await generationResponse.text() : 'Nessuna risposta da Gemini.';
+      throw new Error(`Conversione PDF fallita: ${errText}`);
+    }
+
+    const genData = await generationResponse.json();
+    let candidateText = genData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!candidateText) {
+      throw new Error('Nessun testo Markdown generato dalle slide.');
+    }
+
+    // Clean any leading ```markdown fences if Gemini wrapped it
+    candidateText = candidateText.trim();
+    if (candidateText.startsWith('```markdown')) {
+      candidateText = candidateText.replace(/^```markdown\s*/i, '').replace(/\s*```$/, '').trim();
+    } else if (candidateText.startsWith('```md')) {
+      candidateText = candidateText.replace(/^```md\s*/i, '').replace(/\s*```$/, '').trim();
+    } else if (candidateText.startsWith('```')) {
+      candidateText = candidateText.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+    }
+
+    // Cleanup temp file
+    if (fileResourceName) {
+      try {
+        await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`, {
+          method: 'DELETE',
+        });
+        fileResourceName = null;
+      } catch (e) {
+        console.warn('Pulizia PDF temporaneo fallita:', e);
+      }
+    }
+
+    return candidateText;
+  } catch (err: any) {
+    if (fileResourceName && apiKey) {
+      try {
+        await fetch(`https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`, {
+          method: 'DELETE',
+        });
+      } catch {}
+    }
+    throw err;
+  }
+}
+
+/**
+ * Cross-references the spoken lecture with the extracted slide Markdown,
+ * synthesizing an enriched Overleaf LaTeX study guide with slide references,
+ * updated glossary, and integrated exam questions.
+ */
+export async function enrichLectureWithSlides(
+  currentData: LectureData,
+  slidesMarkdown: string,
+  course: string,
+  title: string,
+  apiKey: string,
+  onProgress?: (stage: string) => void
+): Promise<LectureData> {
+  onProgress?.('Integrazione e correlazione tra registrazione e slide...');
+
+  const systemPrompt = `Sei un assistente accademico di massimo livello per corsi universitari magistrali STEM (Ingegneria e Scienze).
+Ti vengono forniti:
+1. La trascrizione della registrazione audio di una lezione del corso di "${course}" (titolo: "${title}").
+2. Il documento Markdown (.md) estratto dalle SLIDE proiettate dal docente.
+
+IL TUO OBIETTIVO:
+Confronta e fondi la registrazione vocale con le slide proiettate, producendo un pacchetto didattico arricchito con riferimenti incrociati puntuali alle slide.
+
+Regole fondamentali di integrazione:
+1. "study_guide_it": Documento LaTeX (.tex) completo pronto da copiare ed eseguire direttamente su Overleaf.
+   - Preambolo completo standard: \\documentclass[11pt,a4paper]{article}, \\usepackage[utf8]{inputenc}, \\usepackage[italian]{babel}, \\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}, \\geometry{margin=2.5cm}, \\title{...}, \\author{OmniLecture Studio}, \\date{\\today}, \\begin{document}, \\maketitle.
+   - Inserisci riferimenti espliciti alle slide nei titoli delle sottosezioni (es. \\subsection{Convoluzione Circolare [Rif. Slide 4]}) o nel testo discorsivo (es. \\textit{(Come illustrato nella Slide 6)}).
+   - Includi le formule matematiche esatte ($...$ o \\[ ... \\]), equazioni numerate e schemi presenti sulle slide, collegandoli a ciò che il docente ha spiegato a voce.
+   - Mantieni la trattazione integrale e rigorosa di tutto ciò che è stato spiegato a voce, senza omettere nulla.
+   - Termina regolarmente con \\end{document}.
+2. "glossary": Aggiorna ed estendi il glossario includendo sia i termini spiegati a voce sia le definizioni formali chiave presenti nelle slide.
+3. "potential_exam_questions": Genera domande d'esame complete che integrano sia il ragionamento spiegato oralmente dal docente sia i punti formali ed esercizi presenti nelle slide.
+4. "timestamped_transcript": Mantieni i segmenti cronologici dell'audio originale; arricchisci ove opportuno la traduzione/trascrizione italiana (text_it) con il marcatore della slide discussa in quel momento (es. "[Slide 3] ...").
+
+Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+
+  const transcriptSummary = currentData.timestamped_transcript
+    .map((s) => `[${s.start}s - ${s.end}s] ${s.speaker}: ${s.text_en} (IT: ${s.text_it})`)
+    .join('\n');
+
+  const promptText = `Ecco i dati della registrazione vocale e delle slide della lezione di "${course}" (titolo: "${title}"):
+
+=== TRASCRIZIONE AUDIO ESISTENTE ===
+${transcriptSummary}
+
+=== TESTO MARKDOWN DELLE SLIDE DEL DOCENTE ===
+${slidesMarkdown}
+
+Confronta la registrazione vocale con le slide, unisci i contenuti e restituisci il JSON con la Guida Overleaf LaTeX completa arricchita con i riferimenti alle slide, il glossario aggiornato e le domande d'esame.`;
+
+  const modelsToTry = [
+    'gemini-1.5-flash-latest',
+    'gemini-1.5-flash-002',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-exp',
+    'gemini-3.8-flash',
+    'gemini-3.6-flash',
+    'gemini-1.5-pro-latest',
+    'gemini-1.5-pro-002',
+    'gemini-1.5-pro',
+  ];
+
+  let generationResponse: Response | null = null;
+
+  for (const model of modelsToTry) {
+    onProgress?.(`Generazione guida integrata con ${model}...`);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const payload = {
+      system_instruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: promptText }],
+        },
+      ],
+      generationConfig: {
+        response_mime_type: 'application/json',
+        response_schema: responseSchema,
+        temperature: 0.2,
+      },
+    };
+
+    generationResponse = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (generationResponse.ok) {
+      break;
+    }
+
+    if (generationResponse.status === 401) {
+      break;
+    }
+
+    if (generationResponse.status === 429 || generationResponse.status === 503) {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+
+  if (!generationResponse || !generationResponse.ok) {
+    const errText = generationResponse ? await generationResponse.text() : 'Nessuna risposta da Gemini.';
+    throw new Error(`Integrazione slide fallita: ${errText}`);
+  }
+
+  const genData = await generationResponse.json();
+  let candidateText = genData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!candidateText) {
+    throw new Error('Risposta vuota da Gemini durante l\'integrazione delle slide.');
+  }
+
+  let cleanJson = candidateText.trim();
+  if (cleanJson.startsWith('```json')) {
+    cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+  } else if (cleanJson.startsWith('```')) {
+    cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+  }
+
+  const enrichedData: LectureData = JSON.parse(cleanJson);
+  enrichedData.slides_markdown = slidesMarkdown;
+  enrichedData.has_slides = true;
+
+  return enrichedData;
+}

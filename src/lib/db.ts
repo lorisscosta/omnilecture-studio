@@ -55,6 +55,21 @@ export async function updateLectureData(id: string, data: Lecture['data']): Prom
   });
 }
 
+export async function updateLectureSlides(
+  id: string,
+  slidesFileName: string,
+  slidesMarkdown: string,
+  updatedData: Lecture['data']
+): Promise<void> {
+  await db.lectures.update(id, {
+    slidesFileName,
+    slidesMarkdown,
+    hasSlides: true,
+    data: updatedData,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 export async function appendChatMessage(id: string, message: Lecture['chatMessages'][0]): Promise<void> {
   const lecture = await db.lectures.get(id);
   if (lecture) {

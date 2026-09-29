@@ -54,7 +54,7 @@ export async function syncLectureToSupabase(
       }
     }
 
-    const payload = {
+    const payload: Record<string, any> = {
       id: targetId,
       user_id: userId,
       title: lecture.title,
@@ -67,13 +67,26 @@ export async function syncLectureToSupabase(
       study_guide_it: lecture.data?.study_guide_it || '',
       potential_exam_questions: lecture.data?.potential_exam_questions || [],
       mermaid_mindmap: lecture.data?.mermaid_mindmap || '',
+      slides_filename: lecture.slidesFileName || null,
+      slides_markdown: lecture.slidesMarkdown || null,
       created_at: lecture.createdAt || new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('lectures')
       .upsert(payload, { onConflict: 'id' });
+
+    // Fallback: If remote Postgres doesn't have slides_filename / slides_markdown columns yet, retry without them
+    if (error && (error.message.includes('slides_') || error.message.includes('schema cache'))) {
+      console.warn('Supabase lectures table lacks slide columns, falling back to core fields.');
+      delete payload.slides_filename;
+      delete payload.slides_markdown;
+      const retryResult = await supabase
+        .from('lectures')
+        .upsert(payload, { onConflict: 'id' });
+      error = retryResult.error;
+    }
 
     if (error) {
       console.error('Supabase sync error:', error);
@@ -116,6 +129,9 @@ export async function fetchCloudLectures(userId: string): Promise<Lecture[]> {
       fileSize: 0, // Audio is not present in cloud
       fileName: row.audio_filename || 'audio_locale',
       audioBlob: undefined, // Audio is strictly local
+      slidesFileName: row.slides_filename || undefined,
+      slidesMarkdown: row.slides_markdown || undefined,
+      hasSlides: !!row.slides_markdown,
       status: 'completed',
       chatMessages: [],
       userId: row.user_id,
@@ -133,6 +149,9 @@ export async function fetchCloudLectures(userId: string): Promise<Lecture[]> {
           ? row.potential_exam_questions
           : [],
         mermaid_mindmap: row.mermaid_mindmap || '',
+        slides_markdown: row.slides_markdown || undefined,
+        slides_filename: row.slides_filename || undefined,
+        has_slides: !!row.slides_markdown,
       },
     }));
   } catch (err) {

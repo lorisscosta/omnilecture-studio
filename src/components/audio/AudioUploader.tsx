@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileAudio, AlertTriangle, Loader2, Sparkles, CheckCircle2 } from 'lucide-react';
-import { saveLecture, updateLectureStatus, updateLectureData } from '@/lib/db';
+import { UploadCloud, FileAudio, AlertTriangle, Loader2, Sparkles, CheckCircle2, FileText, X } from 'lucide-react';
+import { saveLecture, updateLectureStatus, updateLectureData, updateLectureSlides } from '@/lib/db';
 import { Lecture } from '@/lib/types';
-import { processAudioDirectly } from '@/lib/gemini-service';
+import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
 
 interface AudioUploaderProps {
   onLectureCreated: (lectureId: string) => void;
@@ -15,7 +15,9 @@ const MAX_FILE_SIZE_BYTES = 250 * 1024 * 1024; // 250 MB
 
 export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, onOpenSettings }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedPdf, setSelectedPdf] = useState<File | null>(null);
   const [course, setCourse] = useState('Elaborazione Numerica dei Segnali');
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -51,6 +53,17 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
     }
   };
 
+  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setErrorMessage('Il file delle slide deve essere in formato PDF.');
+      return;
+    }
+    setSelectedPdf(file);
+    setErrorMessage(null);
+  };
+
   const handleProcess = async () => {
     if (!selectedFile) {
       setErrorMessage('Seleziona prima un file audio.');
@@ -81,6 +94,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         fileSize: selectedFile.size,
         fileName: selectedFile.name,
         audioBlob: selectedFile,
+        slidesFileName: selectedPdf ? selectedPdf.name : undefined,
+        hasSlides: !!selectedPdf,
         status: 'processing',
         processingProgress: 'Inizializzazione elaborazione...',
         chatMessages: [],
@@ -144,15 +159,37 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         }
       }
 
+      // 3. Optional: Process Slides PDF and enrich lecture
+      let slidesMarkdown = '';
+      if (selectedPdf) {
+        setProcessingStage('Conversione slide PDF in Markdown (.md)...');
+        await updateLectureStatus(lectureId, 'processing', undefined, 'Conversione slide PDF in Markdown (.md)...');
+        slidesMarkdown = await convertPdfToMarkdown(selectedPdf, selectedPdf.name, apiKey, (stg) => {
+          setProcessingStage(stg);
+        });
+
+        setProcessingStage('Correlazione tra registrazione e slide...');
+        await updateLectureStatus(lectureId, 'processing', undefined, 'Correlazione tra registrazione e slide...');
+        lectureData = await enrichLectureWithSlides(lectureData, slidesMarkdown, course, title, apiKey, (stg) => {
+          setProcessingStage(stg);
+        });
+      }
+
       setProcessingStage('Salvataggio dei risultati e generazione appunti...');
 
-      // 3. Update Lecture in Dexie.js
-      await updateLectureData(lectureId, lectureData);
+      // 4. Update Lecture in Dexie.js
+      if (selectedPdf && slidesMarkdown) {
+        await updateLectureSlides(lectureId, selectedPdf.name, slidesMarkdown, lectureData);
+      } else {
+        await updateLectureData(lectureId, lectureData);
+      }
 
       setIsProcessing(false);
       setProcessingStage('');
       setSelectedFile(null);
+      setSelectedPdf(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (pdfInputRef.current) pdfInputRef.current.value = '';
     } catch (err: any) {
       console.error('Error during audio processing:', err);
       setIsProcessing(false);
@@ -239,6 +276,62 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
                 Supporta registratori vocali OTG, cartelle download o file locali (max 250MB)
               </p>
             </>
+          )}
+        </div>
+
+        {/* Optional Slide PDF Input Box */}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-3.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-purple-400" />
+              <span>Slide della Lezione (PDF) • Opzionale</span>
+            </label>
+            <span className="text-[10px] text-zinc-500">
+              Genera riferimenti incrociati alle slide
+            </span>
+          </div>
+
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            onChange={handlePdfChange}
+            disabled={isProcessing}
+            className="hidden"
+          />
+
+          {selectedPdf ? (
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-purple-950/30 border border-purple-800/60 text-xs">
+              <div className="flex items-center gap-2 truncate">
+                <FileText className="w-4 h-4 text-purple-400 shrink-0" />
+                <span className="font-medium text-zinc-200 truncate">{selectedPdf.name}</span>
+                <span className="text-[10px] text-zinc-400 shrink-0">
+                  ({(selectedPdf.size / (1024 * 1024)).toFixed(1)} MB)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPdf(null);
+                  if (pdfInputRef.current) pdfInputRef.current.value = '';
+                }}
+                disabled={isProcessing}
+                className="p-1 text-zinc-400 hover:text-rose-400 transition"
+                title="Rimuovi slide"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => !isProcessing && pdfInputRef.current?.click()}
+              disabled={isProcessing}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg border border-dashed border-zinc-700/80 hover:border-purple-500/60 bg-zinc-900/40 hover:bg-zinc-900/80 text-xs text-zinc-400 hover:text-zinc-200 transition"
+            >
+              <UploadCloud className="w-3.5 h-3.5 text-purple-400" />
+              <span>Allega PDF delle slide (opzionale - converte in .md e collega all'audio)</span>
+            </button>
           )}
         </div>
 

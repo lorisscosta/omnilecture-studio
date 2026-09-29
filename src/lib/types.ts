@@ -24,6 +24,9 @@ export interface LectureData {
   study_guide_it: string;
   potential_exam_questions: ExamQuestion[];
   mermaid_mindmap?: string;
+  slides_markdown?: string;
+  slides_filename?: string;
+  has_slides?: boolean;
 }
 
 export interface ChatMessage {
@@ -42,6 +45,9 @@ export interface Lecture {
   fileSize: number; // in bytes
   fileName: string;
   audioBlob?: Blob;
+  slidesFileName?: string;
+  slidesMarkdown?: string;
+  hasSlides?: boolean;
   status: 'ready' | 'processing' | 'completed' | 'error';
   errorMessage?: string;
   processingProgress?: string;

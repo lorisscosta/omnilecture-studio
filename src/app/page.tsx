@@ -24,6 +24,7 @@ import {
   Cloud,
   Check,
   Loader2,
+  FileText,
 } from 'lucide-react';
 import { db, getAllLectures, deleteLectureById, saveLecture, getLectureById } from '@/lib/db';
 import { Lecture } from '@/lib/types';
@@ -42,6 +43,7 @@ import { ObsidianExportButton } from '@/components/export/ObsidianExportButton';
 import { StudyGuideTab } from '@/components/workspace/StudyGuideTab';
 import { TranscriptTab } from '@/components/workspace/TranscriptTab';
 import { GlossaryTab } from '@/components/workspace/GlossaryTab';
+import { SlidesModal } from '@/components/workspace/SlidesModal';
 import type { User } from '@supabase/supabase-js';
 
 export default function HomePage() {
@@ -51,6 +53,7 @@ export default function HomePage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSlidesModalOpen, setIsSlidesModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccessToast, setSyncSuccessToast] = useState<string | null>(null);
@@ -186,6 +189,34 @@ export default function HomePage() {
       duration: 360,
       fileSize: 15 * 1024 * 1024,
       fileName: 'dsp_lecture_04_dft.mp3',
+      slidesFileName: 'DSP_Lezione_04_Slides_DFT.pdf',
+      hasSlides: true,
+      slidesMarkdown: `# Slide Corso: Digital Signal Processing (DSP)
+## Slide 1: Discrete Fourier Transform & Fast Convolution
+- Docente: Prof. Miller
+- Corso di Laurea Magistrale in Ingegneria
+- Obiettivi: Definizione formale della DFT, proprietà di periodicità, convoluzione circolare vs lineare.
+
+## Slide 2: Campionamento nel Dominio della Frequenza
+- La DTFT opera su tempo discreto e frequenza continua $\\omega \\in [-\\pi, \\pi]$.
+- La DFT campiona la DTFT in $N$ punti equispaziati sulla circonferenza unitaria:
+  $$\\omega_k = \\frac{2\\pi k}{N}, \\quad k = 0, 1, \\dots, N-1$$
+
+## Slide 3: Equazioni di Analisi e Sintesi DFT
+- Equazione di Analisi (DFT diretta):
+  $$X[k] = \\sum_{n=0}^{N-1} x[n] W_N^{kn}, \\quad k = 0, \\dots, N-1$$
+  dove $W_N = e^{-j \\frac{2\\pi}{N}}$ rappresenta il fattore di rotazione (twiddle factor).
+- Equazione di Sintesi (IDFT inversa):
+  $$x[n] = \\frac{1}{N} \\sum_{k=0}^{N-1} X[k] W_N^{-kn}, \\quad n = 0, \\dots, N-1$$
+
+## Slide 4: Teorema della Convoluzione Circolare
+- Moltiplicazione spettrale: $Y[k] = X_1[k] \\cdot X_2[k]$
+- Proprietà temporale: $y[n] = x_1[n] \\circledast_N x_2[n]$
+- Attenzione: Non coincide con la convoluzione lineare se $N < L_1 + L_2 - 1$ a causa del time-domain aliasing.
+
+## Slide 5: Filtraggio a Blocchi: Overlap-Add & Overlap-Save
+- Permettono il filtraggio continuo di segnali lunghi tramite blocchi FFT veloci.
+- [Descrizione Schema: Diagramma a blocchi con partizionamento del segnale $x[n]$, calcolo FFT, moltiplicazione spettrale con $H[k]$, e ricomposizione con overlap-add].`,
       status: 'completed',
       chatMessages: [],
       createdAt: new Date().toISOString(),
@@ -612,6 +643,27 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               </button>
             )}
 
+            {/* Slide (.pdf / .md) Management Button */}
+            {currentLecture && !isCreatingNew && currentLecture.data && (
+              <button
+                onClick={() => setIsSlidesModalOpen(true)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
+                  currentLecture.hasSlides
+                    ? 'bg-purple-950/70 text-purple-200 border border-purple-800 hover:bg-purple-900/80'
+                    : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80'
+                }`}
+                title="Gestisci o carica le slide PDF (converte in .md e collega all'audio)"
+              >
+                <FileText className="w-3.5 h-3.5 text-purple-400" />
+                <span className="hidden sm:inline">
+                  {currentLecture.hasSlides ? 'Slide (.md)' : 'Allega Slide'}
+                </span>
+                {currentLecture.hasSlides && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                )}
+              </button>
+            )}
+
             {currentLecture && !isCreatingNew && currentLecture.data && (
               <ObsidianExportButton lecture={currentLecture} />
             )}
@@ -732,6 +784,48 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 </div>
               )}
 
+              {/* Slide Integration Banner / Status */}
+              {currentLecture.hasSlides ? (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-purple-950/30 border border-purple-800/50 text-xs text-purple-200 shadow-sm">
+                  <div className="flex items-center gap-2.5 truncate">
+                    <div className="p-1.5 rounded-lg bg-purple-900/60 border border-purple-700/80 text-purple-300">
+                      <FileText className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="truncate">
+                      <span className="font-semibold text-zinc-100">Slide collegate:</span>{' '}
+                      <span className="text-purple-300 font-mono truncate">{currentLecture.slidesFileName}</span>
+                      <span className="text-zinc-400 hidden sm:inline ml-1.5">• Markdown integrato con la registrazione</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsSlidesModalOpen(true)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-900/60 hover:bg-purple-800 border border-purple-700 text-purple-200 transition shrink-0 ml-2"
+                  >
+                    Vedi Markdown (.md)
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/80 text-xs text-zinc-400 hover:border-zinc-700 transition shadow-sm">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400">
+                      <FileText className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <span className="font-semibold text-zinc-200">Hai il PDF delle slide di questa lezione?</span>
+                      <span className="text-zinc-400 hidden sm:inline ml-1">
+                        Caricalo per convertirlo in Markdown (.md) e integrare formule e riferimenti puntuali [Slide X] nella Guida Overleaf LaTeX.
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsSlidesModalOpen(true)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-950/40 transition shrink-0 ml-2"
+                  >
+                    + Allega Slide (PDF)
+                  </button>
+                </div>
+              )}
+
               {/* Workspace Navigation Tabs */}
               <div className="flex items-center gap-1.5 border-b border-zinc-800 pb-2 overflow-x-auto">
                 <button
@@ -802,6 +896,29 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
           )}
         </div>
       </main>
+
+      {/* Modals */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={currentUser}
+        onUserChange={(u) => setCurrentUser(u)}
+      />
+
+      {currentLecture && (
+        <SlidesModal
+          isOpen={isSlidesModalOpen}
+          onClose={() => setIsSlidesModalOpen(false)}
+          lecture={currentLecture}
+          onSlidesUpdated={() => {}}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+        />
+      )}
     </div>
   );
 }
