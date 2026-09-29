@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   BookOpen,
@@ -64,9 +64,13 @@ export default function HomePage() {
   const waveSurferRef = useRef<WaveSurferPlayerHandle>(null);
   const hasInitializedRef = useRef(false);
 
-  // Live query from IndexedDB
-  const lectures = useLiveQuery(() => getAllLectures(), []) || [];
-  const currentLecture = !isCreatingNew ? lectures.find((l) => l.id === selectedLectureId) : null;
+  // Live query from IndexedDB with stable memoized reference
+  const rawLectures = useLiveQuery(() => getAllLectures(), []);
+  const lectures = useMemo(() => rawLectures ?? [], [rawLectures]);
+  const currentLecture = useMemo(
+    () => (!isCreatingNew ? lectures.find((l) => l.id === selectedLectureId) : null),
+    [isCreatingNew, lectures, selectedLectureId]
+  );
 
   // Auto-select first lecture only once on initial app load if available and not explicitly creating new
   useEffect(() => {
@@ -123,9 +127,9 @@ export default function HomePage() {
   }, [currentUser]);
 
   // Handle seeking from transcript or LaTeX citations
-  const handleSeekFromTranscript = (seconds: number, partIndex?: number) => {
+  const handleSeekFromTranscript = useCallback((seconds: number, partIndex?: number) => {
     waveSurferRef.current?.seekTo(seconds, partIndex);
-  };
+  }, []);
 
   // Sync current lecture to Supabase PostgreSQL (Text-Only)
   const handleSyncToCloud = async (lecture: Lecture) => {

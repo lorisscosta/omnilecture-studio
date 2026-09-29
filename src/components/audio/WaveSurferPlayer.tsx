@@ -56,6 +56,18 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
 
     const continuousCurrentTime = currentStartOffset + currentPartTime;
 
+    const onTimeUpdateRef = useRef(onTimeUpdate);
+    onTimeUpdateRef.current = onTimeUpdate;
+
+    const onDurationChangeRef = useRef(onDurationChange);
+    onDurationChangeRef.current = onDurationChange;
+
+    const playbackRateRef = useRef(playbackRate);
+    playbackRateRef.current = playbackRate;
+
+    const isMutedRef = useRef(isMuted);
+    isMutedRef.current = isMuted;
+
     // Speed options
     const speeds = [0.8, 1.0, 1.25, 1.5, 2.0];
 
@@ -168,14 +180,14 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
         const dur = ws.getDuration();
         setCurrentPartDuration(dur);
         if (!hasMultipleParts) {
-          onDurationChange?.(dur);
+          onDurationChangeRef.current?.(dur);
         } else if (totalDuration > 0) {
-          onDurationChange?.(totalDuration);
+          onDurationChangeRef.current?.(totalDuration);
         }
 
         // Apply playback rate
-        ws.setPlaybackRate(playbackRate);
-        if (isMuted) ws.setVolume(0);
+        ws.setPlaybackRate(playbackRateRef.current);
+        if (isMutedRef.current) ws.setVolume(0);
 
         // Check if pending seek waiting
         if (pendingSeekRef.current !== null && dur > 0) {
@@ -190,7 +202,7 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
       ws.on('timeupdate', (time) => {
         setCurrentPartTime(time);
         const continuous = currentStartOffset + time;
-        onTimeUpdate?.(continuous);
+        onTimeUpdateRef.current?.(continuous);
       });
 
       ws.on('play', () => setIsPlaying(true));
@@ -213,7 +225,20 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
           URL.revokeObjectURL(objectUrl);
         }
       };
-    }, [currentAudioBlob, audioUrl, activePartIndex, currentStartOffset, hasMultipleParts, totalDuration]);
+    }, [currentAudioBlob, audioUrl, activePartIndex, currentStartOffset, hasMultipleParts, totalDuration, audioParts]);
+
+    // Fast updates without recreating WaveSurfer instance
+    useEffect(() => {
+      if (wavesurferRef.current) {
+        wavesurferRef.current.setPlaybackRate(playbackRate);
+      }
+    }, [playbackRate]);
+
+    useEffect(() => {
+      if (wavesurferRef.current) {
+        wavesurferRef.current.setVolume(isMuted ? 0 : 1);
+      }
+    }, [isMuted]);
 
     // Handle Play / Pause
     const togglePlay = useCallback(() => {
