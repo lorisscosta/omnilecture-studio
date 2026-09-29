@@ -7,7 +7,7 @@ import { Play, Search, Volume2, AlignLeft, ListFilter, Copy, Check } from 'lucid
 interface TranscriptTabProps {
   segments: TranscriptSegment[];
   currentTime: number;
-  onSeek: (seconds: number) => void;
+  onSeek: (seconds: number, partIndex?: number) => void;
 }
 
 function formatSeconds(seconds: number): string {
@@ -239,8 +239,8 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
                 <div
                   key={idx}
                   ref={isActive ? activeItemRef : null}
-                  onClick={() => onSeek(seg.start)}
-                  className={`group cursor-pointer rounded-xl p-4 transition border ${
+                  onClick={() => onSeek(seg.start, seg.partIndex)}
+                  className={`group cursor-pointer rounded-xl p-3.5 sm:p-4 transition border ${
                     isActive
                       ? 'bg-purple-950/40 border-purple-500/70 shadow-lg shadow-purple-950/50'
                       : 'bg-zinc-900/60 border-zinc-800/80 hover:bg-zinc-800/60 hover:border-zinc-700'
@@ -252,7 +252,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSeek(seg.start);
+                          onSeek(seg.start, seg.partIndex);
                         }}
                         className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-medium transition ${
                           isActive

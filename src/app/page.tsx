@@ -597,18 +597,20 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
             </button>
 
             {currentLecture && !isCreatingNew ? (
-              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                <span className="text-[11px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-950 border border-purple-800 text-purple-300 truncate max-w-[95px] xs:max-w-[140px] sm:max-w-none">
-                  {currentLecture.course}
-                </span>
-                <h2 className="text-sm font-bold text-zinc-100 truncate max-w-xs md:max-w-md hidden sm:block">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-950 border border-purple-800 text-purple-300 truncate max-w-[110px] sm:max-w-none">
+                    {currentLecture.course}
+                  </span>
+                  {currentLecture.audioParts && currentLecture.audioParts.length > 1 && (
+                    <span className="text-[9px] sm:text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-purple-950/80 border border-purple-800 text-purple-300 shrink-0">
+                      {currentLecture.audioParts.length}P
+                    </span>
+                  )}
+                </div>
+                <h2 className="text-xs sm:text-sm font-bold text-zinc-100 truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs md:max-w-md">
                   {currentLecture.title}
                 </h2>
-                {currentLecture.audioParts && currentLecture.audioParts.length > 1 && (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950/80 border border-purple-800 text-purple-300 hidden md:inline-block">
-                    {currentLecture.audioParts.length} registrazioni unite
-                  </span>
-                )}
               </div>
             ) : (
               <span className="text-xs sm:text-sm font-semibold text-zinc-300 truncate">
@@ -631,11 +633,11 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   setSelectedLectureId(null);
                   setIsCreatingNew(true);
                 }}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 transition"
+                className="flex items-center gap-1 sm:gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-medium bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 transition"
                 title="Nuova Registrazione"
               >
                 <Plus className="w-3.5 h-3.5 text-purple-400" />
-                <span>Nuova</span>
+                <span className="hidden sm:inline">Nuova</span>
               </button>
             )}
 

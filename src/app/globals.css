@@ -39,4 +39,9 @@
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0.5em 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.katex-display::-webkit-scrollbar {
+  height: 4px;
 }

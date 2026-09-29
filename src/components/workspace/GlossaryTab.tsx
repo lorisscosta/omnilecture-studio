@@ -214,7 +214,7 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
       {/* Sub-View 1: Glossario Cards */}
       {activeSubTab === 'glossary' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
             {filteredGlossary.length === 0 ? (
               <div className="col-span-2 text-center py-12 text-zinc-500 text-sm bg-zinc-900/60 rounded-xl border border-zinc-800">
                 Nessun termine accademico trovato.

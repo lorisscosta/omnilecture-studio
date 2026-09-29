@@ -320,14 +320,14 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
         {/* Controls and Timers */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-2 border-t border-zinc-800">
           {/* Row 1 on mobile: Main Playback Controls + Timers */}
-          <div className="flex items-center justify-between sm:justify-start gap-2">
+          <div className="flex flex-wrap items-center justify-between sm:justify-start gap-2">
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* -5s button */}
               <button
                 onClick={() => skipTime(-5)}
                 disabled={!isReady}
                 title="Indietro di 5 secondi"
-                className="p-2 sm:p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition disabled:opacity-40"
+                className="p-2 sm:p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition disabled:opacity-40 touch-manipulation active:scale-95"
               >
                 <RotateCcw className="w-4 h-4" />
               </button>
@@ -337,7 +337,7 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
                 onClick={togglePlay}
                 disabled={!isReady}
                 title={isPlaying ? 'Pausa' : 'Riproduci'}
-                className="p-2.5 sm:p-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 transition transform active:scale-95 disabled:opacity-40"
+                className="p-2.5 sm:p-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 transition transform active:scale-95 disabled:opacity-40 touch-manipulation"
               >
                 {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
               </button>
@@ -347,20 +347,20 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
                 onClick={() => skipTime(5)}
                 disabled={!isReady}
                 title="Avanti di 5 secondi"
-                className="p-2 sm:p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition disabled:opacity-40"
+                className="p-2 sm:p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition disabled:opacity-40 touch-manipulation active:scale-95"
               >
                 <RotateCw className="w-4 h-4" />
               </button>
             </div>
 
             {/* Time display */}
-            <div className="text-xs font-mono text-zinc-400 flex items-center gap-1.5">
+            <div className="text-xs font-mono text-zinc-400 flex items-center gap-1.5 shrink-0">
               <span className="text-zinc-100 font-semibold">{formatTime(continuousCurrentTime)}</span>
               <span>/</span>
               <span>{formatTime(totalDuration)}</span>
               {hasMultipleParts && (
                 <span className="text-[10px] text-purple-400 bg-purple-950/70 border border-purple-800/60 px-1.5 py-0.5 rounded font-sans">
-                  Parte {activePartIndex + 1}/{audioParts?.length}
+                  P{activePartIndex + 1}/{audioParts?.length}
                 </span>
               )}
             </div>

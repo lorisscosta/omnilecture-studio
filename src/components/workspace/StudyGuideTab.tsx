@@ -193,7 +193,7 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
             <button
               type="button"
               onClick={() => setShowLintDrawer(!showLintDrawer)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
                 lintResult.errorsCount > 0
                   ? 'bg-rose-950/60 border-rose-800 text-rose-300 hover:bg-rose-900/60'
                   : lintResult.warningsCount > 0
@@ -211,16 +211,16 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
               )}
               <span>
                 {lintResult.errorsCount > 0
-                  ? `${lintResult.errorsCount} Errori LaTeX`
+                  ? `${lintResult.errorsCount} Err`
                   : lintResult.warningsCount > 0
-                  ? `${lintResult.warningsCount} Avvisi Sintassi`
+                  ? `${lintResult.warningsCount} Avvisi`
                   : 'LaTeX Valido'}
               </span>
             </button>
 
             <button
               onClick={handleCopyLatex}
-              className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-semibold shadow-md transition ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-semibold shadow-md transition ${
                 isCopied
                   ? 'bg-emerald-600 text-white shadow-emerald-900/30'
                   : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/30'
@@ -228,16 +228,16 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
               title="Copia l'intero documento LaTeX per Overleaf"
             >
               {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{isCopied ? 'Copiato!' : 'Copia per Overleaf'}</span>
+              <span>{isCopied ? 'Copiato!' : <>Copia<span className="hidden sm:inline"> per Overleaf</span></>}</span>
             </button>
 
             <button
               onClick={handleDownloadTex}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition"
               title="Scarica il file sorgente .tex pronto all'uso"
             >
               <Download className="w-3.5 h-3.5 text-purple-400" />
-              <span>Scarica .tex</span>
+              <span><span className="hidden sm:inline">Scarica </span>.tex</span>
             </button>
           </div>
         </div>
