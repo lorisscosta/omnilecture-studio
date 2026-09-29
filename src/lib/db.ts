@@ -1,13 +1,18 @@
 import Dexie, { type Table } from 'dexie';
-import { Lecture } from './types';
+import { Lecture, LectureProcessingChunk, ChunkStatus } from './types';
 
 export class OmniLectureDatabase extends Dexie {
   lectures!: Table<Lecture, string>;
+  processingChunks!: Table<LectureProcessingChunk, string>;
 
   constructor() {
     super('OmniLectureDB');
     this.version(1).stores({
       lectures: 'id, title, course, date, status, createdAt, updatedAt',
+    });
+    this.version(2).stores({
+      lectures: 'id, title, course, date, status, createdAt, updatedAt',
+      processingChunks: 'id, lectureId, status, index',
     });
   }
 }
@@ -29,18 +34,35 @@ export async function getAllLectures(): Promise<Lecture[]> {
 
 export async function deleteLectureById(id: string): Promise<void> {
   await db.lectures.delete(id);
+  await db.processingChunks.where('lectureId').equals(id).delete();
 }
 
 export async function updateLectureStatus(
   id: string,
   status: Lecture['status'],
   errorMessage?: string,
-  processingProgress?: string
+  processingProgress?: string,
+  processingPercentage?: number
 ): Promise<void> {
   await db.lectures.update(id, {
     status,
     errorMessage,
     processingProgress,
+    processingPercentage,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function updateLectureProgress(
+  id: string,
+  processingPercentage: number,
+  processingProgress: string,
+  processingChunks?: LectureProcessingChunk[]
+): Promise<void> {
+  await db.lectures.update(id, {
+    processingPercentage,
+    processingProgress,
+    processingChunks,
     updatedAt: new Date().toISOString(),
   });
 }
@@ -50,6 +72,7 @@ export async function updateLectureData(id: string, data: Lecture['data']): Prom
     data,
     status: 'completed',
     processingProgress: undefined,
+    processingPercentage: 100,
     errorMessage: undefined,
     updatedAt: new Date().toISOString(),
   });
@@ -79,4 +102,27 @@ export async function appendChatMessage(id: string, message: Lecture['chatMessag
       updatedAt: new Date().toISOString(),
     });
   }
+}
+
+// Processing Chunks Operations
+export async function saveProcessingChunks(chunks: LectureProcessingChunk[]): Promise<void> {
+  await db.processingChunks.bulkPut(chunks);
+}
+
+export async function getProcessingChunks(lectureId: string): Promise<LectureProcessingChunk[]> {
+  return await db.processingChunks.where('lectureId').equals(lectureId).sortBy('index');
+}
+
+export async function updateProcessingChunkStatus(
+  id: string,
+  status: ChunkStatus,
+  errorMessage?: string,
+  data?: Partial<Lecture['data']>
+): Promise<void> {
+  await db.processingChunks.update(id, {
+    status,
+    errorMessage,
+    data,
+    updatedAt: new Date().toISOString(),
+  });
 }

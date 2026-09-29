@@ -1,5 +1,18 @@
-import { LectureData, AudioPart } from './types';
+import { LectureData, AudioPart, LectureProcessingChunk, TranscriptSegment, GlossaryTerm, ExamQuestion } from './types';
 import { fetchAvailableModels, getModelFallbackChain, normalizeModelName } from './gemini-config';
+import {
+  createLectureChunksPlan,
+  retryWithBackoff,
+  mergeTranscriptSegments,
+  consolidateGlossary,
+  consolidateExamQuestions,
+  consolidateStudyGuides,
+  calculateOverallProgress,
+} from './chunk-processing';
+import {
+  saveProcessingChunks,
+  updateProcessingChunkStatus,
+} from './db';
 
 // Strict JSON Schema for Gemini
 export const responseSchema = {
@@ -148,8 +161,9 @@ export async function processAudioDirectly(
   course: string,
   title: string,
   apiKey: string,
-  onProgress?: (stage: string) => void,
-  userSelectedModel?: string
+  onProgress?: (stage: string, percentage?: number) => void,
+  userSelectedModel?: string,
+  lectureId?: string
 ): Promise<{
   success: boolean;
   data: LectureData;
@@ -217,25 +231,26 @@ export async function processAudioDirectly(
       });
 
       const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${apiKey}`;
-      const uploadResponse = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': `multipart/related; boundary=${boundary}`,
-        },
-        body: multipartBlob,
-      });
+      const uploadResponse = await retryWithBackoff(async () => {
+        const res = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': `multipart/related; boundary=${boundary}`,
+          },
+          body: multipartBlob,
+        });
 
-      if (!uploadResponse.ok) {
-        const errText = await uploadResponse.text();
-        let parsedMsg = errText;
-        try {
-          const errObj = JSON.parse(errText);
-          parsedMsg = errObj.error?.message || errText;
-        } catch {}
-        throw new Error(
-          `Caricamento ${fileName} su Google AI Studio fallito (${uploadResponse.status}): ${parsedMsg}`
-        );
-      }
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '');
+          let parsedMsg = errText;
+          try {
+            const errObj = JSON.parse(errText);
+            parsedMsg = errObj.error?.message || errText;
+          } catch {}
+          throw new Error(`Upload ${fileName} fallito (${res.status}): ${parsedMsg}`);
+        }
+        return res;
+      }, 3, 1500);
 
       const uploadResult = await uploadResponse.json();
       const fileResourceName = uploadResult.file?.name;
@@ -348,164 +363,264 @@ Struttura dei campi JSON richiesta:
 3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), la macro di citazione \\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}, impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, inserendo citazioni temporali \\ts{parteIndex}{secondi} ad ogni snodo teorico o passaggio matematico, terminando con \\end{document}. Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
 4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].`;
 
-    // Construct content parts with strict typing
-    interface GeminiContentPartItem {
-      text?: string;
-      file_data?: {
-        mime_type: string;
-        file_uri: string;
-      };
+    // Create and persist chunks in Dexie for traceability and resilience
+    let chunksPlan: LectureProcessingChunk[] = [];
+    if (lectureId) {
+      chunksPlan = createLectureChunksPlan(lectureId, audioParts);
+      await saveProcessingChunks(chunksPlan).catch(console.warn);
     }
-    const contentParts: GeminiContentPartItem[] = [];
+
+    let parsedData: LectureData;
+    let successfulModel = '';
 
     if (isMultiPart) {
-      let overviewText = `Questa lezione del corso "${course}" (titolo: "${title}") è composta da ${uploadedFilesMeta.length} registrazioni audio continue effettuate in sequenza:\n`;
-      uploadedFilesMeta.forEach((uf, idx) => {
-        overviewText += `- Parte ${idx + 1}: ${uf.fileName} (offset: ${Math.round(uf.startOffset)}s, durata: ~${Math.round(uf.duration)}s)\n`;
-      });
-      overviewText += `\nGenera un UNICO output completo con Guida Overleaf LaTeX unificata, Glossario unificato, Domande d'esame e Trascrizione continua.`;
-      contentParts.push({ text: overviewText });
+      // Chunked multi-part processing: processes each track sequentially, saving state and consolidating
+      const chunkTranscripts: Array<{
+        partIndex: number;
+        chunkStartSeconds: number;
+        cumulativePartOffset: number;
+        segments: TranscriptSegment[];
+      }> = [];
+      const chunkGlossaries: GlossaryTerm[][] = [];
+      const chunkQuestions: ExamQuestion[][] = [];
+      const chunkGuides: string[] = [];
 
-      for (let i = 0; i < uploadedFilesMeta.length; i++) {
-        const uf = uploadedFilesMeta[i];
-        contentParts.push({
-          text: `=== REGISTRAZIONE PARTE ${i + 1} DI ${uploadedFilesMeta.length}: "${uf.fileName}" (Inizio al secondo continuo ${Math.round(uf.startOffset)}) ===`,
+      for (let partIdx = 0; partIdx < uploadedFilesMeta.length; partIdx++) {
+        const uf = uploadedFilesMeta[partIdx];
+        const partNumber = partIdx + 1;
+        const matchingChunk = chunksPlan.find((c) => c.partIndex === partIdx);
+        if (matchingChunk) {
+          await updateProcessingChunkStatus(matchingChunk.id, 'running').catch(console.warn);
+        }
+
+        const progressPct = Math.round(20 + ((partIdx + 0.1) / uploadedFilesMeta.length) * 70);
+        onProgress?.(
+          `Elaborazione audio parte ${partNumber} di ${uploadedFilesMeta.length} (${uf.fileName})...`,
+          progressPct
+        );
+
+        const partPromptText = `Trascrivi ed elabora questa registrazione audio (Parte ${partNumber} di ${uploadedFilesMeta.length}: "${uf.fileName}") per il corso di "${course}" (lezione: "${title}"). Inserisci citazioni temporali puntuali nella forma \\ts{${partIdx}}{secondi} (es. \\ts{${partIdx}}{120}) per ogni formula e passaggio fondamentale riferiti ai secondi di questa traccia. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+
+        let partResponse: Response | null = null;
+        const partErrorLogs: string[] = [];
+
+        for (const model of modelsToTry) {
+          onProgress?.(
+            `Analisi parte ${partNumber}/${uploadedFilesMeta.length} con modello ${model}...`,
+            progressPct
+          );
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          const payload = {
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    file_data: {
+                      mime_type: uf.mimeType,
+                      file_uri: uf.fileUri,
+                    },
+                  },
+                  { text: partPromptText },
+                ],
+              },
+            ],
+            generationConfig: {
+              response_mime_type: 'application/json',
+              response_schema: responseSchema,
+              temperature: 0.2,
+            },
+          };
+
+          try {
+            const res = await retryWithBackoff(async () => {
+              const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+              if (resp.status === 429 || resp.status === 503) {
+                throw new Error(`Google API quota o sovraccarico temporaneo HTTP ${resp.status}`);
+              }
+              return resp;
+            }, 2, 1500);
+
+            if (res.ok) {
+              partResponse = res;
+              successfulModel = model;
+              break;
+            }
+
+            const errorText = await res.text().catch(() => '');
+            let errMsg = errorText;
+            try {
+              const errObj = JSON.parse(errorText);
+              errMsg = errObj.error?.message || errorText;
+            } catch {}
+
+            partErrorLogs.push(`${model}: ${errMsg.slice(0, 100)}`);
+            if (res.status === 401) break;
+          } catch (fetchErr: unknown) {
+            const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+            partErrorLogs.push(`${model}: ${msg}`);
+          }
+        }
+
+        if (!partResponse || !partResponse.ok) {
+          if (matchingChunk) {
+            await updateProcessingChunkStatus(matchingChunk.id, 'error', partErrorLogs.join(' | ')).catch(console.warn);
+          }
+          throw new Error(`Errore elaborazione parte ${partNumber}: ${partErrorLogs.join(' | ')}`);
+        }
+
+        const partGenData = await partResponse.json();
+        const candidateText = partGenData.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!candidateText) {
+          throw new Error(`Risposta vuota per la parte ${partNumber}.`);
+        }
+
+        let cleanJson = candidateText.trim();
+        if (cleanJson.startsWith('```json')) {
+          cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+        } else if (cleanJson.startsWith('```')) {
+          cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+        }
+
+        const partData: LectureData = JSON.parse(cleanJson);
+        if (matchingChunk) {
+          await updateProcessingChunkStatus(matchingChunk.id, 'done', undefined, partData).catch(console.warn);
+        }
+
+        chunkTranscripts.push({
+          partIndex: partIdx,
+          chunkStartSeconds: 0,
+          cumulativePartOffset: uf.startOffset,
+          segments: partData.timestamped_transcript || [],
         });
-        contentParts.push({
-          file_data: {
-            mime_type: uf.mimeType,
-            file_uri: uf.fileUri,
-          },
-        });
-        contentParts.push({
-          text: `=== FINE REGISTRAZIONE PARTE ${i + 1} ===`,
-        });
+        if (partData.glossary) chunkGlossaries.push(partData.glossary);
+        if (partData.potential_exam_questions) chunkQuestions.push(partData.potential_exam_questions);
+        if (partData.study_guide_it) chunkGuides.push(partData.study_guide_it);
       }
 
-      contentParts.push({
-        text: `Procedi ora con l'elaborazione unificata completa secondo lo schema JSON indicato.`,
-      });
-    } else {
-      contentParts.push({
-        file_data: {
-          mime_type: uploadedFilesMeta[0].mimeType,
-          file_uri: uploadedFilesMeta[0].fileUri,
-        },
-      });
-      contentParts.push({
-        text: `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`,
-      });
-    }
+      // Step 4: Consolidation Pass on Text & LaTeX
+      onProgress?.('Consolidamento finale e verifica guide...', 95);
+      const consolidatedTranscript = mergeTranscriptSegments(chunkTranscripts);
+      const consolidatedGlossaryData = consolidateGlossary(chunkGlossaries);
+      const consolidatedExamData = consolidateExamQuestions(chunkQuestions);
+      const consolidatedGuide = consolidateStudyGuides(chunkGuides, title, course);
 
-    let generationResponse: Response | null = null;
-    let successfulModel = '';
-    const errorLogs: string[] = [];
-
-    for (const model of modelsToTry) {
-      onProgress?.(`Analisi in corso con il modello: ${model}...`);
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const payload = {
-        system_instruction: {
-          parts: [{ text: systemPrompt }],
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: contentParts,
-          },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          response_schema: responseSchema,
-          temperature: 0.2,
-        },
+      parsedData = {
+        timestamped_transcript: consolidatedTranscript,
+        glossary: consolidatedGlossaryData,
+        potential_exam_questions: consolidatedExamData,
+        study_guide_it: consolidatedGuide,
       };
-
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          generationResponse = response;
-          successfulModel = model;
-          break;
-        }
-
-        const errorText = await response.text().catch(() => '');
-        let errMsg = errorText;
-        try {
-          const errObj = JSON.parse(errorText);
-          errMsg = errObj.error?.message || errorText;
-        } catch {}
-
-        errorLogs.push(`${model}: ${errMsg.slice(0, 120)}`);
-        console.warn(`Modello ${model} ha restituito ${response.status}: ${errMsg}`);
-
-        if (response.status === 401) {
-          generationResponse = response;
-          break;
-        }
-
-        if (response.status === 429 || response.status === 503) {
-          onProgress?.(`Il server Google per ${model} è temporaneamente sovraccarico (HTTP ${response.status}), passaggio automatico a modello alternativo...`);
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-        }
-
-        continue;
-      } catch (fetchErr: any) {
-        errorLogs.push(`${model}: ${fetchErr.message}`);
-        continue;
+      onProgress?.('Elaborazione completata con successo!', 100);
+    } else {
+      // Single Audio File Processing
+      const uf = uploadedFilesMeta[0];
+      const singleMatchingChunk = chunksPlan[0];
+      if (singleMatchingChunk) {
+        await updateProcessingChunkStatus(singleMatchingChunk.id, 'running').catch(console.warn);
       }
-    }
 
-    if (!generationResponse || !generationResponse.ok) {
-      const summaryMsg = errorLogs.length > 0 ? errorLogs.join(' | ') : 'Nessuna risposta dai modelli.';
-      throw new Error(`Errore generazione Gemini: ${summaryMsg}`);
-    }
+      onProgress?.('Trascrizione ed elaborazione accademica con Gemini...', 40);
 
-    const genData = await generationResponse.json();
-    const candidateText = genData.candidates?.[0]?.content?.parts?.[0]?.text;
+      const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Inserisci citazioni temporali puntuali nella forma \\ts{0}{secondi} (es. \\ts{0}{120}) per ogni formula e passaggio fondamentale. Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
-    if (!candidateText) {
-      throw new Error('Risposta vuota da Gemini API.');
-    }
+      let generationResponse: Response | null = null;
+      const errorLogs: string[] = [];
 
-    let cleanJson = candidateText.trim();
-    if (cleanJson.startsWith('```json')) {
-      cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
-    } else if (cleanJson.startsWith('```')) {
-      cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
-    }
-
-    const parsedData: LectureData = JSON.parse(cleanJson);
-
-    // Defensive Timestamp Normalization for Multi-Part
-    if (isMultiPart && Array.isArray(parsedData.timestamped_transcript)) {
-      parsedData.timestamped_transcript = parsedData.timestamped_transcript.map((seg, idx) => {
-        let pIdx = typeof seg.partIndex === 'number' && seg.partIndex >= 0 && seg.partIndex < audioParts.length
-          ? seg.partIndex
-          : 0;
-
-        // Check if start is relative to that part rather than cumulative
-        const partOffset = audioParts[pIdx]?.startOffset || 0;
-        let s = seg.start;
-        let e = seg.end;
-
-        if (partOffset > 0 && s < partOffset) {
-          s += partOffset;
-          e += partOffset;
-        }
-
-        return {
-          ...seg,
-          start: Math.round(s * 10) / 10,
-          end: Math.round(Math.max(e, s + 1) * 10) / 10,
-          partIndex: pIdx,
+      for (const model of modelsToTry) {
+        onProgress?.(`Analisi in corso con il modello: ${model}...`, 55);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const payload = {
+          system_instruction: { parts: [{ text: systemPrompt }] },
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  file_data: {
+                    mime_type: uf.mimeType,
+                    file_uri: uf.fileUri,
+                  },
+                },
+                { text: promptText },
+              ],
+            },
+          ],
+          generationConfig: {
+            response_mime_type: 'application/json',
+            response_schema: responseSchema,
+            temperature: 0.2,
+          },
         };
-      });
+
+        try {
+          const response = await retryWithBackoff(async () => {
+            const resp = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            if (resp.status === 429 || resp.status === 503) {
+              throw new Error(`Google API quota o sovraccarico temporaneo HTTP ${resp.status}`);
+            }
+            return resp;
+          }, 2, 1500);
+
+          if (response.ok) {
+            generationResponse = response;
+            successfulModel = model;
+            break;
+          }
+
+          const errorText = await response.text().catch(() => '');
+          let errMsg = errorText;
+          try {
+            const errObj = JSON.parse(errorText);
+            errMsg = errObj.error?.message || errorText;
+          } catch {}
+
+          errorLogs.push(`${model}: ${errMsg.slice(0, 120)}`);
+          if (response.status === 401) break;
+        } catch (fetchErr: unknown) {
+          const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+          errorLogs.push(`${model}: ${msg}`);
+        }
+      }
+
+      if (!generationResponse || !generationResponse.ok) {
+        if (singleMatchingChunk) {
+          await updateProcessingChunkStatus(singleMatchingChunk.id, 'error', errorLogs.join(' | ')).catch(console.warn);
+        }
+        const summaryMsg = errorLogs.length > 0 ? errorLogs.join(' | ') : 'Nessuna risposta dai modelli.';
+        throw new Error(`Errore generazione Gemini: ${summaryMsg}`);
+      }
+
+      onProgress?.('Formattazione e validazione LaTeX in corso...', 85);
+      const genData = await generationResponse.json();
+      const candidateText = genData.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!candidateText) {
+        throw new Error('Risposta vuota da Gemini API.');
+      }
+
+      let cleanJson = candidateText.trim();
+      if (cleanJson.startsWith('```json')) {
+        cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+      } else if (cleanJson.startsWith('```')) {
+        cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+      }
+
+      parsedData = JSON.parse(cleanJson);
+
+      if (singleMatchingChunk) {
+        await updateProcessingChunkStatus(singleMatchingChunk.id, 'done', undefined, parsedData).catch(console.warn);
+      }
+      onProgress?.('Elaborazione completata con successo!', 100);
     }
 
     return {

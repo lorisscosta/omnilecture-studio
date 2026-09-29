@@ -46,6 +46,23 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+export type ChunkStatus = 'pending' | 'running' | 'done' | 'error';
+
+export interface LectureProcessingChunk {
+  id: string;
+  lectureId: string;
+  index: number;
+  partIndex: number;
+  startSeconds: number;
+  endSeconds: number;
+  duration: number;
+  status: ChunkStatus;
+  retryCount: number;
+  errorMessage?: string;
+  data?: Partial<LectureData>;
+  updatedAt: string;
+}
+
 export interface Lecture {
   id: string;
   title: string;
@@ -62,6 +79,8 @@ export interface Lecture {
   status: 'ready' | 'processing' | 'completed' | 'error';
   errorMessage?: string;
   processingProgress?: string;
+  processingPercentage?: number;
+  processingChunks?: LectureProcessingChunk[];
   data?: LectureData;
   chatMessages: ChatMessage[];
   userId?: string;

@@ -16,7 +16,7 @@ import {
   Plus,
   Layers,
 } from 'lucide-react';
-import { db, saveLecture, updateLectureStatus, updateLectureData, updateLectureSlides } from '@/lib/db';
+import { db, saveLecture, updateLectureStatus, updateLectureProgress, updateLectureData, updateLectureSlides } from '@/lib/db';
 import { Lecture, AudioPart } from '@/lib/types';
 import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
 import {
@@ -52,6 +52,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStage, setProcessingStage] = useState('');
+  const [processingPercentage, setProcessingPercentage] = useState(0);
   const [sizeWarning, setSizeWarning] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -168,6 +169,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
 
     setIsProcessing(true);
     setErrorMessage(null);
+    setProcessingPercentage(5);
     setProcessingStage('Inizializzazione sessione di studio...');
 
     const lectureId =
@@ -220,11 +222,15 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           effectiveCourse,
           effectiveTitle,
           apiKey,
-          (stage) => {
+          (stage, pct) => {
             setProcessingStage(stage);
-            updateLectureStatus(lectureId, 'processing', undefined, stage).catch(console.error);
+            if (typeof pct === 'number') {
+              setProcessingPercentage(pct);
+            }
+            updateLectureProgress(lectureId, typeof pct === 'number' ? pct : 50, stage).catch(console.error);
           },
-          selectedModel
+          selectedModel,
+          lectureId
         );
 
         lectureData = result.data;
@@ -299,6 +305,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
 
       setIsProcessing(false);
       setProcessingStage('');
+      setProcessingPercentage(0);
       setAudioFiles([]);
       setSelectedPdf(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -307,6 +314,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       console.error('Error during audio processing:', err);
       setIsProcessing(false);
       setProcessingStage('');
+      setProcessingPercentage(0);
       setErrorMessage(err.message || 'Errore imprevisto durante l\'elaborazione.');
       await updateLectureStatus(lectureId, 'error', err.message || 'Errore imprevisto.');
     }
@@ -600,14 +608,22 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           {isProcessing ? (
             <div className="rounded-xl bg-purple-950/30 border border-purple-800/40 p-4 space-y-3">
               <div className="flex items-center gap-3">
-                <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-purple-200">Elaborazione in corso...</p>
-                  <p className="text-xs text-purple-300/80">{processingStage}</p>
+                <Loader2 className="w-5 h-5 text-purple-400 animate-spin shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-purple-200">Elaborazione in corso...</p>
+                    <span className="text-xs font-mono font-bold text-purple-300 shrink-0">
+                      {Math.max(5, Math.min(100, Math.round(processingPercentage)))}%
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-300/80 truncate mt-0.5">{processingStage}</p>
                 </div>
               </div>
-              <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-gradient-to-r from-purple-500 to-indigo-400 h-full w-full animate-pulse" />
+              <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-purple-500 to-indigo-400 h-full transition-all duration-300 rounded-full"
+                  style={{ width: `${Math.max(5, Math.min(100, Math.round(processingPercentage)))}%` }}
+                />
               </div>
             </div>
           ) : (
