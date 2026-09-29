@@ -177,16 +177,16 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-      <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-zinc-950 border border-obsidian-border shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+      <div className="w-full max-w-4xl max-h-[94vh] sm:max-h-[90vh] flex flex-col rounded-2xl bg-zinc-950 border border-obsidian-border shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/60">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-purple-950/80 border border-purple-800 text-purple-400">
-              <FileText className="w-5 h-5" />
+        <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-zinc-800 bg-zinc-900/60">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-purple-950/80 border border-purple-800 text-purple-400">
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+              <h3 className="text-xs sm:text-sm font-bold text-zinc-100 flex items-center gap-1.5 sm:gap-2">
                 <span>Slide della Lezione & Riferimenti</span>
                 {lecture.hasSlides && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-800 text-emerald-300">
@@ -194,8 +194,8 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
                   </span>
                 )}
               </h3>
-              <p className="text-xs text-zinc-400">
-                Carica il PDF delle slide per convertirle in Markdown e correlarle con l'audio registrato
+              <p className="text-[11px] sm:text-xs text-zinc-400 line-clamp-1">
+                Carica il PDF delle slide per convertirle in Markdown e correlarle con l'audio
               </p>
             </div>
           </div>
@@ -210,39 +210,39 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
 
         {/* Modal Navigation Tabs (if slides exist) */}
         {lecture.slidesMarkdown && (
-          <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-zinc-800 bg-zinc-900/30">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 pt-2.5 pb-2 border-b border-zinc-800 bg-zinc-900/30">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => setActiveTab('preview')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                   activeTab === 'preview'
                     ? 'bg-purple-600 text-white'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Anteprima Markdown (.md)</span>
+                <span><span className="hidden sm:inline">Anteprima </span>Markdown</span>
               </button>
 
               <button
                 onClick={() => setActiveTab('upload')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
                   activeTab === 'upload'
                     ? 'bg-purple-600 text-white'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                 }`}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Aggiorna / Ricarica PDF</span>
+                <span><span className="hidden sm:inline">Aggiorna / </span>Ricarica PDF</span>
               </button>
             </div>
 
             {activeTab === 'preview' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 <div className="flex items-center bg-zinc-900 rounded-lg p-0.5 border border-zinc-800 text-[11px]">
                   <button
                     onClick={() => setPreviewMode('rendered')}
-                    className={`px-2 py-1 rounded-md transition ${
+                    className={`px-2 py-0.5 sm:py-1 rounded-md transition ${
                       previewMode === 'rendered'
                         ? 'bg-purple-950 text-purple-200 font-medium'
                         : 'text-zinc-400 hover:text-zinc-200'
@@ -252,19 +252,19 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
                   </button>
                   <button
                     onClick={() => setPreviewMode('raw')}
-                    className={`px-2 py-1 rounded-md transition ${
+                    className={`px-2 py-0.5 sm:py-1 rounded-md transition ${
                       previewMode === 'raw'
                         ? 'bg-purple-950 text-purple-200 font-medium'
                         : 'text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
-                    Sorgente .md
+                    Sorgente
                   </button>
                 </div>
 
                 <button
                   onClick={handleCopyMarkdown}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition"
+                  className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition"
                   title="Copia l'intero Markdown delle slide"
                 >
                   {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -273,11 +273,11 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
 
                 <button
                   onClick={handleDownloadMarkdown}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition"
+                  className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-xs bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition"
                   title="Scarica file slides.md"
                 >
                   <Download className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Scarica .md</span>
+                  <span>.md</span>
                 </button>
               </div>
             )}
@@ -285,7 +285,7 @@ export const SlidesModal: React.FC<SlidesModalProps> = ({
         )}
 
         {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 md:p-6 space-y-3 sm:space-y-4">
           {errorMessage && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />

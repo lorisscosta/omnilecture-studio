@@ -157,14 +157,14 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
   };
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto py-2">
+    <div className="space-y-6 sm:space-y-8 max-w-5xl mx-auto py-1 sm:py-2">
       {/* Overleaf LaTeX Header & Studio Guide */}
-      <div className="bg-zinc-900/90 border border-obsidian-border rounded-2xl p-5 md:p-7 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-5 pb-4 border-b border-zinc-800">
+      <div className="bg-zinc-900/90 border border-obsidian-border rounded-2xl p-3.5 sm:p-5 md:p-7 shadow-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-5 pb-3 sm:pb-4 border-b border-zinc-800">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xl">📄</span>
-              <h2 className="text-lg md:text-xl font-bold text-zinc-100">
+              <span className="text-lg sm:text-xl">📄</span>
+              <h2 className="text-base sm:text-lg md:text-xl font-bold text-zinc-100">
                 Trascrizione Integrale & Guida LaTeX per Overleaf
               </h2>
             </div>
@@ -177,52 +177,52 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleCopyLatex}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-md transition ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-semibold shadow-md transition ${
                 isCopied
                   ? 'bg-emerald-600 text-white shadow-emerald-900/30'
                   : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-900/30'
               }`}
               title="Copia l'intero documento LaTeX per Overleaf"
             >
-              {isCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              <span>{isCopied ? 'Copiato per Overleaf!' : 'Copia per Overleaf'}</span>
+              {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{isCopied ? 'Copiato!' : 'Copia per Overleaf'}</span>
             </button>
 
             <button
               onClick={handleDownloadTex}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition"
               title="Scarica il file sorgente .tex pronto all'uso"
             >
-              <Download className="w-4 h-4 text-purple-400" />
+              <Download className="w-3.5 h-3.5 text-purple-400" />
               <span>Scarica .tex</span>
             </button>
           </div>
         </div>
 
         {/* View Toggle Bar */}
-        <div className="flex items-center justify-between gap-2 mb-4 bg-zinc-950 p-1.5 rounded-xl border border-zinc-800/80">
+        <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4 bg-zinc-950 p-1 sm:p-1.5 rounded-xl border border-zinc-800/80">
           <div className="flex items-center gap-1">
             <button
               onClick={() => setViewMode('latex')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                 viewMode === 'latex'
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               <FileCode className="w-3.5 h-3.5" />
-              <span>Sorgente LaTeX (.tex / Overleaf)</span>
+              <span><span className="hidden sm:inline">Sorgente </span>LaTeX (.tex)</span>
             </button>
             <button
               onClick={() => setViewMode('preview')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                 viewMode === 'preview'
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>Anteprima Formattata</span>
+              <span><span className="hidden sm:inline">Anteprima </span>Formattato</span>
             </button>
           </div>
 
@@ -233,13 +233,13 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
 
         {/* Body Content */}
         {viewMode === 'latex' ? (
-          <div className="relative rounded-xl border border-zinc-800 bg-[#0d0d10] p-4 overflow-hidden">
-            <pre className="text-xs font-mono text-emerald-300/90 whitespace-pre-wrap leading-relaxed max-h-[600px] overflow-y-auto selection:bg-purple-800 selection:text-white">
+          <div className="relative rounded-xl border border-zinc-800 bg-[#0d0d10] p-3 sm:p-4 overflow-hidden">
+            <pre className="text-[11px] sm:text-xs font-mono text-emerald-300/90 whitespace-pre-wrap break-words leading-relaxed max-h-[600px] overflow-y-auto selection:bg-purple-800 selection:text-white">
               {overleafLatex || '% Nessun codice LaTeX disponibile per questa lezione.'}
             </pre>
           </div>
         ) : (
-          <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 max-h-[700px] overflow-y-auto">
+          <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-800 bg-zinc-950/60 max-h-[700px] overflow-y-auto">
             {studyGuideIt ? (
               <MarkdownRenderer content={studyGuideIt} />
             ) : (
@@ -251,7 +251,7 @@ export const StudyGuideTab: React.FC<StudyGuideTabProps> = ({
 
       {/* Potential Exam Questions Section (Lasciata intatta com'è su richiesta) */}
       {examQuestions && examQuestions.length > 0 && (
-        <div className="bg-zinc-900/90 border border-obsidian-border rounded-2xl p-6 md:p-8 shadow-xl">
+        <div className="bg-zinc-900/90 border border-obsidian-border rounded-2xl p-4 sm:p-6 md:p-8 shadow-xl">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-800">
             <div className="flex items-center gap-2">
               <span className="text-xl">🎯</span>

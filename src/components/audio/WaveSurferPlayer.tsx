@@ -76,6 +76,8 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
 
       setIsReady(false);
 
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
       const ws = WaveSurfer.create({
         container: containerRef.current,
         waveColor: '#475569',
@@ -85,7 +87,7 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
         barWidth: 3,
         barGap: 2,
         barRadius: 3,
-        height: 64,
+        height: isMobile ? 48 : 64,
         normalize: true,
       });
 
@@ -148,9 +150,9 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
     };
 
     return (
-      <div className="bg-zinc-900 border border-obsidian-border rounded-xl p-4 shadow-xl text-zinc-100">
+      <div className="bg-zinc-900 border border-obsidian-border rounded-xl p-3 sm:p-4 shadow-xl text-zinc-100">
         {/* Waveform Canvas */}
-        <div className="relative mb-3">
+        <div className="relative mb-2.5 sm:mb-3">
           {!isReady && (
             <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80 backdrop-blur-sm z-10 text-xs text-zinc-400">
               Caricamento forma d&apos;onda audio...
@@ -160,56 +162,58 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
         </div>
 
         {/* Controls and Timers */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-zinc-800">
-          {/* Playback Controls */}
-          <div className="flex items-center gap-2">
-            {/* -5s button */}
-            <button
-              onClick={() => skipTime(-5)}
-              disabled={!isReady}
-              title="Indietro di 5 secondi"
-              className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition disabled:opacity-40"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 pt-2 border-t border-zinc-800">
+          {/* Row 1 on mobile: Main Playback Controls + Timers */}
+          <div className="flex items-center justify-between sm:justify-start gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* -5s button */}
+              <button
+                onClick={() => skipTime(-5)}
+                disabled={!isReady}
+                title="Indietro di 5 secondi"
+                className="p-2 sm:p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition disabled:opacity-40"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
 
-            {/* Play/Pause */}
-            <button
-              onClick={togglePlay}
-              disabled={!isReady}
-              title={isPlaying ? 'Pausa' : 'Riproduci'}
-              className="p-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 transition transform active:scale-95 disabled:opacity-40"
-            >
-              {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
-            </button>
+              {/* Play/Pause */}
+              <button
+                onClick={togglePlay}
+                disabled={!isReady}
+                title={isPlaying ? 'Pausa' : 'Riproduci'}
+                className="p-2.5 sm:p-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/30 transition transform active:scale-95 disabled:opacity-40"
+              >
+                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+              </button>
 
-            {/* +5s button */}
-            <button
-              onClick={() => skipTime(5)}
-              disabled={!isReady}
-              title="Avanti di 5 secondi"
-              className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition disabled:opacity-40"
-            >
-              <RotateCw className="w-4 h-4" />
-            </button>
+              {/* +5s button */}
+              <button
+                onClick={() => skipTime(5)}
+                disabled={!isReady}
+                title="Avanti di 5 secondi"
+                className="p-2 sm:p-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition disabled:opacity-40"
+              >
+                <RotateCw className="w-4 h-4" />
+              </button>
+            </div>
 
             {/* Time display */}
-            <div className="text-xs font-mono text-zinc-400 ml-2">
+            <div className="text-xs font-mono text-zinc-400">
               <span className="text-zinc-100 font-semibold">{formatTime(currentTime)}</span>
               <span className="mx-1">/</span>
               <span>{formatTime(duration)}</span>
             </div>
           </div>
 
-          {/* Speed Toggles & Volume */}
-          <div className="flex items-center gap-2">
+          {/* Row 2 on mobile: Speed Toggles & Volume */}
+          <div className="flex items-center justify-between sm:justify-end gap-2">
             {/* Speed Pills */}
-            <div className="flex items-center bg-zinc-950 p-1 rounded-lg border border-zinc-800">
+            <div className="flex items-center bg-zinc-950 p-0.5 sm:p-1 rounded-lg border border-zinc-800">
               {speeds.map((s) => (
                 <button
                   key={s}
                   onClick={() => handleSpeedChange(s)}
-                  className={`px-2 py-1 text-xs rounded font-medium transition ${
+                  className={`px-1.5 sm:px-2 py-1 text-[11px] sm:text-xs rounded font-medium transition ${
                     playbackRate === s
                       ? 'bg-purple-600 text-white shadow-sm'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
@@ -223,7 +227,7 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
             {/* Mute button */}
             <button
               onClick={toggleMute}
-              className="p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
+              className="p-1.5 sm:p-2 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
               title={isMuted ? 'Riattiva audio' : 'Muta audio'}
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}

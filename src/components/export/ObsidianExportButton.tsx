@@ -40,18 +40,19 @@ export const ObsidianExportButton: React.FC<ObsidianExportButtonProps> = ({ lect
       <button
         onClick={handleExport}
         disabled={isExporting || !lecture.data}
-        className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-950/70 border border-purple-800/60 hover:bg-purple-900/80 text-purple-200 text-xs font-semibold shadow-md transition disabled:opacity-40 disabled:cursor-not-allowed"
+        className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg bg-purple-950/70 border border-purple-800/60 hover:bg-purple-900/80 text-purple-200 text-xs font-semibold shadow-md transition disabled:opacity-40 disabled:cursor-not-allowed"
         title="Esporta appunti in formato Markdown per Obsidian"
       >
         {isExporting ? (
           <>
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>Esportazione...</span>
+            <span className="hidden sm:inline">Esportazione...</span>
           </>
         ) : (
           <>
             <FolderArchive className="w-3.5 h-3.5 text-purple-400" />
-            <span>Esporta in Obsidian (.md)</span>
+            <span className="hidden lg:inline">Esporta in Obsidian (.md)</span>
+            <span className="hidden sm:inline lg:hidden">Obsidian</span>
           </>
         )}
       </button>
@@ -59,7 +60,7 @@ export const ObsidianExportButton: React.FC<ObsidianExportButtonProps> = ({ lect
       {/* Result notification popover */}
       {result && (
         <div
-          className={`absolute right-0 top-full mt-2 w-72 p-3 rounded-xl border text-xs shadow-2xl z-30 animate-in fade-in zoom-in-95 ${
+          className={`absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] p-3 rounded-xl border text-xs shadow-2xl z-30 animate-in fade-in zoom-in-95 ${
             result.success
               ? 'bg-zinc-900 border-emerald-500/50 text-emerald-300'
               : 'bg-zinc-900 border-rose-500/50 text-rose-300'

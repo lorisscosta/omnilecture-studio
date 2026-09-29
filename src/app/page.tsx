@@ -413,6 +413,14 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
         onUserChange={setCurrentUser}
       />
 
+      {/* Mobile Sidebar Overlay Backdrop */}
+      {isSidebarOpen && (
+        <div
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-30 md:hidden animate-in fade-in"
+        />
+      )}
+
       {/* Sidebar - Desktop & Mobile */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-72 bg-zinc-950 border-r border-obsidian-border flex flex-col transition-transform duration-200 md:static md:translate-x-0 ${
@@ -567,35 +575,36 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 bg-[#141416] overflow-hidden">
         {/* Top Navbar */}
-        <header className="h-14 border-b border-obsidian-border bg-zinc-950/80 backdrop-blur-md px-4 flex items-center justify-between z-20 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="h-14 border-b border-obsidian-border bg-zinc-950/80 backdrop-blur-md px-2.5 sm:px-4 flex items-center justify-between z-20 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800"
+              className="md:hidden p-1.5 sm:p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 shrink-0"
+              title="Apri menu lezioni"
             >
               <Menu className="w-5 h-5" />
             </button>
 
             {currentLecture && !isCreatingNew ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-950 border border-purple-800 text-purple-300">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <span className="text-[11px] sm:text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-950 border border-purple-800 text-purple-300 truncate max-w-[95px] xs:max-w-[140px] sm:max-w-none">
                   {currentLecture.course}
                 </span>
-                <h2 className="text-sm font-bold text-zinc-100 truncate max-w-md hidden sm:block">
+                <h2 className="text-sm font-bold text-zinc-100 truncate max-w-xs md:max-w-md hidden sm:block">
                   {currentLecture.title}
                 </h2>
               </div>
             ) : (
-              <span className="text-sm font-semibold text-zinc-300">
-                Nuova Registrazione Audio
+              <span className="text-xs sm:text-sm font-semibold text-zinc-300 truncate">
+                Nuova Registrazione
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Cloud Sync Status Toast */}
             {syncSuccessToast && (
-              <span className="text-[11px] font-semibold text-emerald-300 bg-emerald-950/80 border border-emerald-800 px-2.5 py-1 rounded-lg animate-in fade-in">
+              <span className="text-[11px] font-semibold text-emerald-300 bg-emerald-950/80 border border-emerald-800 px-2.5 py-1 rounded-lg animate-in fade-in hidden sm:inline-block">
                 ✓ {syncSuccessToast}
               </span>
             )}
@@ -619,7 +628,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               <button
                 onClick={() => handleSyncToCloud(currentLecture)}
                 disabled={isSyncing}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
+                className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
                   currentLecture.isCloudSynced
                     ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800 hover:bg-emerald-900/80'
                     : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950/40'
@@ -635,10 +644,10 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 )}
                 <span className="hidden sm:inline">
                   {isSyncing
-                    ? 'Sincronizzazione...'
+                    ? 'Sync...'
                     : currentLecture.isCloudSynced
                     ? 'Nel Cloud'
-                    : 'Sync su Cloud'}
+                    : 'Sync Cloud'}
                 </span>
               </button>
             )}
@@ -647,7 +656,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
             {currentLecture && !isCreatingNew && currentLecture.data && (
               <button
                 onClick={() => setIsSlidesModalOpen(true)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
+                className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
                   currentLecture.hasSlides
                     ? 'bg-purple-950/70 text-purple-200 border border-purple-800 hover:bg-purple-900/80'
                     : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700/80'
@@ -671,7 +680,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
             {/* Supabase Account Button */}
             <button
               onClick={() => setIsAuthModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border transition ${
+              className={`flex items-center gap-1.5 p-2 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-medium border transition ${
                 currentUser
                   ? 'bg-purple-950/40 border-purple-800 text-purple-200 hover:bg-purple-900/50'
                   : 'bg-zinc-900 border-zinc-700/80 text-zinc-300 hover:bg-zinc-800'
@@ -695,7 +704,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
         </header>
 
         {/* Dynamic Content View */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6">
           {/* View 1: Audio Uploader (when no lecture selected or creating new) */}
           {!currentLecture || isCreatingNew ? (
             <div className="py-6">
@@ -786,9 +795,9 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
 
               {/* Slide Integration Banner / Status */}
               {currentLecture.hasSlides ? (
-                <div className="flex items-center justify-between p-3 rounded-xl bg-purple-950/30 border border-purple-800/50 text-xs text-purple-200 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-purple-950/30 border border-purple-800/50 text-xs text-purple-200 shadow-sm">
                   <div className="flex items-center gap-2.5 truncate">
-                    <div className="p-1.5 rounded-lg bg-purple-900/60 border border-purple-700/80 text-purple-300">
+                    <div className="p-1.5 rounded-lg bg-purple-900/60 border border-purple-700/80 text-purple-300 shrink-0">
                       <FileText className="w-3.5 h-3.5" />
                     </div>
                     <div className="truncate">
@@ -799,15 +808,15 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   </div>
                   <button
                     onClick={() => setIsSlidesModalOpen(true)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-900/60 hover:bg-purple-800 border border-purple-700 text-purple-200 transition shrink-0 ml-2"
+                    className="w-full sm:w-auto text-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-900/60 hover:bg-purple-800 border border-purple-700 text-purple-200 transition shrink-0"
                   >
                     Vedi Markdown (.md)
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/80 text-xs text-zinc-400 hover:border-zinc-700 transition shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800/80 text-xs text-zinc-400 hover:border-zinc-700 transition shadow-sm">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400">
+                    <div className="p-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 shrink-0">
                       <FileText className="w-3.5 h-3.5" />
                     </div>
                     <div>
@@ -819,7 +828,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   </div>
                   <button
                     onClick={() => setIsSlidesModalOpen(true)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-950/40 transition shrink-0 ml-2"
+                    className="w-full sm:w-auto text-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-950/40 transition shrink-0"
                   >
                     + Allega Slide (PDF)
                   </button>
@@ -827,41 +836,44 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               )}
 
               {/* Workspace Navigation Tabs */}
-              <div className="flex items-center gap-1.5 border-b border-zinc-800 pb-2 overflow-x-auto">
+              <div className="flex items-center gap-1 sm:gap-1.5 border-b border-zinc-800 pb-2 overflow-x-auto no-scrollbar">
                 <button
                   onClick={() => setActiveTab('guide')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
                     activeTab === 'guide'
                       ? 'bg-purple-600 text-white shadow-md'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                   }`}
                 >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Guida allo Studio (LaTeX Overleaf)</span>
+                  <BookOpen className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Guida allo Studio (LaTeX Overleaf)</span>
+                  <span className="sm:hidden">Guida LaTeX</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('transcript')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
                     activeTab === 'transcript'
                       ? 'bg-purple-600 text-white shadow-md'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                   }`}
                 >
-                  <Headphones className="w-4 h-4" />
-                  <span>Trascrizione Bilingue</span>
+                  <Headphones className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Trascrizione Bilingue</span>
+                  <span className="sm:hidden">Trascrizione</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('glossary')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
+                  className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition shrink-0 ${
                     activeTab === 'glossary'
                       ? 'bg-purple-600 text-white shadow-md'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
                   }`}
                 >
-                  <Bookmark className="w-4 h-4" />
-                  <span>Glossario & Tutor AI</span>
+                  <Bookmark className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Glossario & Tutor AI</span>
+                  <span className="sm:hidden">Glossario & AI</span>
                 </button>
               </div>
 

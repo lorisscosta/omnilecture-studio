@@ -293,18 +293,18 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
 
       {/* Sub-View 2: Chat con la Lezione (Integrata nel Glossario) */}
       {activeSubTab === 'chat' && (
-        <div className="flex flex-col h-[650px] bg-zinc-900 border border-obsidian-border rounded-2xl shadow-xl overflow-hidden">
+        <div className="flex flex-col h-[75vh] min-h-[450px] max-h-[700px] bg-zinc-900 border border-obsidian-border rounded-2xl shadow-xl overflow-hidden">
           {/* Chat Sub-Header */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 bg-zinc-900/90">
-            <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 border-b border-zinc-800 bg-zinc-900/90">
+            <div className="flex items-center gap-2 sm:gap-2.5">
               <div className="p-1.5 rounded-lg bg-purple-950 text-purple-400 border border-purple-800/60">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-zinc-100">
-                  Tutor AI Integrato • Domande e Approfondimenti
+                <h3 className="text-xs sm:text-sm font-bold text-zinc-100">
+                  Tutor AI • Chat Lezione
                 </h3>
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-[10px] sm:text-[11px] text-zinc-400 line-clamp-1">
                   Risponde rigorosamente sui contenuti e sulle formule di questa registrazione
                 </p>
               </div>
@@ -312,14 +312,14 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
 
             <button
               onClick={() => setActiveSubTab('glossary')}
-              className="text-xs text-purple-400 hover:text-purple-300 font-medium"
+              className="text-xs text-purple-400 hover:text-purple-300 font-medium shrink-0 ml-2"
             >
-              ← Torna ai Termini
+              ← Termini
             </button>
           </div>
 
           {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-3 sm:space-y-4">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4 py-8">
                 <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 text-purple-400 shadow-inner">

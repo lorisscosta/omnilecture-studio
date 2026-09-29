@@ -79,9 +79,9 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
   return (
     <div className="max-w-4xl mx-auto space-y-4 py-2">
       {/* Search, Layout and Display Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-zinc-900 border border-obsidian-border rounded-xl p-3 shadow-md">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 bg-zinc-900 border border-obsidian-border rounded-xl p-2.5 sm:p-3 shadow-md">
         {/* Search */}
-        <div className="relative flex-1 min-w-[220px]">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
           <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-2.5" />
           <input
             type="text"
@@ -96,27 +96,27 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
         <div className="flex items-center gap-1 bg-zinc-950 p-1 rounded-lg border border-zinc-800">
           <button
             onClick={() => setLayoutMode('timestamped')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded font-medium transition ${
+            className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs rounded font-medium transition ${
               layoutMode === 'timestamped'
                 ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
             title="Mostra intervalli temporali e player sync"
           >
-            <ListFilter className="w-3.5 h-3.5" />
-            <span>Segmenti Temporizzati</span>
+            <ListFilter className="w-3.5 h-3.5 shrink-0" />
+            <span>Segmenti<span className="hidden sm:inline"> Temporizzati</span></span>
           </button>
           <button
             onClick={() => setLayoutMode('continuous')}
-            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded font-medium transition ${
+            className={`flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs rounded font-medium transition ${
               layoutMode === 'continuous'
                 ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
             title="Mostra come testo unico continuo senza interruzioni di tempo"
           >
-            <AlignLeft className="w-3.5 h-3.5" />
-            <span>Testo Continuo (Senza Tempo)</span>
+            <AlignLeft className="w-3.5 h-3.5 shrink-0" />
+            <span>Continuo<span className="hidden sm:inline"> (Senza Tempo)</span></span>
           </button>
         </div>
 
@@ -136,7 +136,8 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
               viewMode === 'it' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            Solo Italiano
+            <span className="sm:hidden">IT</span>
+            <span className="hidden sm:inline">Solo Italiano</span>
           </button>
           <button
             onClick={() => setViewMode('en')}
@@ -144,7 +145,8 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({ segments, currentT
               viewMode === 'en' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            Solo Originale
+            <span className="sm:hidden">EN</span>
+            <span className="hidden sm:inline">Solo Originale</span>
           </button>
         </div>
 
