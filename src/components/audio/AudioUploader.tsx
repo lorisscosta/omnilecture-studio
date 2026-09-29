@@ -32,7 +32,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const [audioFiles, setAudioFiles] = useState<File[]>([]);
   const [selectedPdf, setSelectedPdf] = useState<File | null>(null);
-  const [course, setCourse] = useState('Elaborazione Numerica dei Segnali');
+  const [course, setCourse] = useState('');
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedModel, setSelectedModel] = useState('gemini-1.5-flash-latest');
@@ -143,6 +143,9 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         ? crypto.randomUUID()
         : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
 
+    const effectiveCourse = course.trim() || 'Corso Universitario';
+    const effectiveTitle = title.trim() || 'Lezione Senza Titolo';
+
     try {
       // 1. Save initially in Dexie.js
       const primaryFileName =
@@ -152,8 +155,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
 
       const newLecture: Lecture = {
         id: lectureId,
-        title: title.trim() || 'Lezione Senza Titolo',
-        course: course.trim() || 'Ingegneria',
+        title: effectiveTitle,
+        course: effectiveCourse,
         date: date || new Date().toISOString(),
         duration: 0,
         fileSize: totalBytes,
@@ -182,8 +185,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       try {
         const result = await processAudioDirectly(
           audioFiles,
-          course,
-          title,
+          effectiveCourse,
+          effectiveTitle,
           apiKey,
           (stage) => {
             setProcessingStage(stage);
@@ -204,8 +207,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
             setProcessingStage('Tentativo tramite proxy server...');
             const formData = new FormData();
             formData.append('audio', audioFiles[0]);
-            formData.append('course', course);
-            formData.append('title', title);
+            formData.append('course', effectiveCourse);
+            formData.append('title', effectiveTitle);
 
             const response = await fetch('/api/gemini/process-audio', {
               method: 'POST',
@@ -242,7 +245,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
 
         setProcessingStage('Correlazione tra registrazione e slide...');
         await updateLectureStatus(lectureId, 'processing', undefined, 'Correlazione tra registrazione e slide...');
-        lectureData = await enrichLectureWithSlides(lectureData, slidesMarkdown, course, title, apiKey, (stg) => {
+        lectureData = await enrichLectureWithSlides(lectureData, slidesMarkdown, effectiveCourse, effectiveTitle, apiKey, (stg) => {
           setProcessingStage(stg);
         });
       }
@@ -508,7 +511,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
               value={course}
               onChange={(e) => setCourse(e.target.value)}
               disabled={isProcessing}
-              placeholder="es. Elaborazione Numerica dei Segnali"
+              placeholder="es. Nome corso"
               className="w-full rounded-lg bg-zinc-950 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
             />
           </div>
