@@ -339,10 +339,14 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         await updateLectureData(lectureId, lectureData);
       }
 
-      // Update duration and audio parts
+      // Update duration, audio parts and guarantee completed status
       await db.lectures.update(lectureId, {
         duration: calculatedTotalDuration,
         audioParts: finalAudioParts.length > 0 ? finalAudioParts : undefined,
+        status: 'completed',
+        processingProgress: undefined,
+        processingPercentage: 100,
+        errorMessage: undefined,
       });
 
       setIsProcessing(false);

@@ -101,31 +101,56 @@ export default function HomePage() {
     };
   }, []);
 
+  // Pull cloud lectures and heal any local lecture stuck in processing or missing data
+  const handlePullFromCloud = useCallback(async () => {
+    if (!currentUser) return;
+    setIsSyncing(true);
+    try {
+      const cloudLectures = await fetchCloudLectures(currentUser.id);
+      for (const cloudLec of cloudLectures) {
+        const localLec = await getLectureById(cloudLec.id);
+        if (!localLec) {
+          await saveLecture(cloudLec);
+        } else {
+          // If local lecture is stuck in processing or missing data, but cloud has it completed:
+          const shouldHealFromCloud =
+            (localLec.status === 'processing' && cloudLec.status === 'completed') ||
+            (!localLec.data && Boolean(cloudLec.data));
+
+          await db.lectures.update(cloudLec.id, {
+            isCloudSynced: true,
+            cloudSyncedAt: cloudLec.cloudSyncedAt,
+            ...(shouldHealFromCloud
+              ? {
+                  status: 'completed',
+                  processingProgress: undefined,
+                  processingPercentage: 100,
+                  errorMessage: undefined,
+                  data: cloudLec.data,
+                  duration: cloudLec.duration || localLec.duration,
+                  slidesFileName: cloudLec.slidesFileName || localLec.slidesFileName,
+                  slidesMarkdown: cloudLec.slidesMarkdown || localLec.slidesMarkdown,
+                  hasSlides: cloudLec.hasSlides || localLec.hasSlides,
+                  bookmarks: cloudLec.bookmarks?.length ? cloudLec.bookmarks : localLec.bookmarks,
+                }
+              : {}),
+          });
+        }
+      }
+      setSyncSuccessToast('Sincronizzazione Cloud completata!');
+      setTimeout(() => setSyncSuccessToast(null), 3000);
+    } catch (err: any) {
+      console.warn('Error pulling cloud lectures:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [currentUser]);
+
   // Pull cloud lectures on login and merge into local Dexie IndexedDB
   useEffect(() => {
     if (!currentUser) return;
-
-    const pullFromCloud = async () => {
-      try {
-        const cloudLectures = await fetchCloudLectures(currentUser.id);
-        for (const cloudLec of cloudLectures) {
-          const localLec = await getLectureById(cloudLec.id);
-          if (!localLec) {
-            await saveLecture(cloudLec);
-          } else {
-            await db.lectures.update(cloudLec.id, {
-              isCloudSynced: true,
-              cloudSyncedAt: cloudLec.cloudSyncedAt,
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Error pulling cloud lectures:', err);
-      }
-    };
-
-    pullFromCloud();
-  }, [currentUser]);
+    handlePullFromCloud();
+  }, [currentUser, handlePullFromCloud]);
 
   // Handle seeking from transcript or LaTeX citations
   const handleSeekFromTranscript = useCallback((seconds: number, partIndex?: number) => {
@@ -733,6 +758,18 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               </span>
             </button>
 
+            {/* Cloud Refresh / Pull Button */}
+            {currentUser && (
+              <button
+                onClick={handlePullFromCloud}
+                disabled={isSyncing}
+                className="p-2 rounded-xl text-zinc-400 hover:text-purple-300 hover:bg-zinc-800 transition"
+                title="Aggiorna e sincronizza le lezioni dal Cloud Supabase"
+              >
+                <Cloud className={`w-4 h-4 ${isSyncing ? 'animate-pulse text-purple-400' : ''}`} />
+              </button>
+            )}
+
             {/* Gemini API Key Settings Button */}
             <button
               onClick={() => setIsSettingsOpen(true)}
@@ -759,7 +796,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
             </div>
           ) : currentLecture.status === 'processing' ? (
             /* View 2: Processing State */
-            <div className="max-w-md mx-auto my-16 text-center space-y-4 p-8 rounded-2xl bg-zinc-900 border border-obsidian-border">
+            <div className="max-w-md mx-auto my-16 text-center space-y-4 p-8 rounded-2xl bg-zinc-900 border border-obsidian-border shadow-xl">
               <div className="p-4 rounded-full bg-purple-950/80 border border-purple-800/60 text-purple-400 w-16 h-16 mx-auto flex items-center justify-center animate-pulse">
                 <Sparkles className="w-8 h-8" />
               </div>
@@ -772,6 +809,49 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
               </p>
               <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full w-full animate-pulse" />
+              </div>
+
+              {/* Recovery & Action Controls */}
+              <div className="pt-3 flex flex-col gap-2">
+                {currentLecture.data && (
+                  <button
+                    onClick={async () => {
+                      await db.lectures.update(currentLecture.id, {
+                        status: 'completed',
+                        processingProgress: undefined,
+                        processingPercentage: 100,
+                      });
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md transition"
+                  >
+                    Visualizza Contenuti Elaborati
+                  </button>
+                )}
+                {currentUser && (
+                  <button
+                    onClick={handlePullFromCloud}
+                    disabled={isSyncing}
+                    className="w-full py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-purple-300 border border-purple-800/40 text-xs font-semibold transition flex items-center justify-center gap-1.5"
+                  >
+                    {isSyncing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Cloud className="w-3.5 h-3.5" />
+                    )}
+                    <span>Sincronizza / Ripristina da Supabase</span>
+                  </button>
+                )}
+                <button
+                  onClick={async () => {
+                    await db.lectures.update(currentLecture.id, {
+                      status: 'completed',
+                      processingProgress: undefined,
+                    });
+                  }}
+                  className="text-[11px] text-zinc-500 hover:text-zinc-300 transition underline underline-offset-2 pt-1"
+                >
+                  Forza sblocco visualizzazione
+                </button>
               </div>
             </div>
           ) : currentLecture.status === 'error' ? (

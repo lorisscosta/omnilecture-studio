@@ -29,7 +29,29 @@ export async function getLectureById(id: string): Promise<Lecture | undefined> {
 }
 
 export async function getAllLectures(): Promise<Lecture[]> {
-  return await db.lectures.orderBy('createdAt').reverse().toArray();
+  const lectures = await db.lectures.orderBy('createdAt').reverse().toArray();
+  // Auto-heal any lecture that finished processing or was synced with data but remained flagged as 'processing'
+  for (const lec of lectures) {
+    if (
+      lec.status === 'processing' &&
+      lec.data &&
+      (Boolean(lec.data.study_guide_it) ||
+        (Array.isArray(lec.data.timestamped_transcript) && lec.data.timestamped_transcript.length > 0))
+    ) {
+      lec.status = 'completed';
+      lec.processingProgress = undefined;
+      lec.processingPercentage = 100;
+      db.lectures
+        .update(lec.id, {
+          status: 'completed',
+          processingProgress: undefined,
+          processingPercentage: 100,
+          updatedAt: new Date().toISOString(),
+        })
+        .catch(console.warn);
+    }
+  }
+  return lectures;
 }
 
 export async function deleteLectureById(id: string): Promise<void> {
@@ -92,6 +114,10 @@ export async function updateLectureSlides(
     slidesAlignment: alignment,
     hasSlides: true,
     data: updatedData,
+    status: 'completed',
+    processingProgress: undefined,
+    processingPercentage: 100,
+    errorMessage: undefined,
     updatedAt: new Date().toISOString(),
   });
 }
