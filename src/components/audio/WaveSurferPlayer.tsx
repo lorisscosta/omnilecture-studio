@@ -312,6 +312,49 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
       }
     }, [isMuted]);
 
+    // Screen Wake Lock API: Keep mobile/tablet screen awake during lecture playback
+    useEffect(() => {
+      let wakeLock: any = null;
+      let isCancelled = false;
+
+      const requestWakeLock = async () => {
+        if (
+          typeof navigator !== 'undefined' &&
+          'wakeLock' in navigator &&
+          isPlaying &&
+          typeof document !== 'undefined' &&
+          !document.hidden
+        ) {
+          try {
+            wakeLock = await (navigator as any).wakeLock.request('screen');
+          } catch {
+            // Silently ignore if wake lock cannot be granted (e.g. low battery)
+          }
+        }
+      };
+
+      if (isPlaying) {
+        requestWakeLock();
+      }
+
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && isPlaying && !isCancelled) {
+          requestWakeLock();
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        isCancelled = true;
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        if (wakeLock) {
+          wakeLock.release().catch(() => {});
+          wakeLock = null;
+        }
+      };
+    }, [isPlaying]);
+
     // Handle Play / Pause
     const togglePlay = useCallback(() => {
       if (!wavesurferRef.current) return;

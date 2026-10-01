@@ -115,6 +115,15 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
     setMessages(newMessages);
     await appendChatMessage(lecture.id, userMessage);
 
+    const assistantId = 'msg_' + (Date.now() + 1);
+    const assistantMessage: ChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, assistantMessage]);
     setIsLoading(true);
 
     try {
@@ -131,6 +140,7 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
           glossary: lecture.data?.glossary || [],
           messages: messages.slice(-6),
           question: textToSend.trim(),
+          stream: true,
         }),
       });
 
@@ -139,19 +149,41 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
         throw new Error(errJson.error || `Errore del server (${response.status})`);
       }
 
-      const resData = await response.json();
-      const assistantMessage: ChatMessage = {
-        id: 'msg_' + (Date.now() + 1),
-        role: 'assistant',
-        content: resData.answer,
-        timestamp: new Date().toISOString(),
-      };
+      let fullAnswer = '';
 
-      setMessages((prev) => [...prev, assistantMessage]);
-      await appendChatMessage(lecture.id, assistantMessage);
+      if (response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const textChunk = decoder.decode(value, { stream: true });
+          fullAnswer += textChunk;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId ? { ...msg, content: fullAnswer } : msg
+            )
+          );
+        }
+      } else {
+        const resData = await response.json();
+        fullAnswer = resData.answer || '';
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId ? { ...msg, content: fullAnswer } : msg
+          )
+        );
+      }
+
+      await appendChatMessage(lecture.id, {
+        ...assistantMessage,
+        content: fullAnswer,
+      });
     } catch (err: any) {
       console.error('Chat request failed:', err);
       setErrorMsg(err.message || 'Impossibile completare la risposta.');
+      setMessages((prev) => prev.filter((msg) => msg.id !== assistantId || msg.content.length > 0));
     } finally {
       setIsLoading(false);
     }
@@ -367,7 +399,14 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
                     }`}
                   >
                     {msg.role === 'assistant' ? (
-                      <MarkdownRenderer content={msg.content} />
+                      msg.content ? (
+                        <MarkdownRenderer content={msg.content} />
+                      ) : (
+                        <div className="flex items-center gap-2 text-xs text-purple-300 py-1">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                          <span>Elaborazione risposta in corso...</span>
+                        </div>
+                      )
                     ) : (
                       <p className="whitespace-pre-wrap">{msg.content}</p>
                     )}
@@ -382,7 +421,7 @@ export const GlossaryTab: React.FC<GlossaryTabProps> = ({
               ))
             )}
 
-            {isLoading && (
+            {isLoading && (!messages.length || messages[messages.length - 1]?.role !== 'assistant') && (
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full bg-purple-900/60 border border-purple-700/50 flex items-center justify-center shrink-0 text-purple-300">
                   <Bot className="w-3.5 h-3.5" />

@@ -149,7 +149,55 @@ export const PdfPresentationViewer: React.FC<PdfPresentationViewerProps> = ({
     };
   }, [pdfBlob]);
 
-  // Render current page to canvas with high resolution
+  // In-memory cache for rendered page canvases (LRU up to 10 pages)
+  const pageCacheRef = useRef<Map<number, HTMLCanvasElement>>(new Map());
+
+  // Background pre-renderer for adjacent pages (N-1, N+1)
+  const prefetchPage = useCallback(
+    async (pageNum: number, targetWidth: number, pixelRatio: number) => {
+      if (!pdfDoc || pageNum < 1 || (totalPages > 0 && pageNum > totalPages)) return;
+      if (pageCacheRef.current.has(pageNum)) return;
+
+      try {
+        const page = await pdfDoc.getPage(pageNum);
+        const initialViewport = page.getViewport({ scale: 1.0 });
+        const scale = Math.max(0.5, targetWidth / initialViewport.width);
+        const viewport = page.getViewport({ scale });
+
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = Math.floor(viewport.width * pixelRatio);
+        offscreenCanvas.height = Math.floor(viewport.height * pixelRatio);
+
+        const ctx = offscreenCanvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.save();
+        ctx.scale(pixelRatio, pixelRatio);
+
+        await page.render({
+          canvasContext: ctx,
+          viewport,
+        }).promise;
+
+        ctx.restore();
+
+        // Evict oldest entries if cache exceeds 10 pages
+        if (pageCacheRef.current.size >= 10) {
+          const firstKey = pageCacheRef.current.keys().next().value;
+          if (firstKey !== undefined) {
+            pageCacheRef.current.delete(firstKey);
+          }
+        }
+
+        pageCacheRef.current.set(pageNum, offscreenCanvas);
+      } catch {
+        // Ignore prefetch aborts or background errors
+      }
+    },
+    [pdfDoc, totalPages]
+  );
+
+  // Render current page to canvas with high resolution and 0ms instant cache hit
   const renderCurrentPage = useCallback(async () => {
     if (!pdfDoc || !canvasRef.current) return;
 
@@ -161,20 +209,41 @@ export const PdfPresentationViewer: React.FC<PdfPresentationViewerProps> = ({
       }
     }
 
+    const containerWidth = containerRef.current?.clientWidth || 800;
+    const targetWidth = Math.min(containerWidth - 32, 1100);
+    const pixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Fast-path: Instant 0ms cache hit from pre-cached adjacent pages
+    if (pageCacheRef.current.has(currentPage)) {
+      const cached = pageCacheRef.current.get(currentPage)!;
+      canvas.width = cached.width;
+      canvas.height = cached.height;
+      canvas.style.width = `${Math.floor(cached.width / pixelRatio)}px`;
+      canvas.style.height = `${Math.floor(cached.height / pixelRatio)}px`;
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(cached, 0, 0);
+      }
+      setIsRenderingPage(false);
+
+      // Trigger prefetch for next and previous slides in background
+      prefetchPage(currentPage + 1, targetWidth, pixelRatio);
+      prefetchPage(currentPage - 1, targetWidth, pixelRatio);
+      return;
+    }
+
     setIsRenderingPage(true);
     try {
       const page = await pdfDoc.getPage(currentPage);
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvasRef.current) return;
 
-      const containerWidth = containerRef.current?.clientWidth || 800;
-      // Desired CSS display width
-      const targetWidth = Math.min(containerWidth - 32, 1100);
       const initialViewport = page.getViewport({ scale: 1.0 });
       const scale = Math.max(0.5, targetWidth / initialViewport.width);
       const viewport = page.getViewport({ scale });
 
-      const pixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
       canvas.width = Math.floor(viewport.width * pixelRatio);
       canvas.height = Math.floor(viewport.height * pixelRatio);
       canvas.style.width = `${Math.floor(viewport.width)}px`;
@@ -195,6 +264,20 @@ export const PdfPresentationViewer: React.FC<PdfPresentationViewerProps> = ({
       renderTaskRef.current = renderTask;
       await renderTask.promise;
       ctx.restore();
+
+      // Store in cache for back-navigation
+      const cacheClone = document.createElement('canvas');
+      cacheClone.width = canvas.width;
+      cacheClone.height = canvas.height;
+      const cloneCtx = cacheClone.getContext('2d');
+      if (cloneCtx) {
+        cloneCtx.drawImage(canvas, 0, 0);
+        pageCacheRef.current.set(currentPage, cacheClone);
+      }
+
+      // Prefetch adjacent pages N+1 and N-1 in background
+      prefetchPage(currentPage + 1, targetWidth, pixelRatio);
+      prefetchPage(currentPage - 1, targetWidth, pixelRatio);
     } catch (err: any) {
       if (err?.name !== 'RenderingCancelledException') {
         console.warn('Errore di rendering della pagina PDF:', err);
@@ -202,15 +285,16 @@ export const PdfPresentationViewer: React.FC<PdfPresentationViewerProps> = ({
     } finally {
       setIsRenderingPage(false);
     }
-  }, [pdfDoc, currentPage]);
+  }, [pdfDoc, currentPage, prefetchPage]);
 
   useEffect(() => {
     renderCurrentPage();
   }, [renderCurrentPage]);
 
-  // Re-render on container resize
+  // Re-render and clear pre-rendered cache on container resize
   useEffect(() => {
     const handleResize = () => {
+      pageCacheRef.current.clear();
       renderCurrentPage();
     };
     window.addEventListener('resize', handleResize);

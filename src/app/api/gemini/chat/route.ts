@@ -9,6 +9,57 @@ interface ContentTurn {
   parts: Array<{ text: string }>;
 }
 
+/**
+ * Transforms Gemini SSE stream (`data: {...}\n\n`) into a plain text stream of raw tokens.
+ */
+function createGeminiSseTransformStream(): TransformStream<Uint8Array, Uint8Array> {
+  let buffer = '';
+  const textDecoder = new TextDecoder();
+  const textEncoder = new TextEncoder();
+
+  return new TransformStream({
+    transform(chunk, controller) {
+      buffer += textDecoder.decode(chunk, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // retain incomplete trailing line
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('data: ')) {
+          const jsonStr = trimmed.slice(6).trim();
+          if (jsonStr) {
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const textDelta = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (textDelta) {
+                controller.enqueue(textEncoder.encode(textDelta));
+              }
+            } catch {
+              // Ignore malformed chunks or SSE heartbeat comments
+            }
+          }
+        }
+      }
+    },
+    flush(controller) {
+      if (buffer.trim().startsWith('data: ')) {
+        const jsonStr = buffer.trim().slice(6).trim();
+        if (jsonStr) {
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const textDelta = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textDelta) {
+              controller.enqueue(textEncoder.encode(textDelta));
+            }
+          } catch {
+            // Ignore
+          }
+        }
+      }
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Check authentication & atomic rate limits
@@ -19,7 +70,16 @@ export async function POST(req: NextRequest) {
 
     let apiKey = req.headers.get('x-gemini-api-key') || '';
     const body = await req.json();
-    const { lectureTitle, course, studyGuide, glossary, messages, question, model: requestedModel } = body;
+    const {
+      lectureTitle,
+      course,
+      studyGuide,
+      glossary,
+      messages,
+      question,
+      model: requestedModel,
+      stream = true,
+    } = body;
 
     if (!apiKey) {
       apiKey = body.apiKey || '';
@@ -70,7 +130,7 @@ Linee guida per la risposta:
       for (const msg of messages) {
         if (!msg || !msg.content) continue;
         const role: 'user' | 'model' = msg.role === 'assistant' ? 'model' : 'user';
-        
+
         // Merge consecutive turns with the same role to satisfy Gemini's strict alternation
         if (formattedContents.length > 0 && formattedContents[formattedContents.length - 1].role === role) {
           formattedContents[formattedContents.length - 1].parts[0].text += '\n\n' + msg.content;
@@ -99,39 +159,59 @@ Linee guida per la risposta:
     const modelsToTry = getModelFallbackChain(requestedModel);
     let chatResponse: Response | null = null;
 
-    for (const model of modelsToTry) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      chatResponse = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: systemPrompt }],
-          },
-          contents: formattedContents,
-          generationConfig: {
-            temperature: 0.3,
-          },
-        }),
-      });
+    const payload = {
+      system_instruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      contents: formattedContents,
+      generationConfig: {
+        temperature: 0.3,
+      },
+    };
 
-      if (chatResponse.ok) {
-        break;
+    for (const model of modelsToTry) {
+      const endpoint = stream ? 'streamGenerateContent?alt=sse' : 'generateContent';
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}&key=${apiKey}`;
+
+      try {
+        chatResponse = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (chatResponse.ok) {
+          break;
+        }
+        if (chatResponse.status === 401) {
+          break;
+        }
+        if (chatResponse.status === 429 || chatResponse.status === 503) {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      } catch (e) {
+        console.warn(`Model ${model} failed in chat:`, e);
       }
-      if (chatResponse.status === 401) {
-        break;
-      }
-      if (chatResponse.status === 429 || chatResponse.status === 503) {
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-      }
-      continue;
     }
 
     if (!chatResponse || !chatResponse.ok) {
-      const errText = chatResponse ? await chatResponse.text() : 'Nessuna risposta.';
+      const errText = chatResponse ? await chatResponse.text() : 'Nessuna risposta ricevuta.';
       throw new Error(`Errore API Gemini (${chatResponse?.status || 500}): ${errText}`);
     }
 
+    // Stream mode: return plain text stream of tokens
+    if (stream && chatResponse.body) {
+      const transformedStream = chatResponse.body.pipeThrough(createGeminiSseTransformStream());
+      return new Response(transformedStream, {
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    }
+
+    // Non-streaming fallback
     const data = await chatResponse.json();
     const answer = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Nessuna risposta generata.';
 
