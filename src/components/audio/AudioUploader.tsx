@@ -21,6 +21,7 @@ import { db, saveLecture, updateLectureStatus, updateLectureProgress, updateLect
 import { Lecture, AudioPart } from '@/lib/types';
 import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
 import { shouldOptimizeAudio, optimizeAudioFile } from '@/lib/audio-compressor';
+import { clampAndNormalizeSlideTimestamps } from '@/lib/slides-sync';
 import {
   GeminiModelInfo,
   STATIC_FALLBACK_MODELS,
@@ -326,6 +327,14 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       }
 
       setProcessingStage('Salvataggio dei risultati e generazione appunti...');
+
+      // Ensure slide timestamps strictly respect the calculated total audio duration
+      if (Array.isArray(lectureData.slides_alignment) && calculatedTotalDuration > 0) {
+        lectureData.slides_alignment = clampAndNormalizeSlideTimestamps(
+          lectureData.slides_alignment,
+          calculatedTotalDuration
+        );
+      }
 
       // 4. Update Lecture in Dexie.js
       if (selectedPdf) {

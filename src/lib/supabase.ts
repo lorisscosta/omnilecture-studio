@@ -69,6 +69,7 @@ export async function syncLectureToSupabase(
       mermaid_mindmap: lecture.data?.mermaid_mindmap || '',
       slides_filename: lecture.slidesFileName || null,
       slides_markdown: lecture.slidesMarkdown || null,
+      slides_alignment: lecture.slidesAlignment || lecture.data?.slides_alignment || [],
       bookmarks: lecture.bookmarks || lecture.data?.bookmarks || [],
       created_at: lecture.createdAt || new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -83,6 +84,7 @@ export async function syncLectureToSupabase(
       console.warn('Supabase lectures table lacks optional columns, falling back to core fields.');
       delete payload.slides_filename;
       delete payload.slides_markdown;
+      delete payload.slides_alignment;
       delete payload.bookmarks;
       const retryResult = await supabase
         .from('lectures')
@@ -133,7 +135,8 @@ export async function fetchCloudLectures(userId: string): Promise<Lecture[]> {
       audioBlob: undefined, // Audio is strictly local
       slidesFileName: row.slides_filename || undefined,
       slidesMarkdown: row.slides_markdown || undefined,
-      hasSlides: !!row.slides_markdown,
+      slidesAlignment: Array.isArray(row.slides_alignment) ? row.slides_alignment : undefined,
+      hasSlides: !!row.slides_markdown || Array.isArray(row.slides_alignment),
       bookmarks: Array.isArray(row.bookmarks) ? row.bookmarks : [],
       status: 'completed',
       chatMessages: [],
@@ -151,11 +154,12 @@ export async function fetchCloudLectures(userId: string): Promise<Lecture[]> {
         potential_exam_questions: Array.isArray(row.potential_exam_questions)
           ? row.potential_exam_questions
           : [],
+        slides_alignment: Array.isArray(row.slides_alignment) ? row.slides_alignment : undefined,
         bookmarks: Array.isArray(row.bookmarks) ? row.bookmarks : [],
         mermaid_mindmap: row.mermaid_mindmap || '',
         slides_markdown: row.slides_markdown || undefined,
         slides_filename: row.slides_filename || undefined,
-        has_slides: !!row.slides_markdown,
+        has_slides: !!row.slides_markdown || Array.isArray(row.slides_alignment),
       },
     }));
   } catch (err) {

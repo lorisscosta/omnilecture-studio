@@ -265,6 +265,12 @@ export const PdfPresentationViewer: React.FC<PdfPresentationViewerProps> = ({
     }
   };
 
+  const handlePrevPageRef = useRef(handlePrevPage);
+  handlePrevPageRef.current = handlePrevPage;
+
+  const handleNextPageRef = useRef(handleNextPage);
+  handleNextPageRef.current = handleNextPage;
+
   // Keyboard navigation for presentation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -278,16 +284,16 @@ export const PdfPresentationViewer: React.FC<PdfPresentationViewerProps> = ({
 
       if (e.key === 'ArrowRight' || e.key === 'PageDown') {
         e.preventDefault();
-        handleNextPage();
+        handleNextPageRef.current();
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault();
-        handlePrevPage();
+        handlePrevPageRef.current();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  }, []);
 
   // Toggle fullscreen
   const toggleFullscreen = () => {
