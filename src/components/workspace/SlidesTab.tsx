@@ -1,15 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
-import { SlideAlignment } from '@/lib/types';
+import React, { useState, useMemo } from 'react';
+import { SlideAlignment, AudioPart, TranscriptSegment } from '@/lib/types';
+import { getSlideTimes, findActiveSlideIndex, adjustSlideTimestamps } from '@/lib/slides-sync';
+import { realignSlidesWithGemini } from '@/lib/gemini-service';
 import {
   FileText,
   Play,
   Clock,
   Search,
-  ExternalLink,
   Presentation,
   Sparkles,
+  RefreshCw,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Pin,
+  Check,
 } from 'lucide-react';
 
 interface SlidesTabProps {
@@ -18,14 +25,21 @@ interface SlidesTabProps {
   hasSlides?: boolean;
   currentTime?: number;
   currentPartIndex?: number;
+  audioParts?: AudioPart[];
+  transcript?: TranscriptSegment[];
+  slidesMarkdown?: string;
+  lectureTitle?: string;
+  course?: string;
   onSeek?: (seconds: number, partIndex?: number) => void;
   onOpenSlidesModal?: () => void;
+  onUpdateSlides?: (updatedSlides: SlideAlignment[]) => Promise<void> | void;
 }
 
 function formatTime(totalSeconds: number): string {
+  if (isNaN(totalSeconds) || totalSeconds < 0) return '00:00';
   const mins = Math.floor(totalSeconds / 60);
   const secs = Math.floor(totalSeconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
 export const SlidesTab: React.FC<SlidesTabProps> = ({
@@ -34,20 +48,120 @@ export const SlidesTab: React.FC<SlidesTabProps> = ({
   hasSlides = false,
   currentTime = 0,
   currentPartIndex = 0,
+  audioParts,
+  transcript = [],
+  slidesMarkdown,
+  lectureTitle = '',
+  course = '',
   onSeek,
   onOpenSlidesModal,
+  onUpdateSlides,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRealigning, setIsRealigning] = useState(false);
+  const [realignStatus, setRealignStatus] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const filteredSlides = slidesAlignment.filter((slide) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      slide.title.toLowerCase().includes(query) ||
-      slide.summary.toLowerCase().includes(query) ||
-      slide.slide_number.toString().includes(query)
-    );
-  });
+  const activeIndex = useMemo(
+    () => findActiveSlideIndex(slidesAlignment, currentTime, currentPartIndex, audioParts),
+    [slidesAlignment, currentTime, currentPartIndex, audioParts]
+  );
+
+  const filteredSlides = useMemo(() => {
+    return slidesAlignment.filter((slide) => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        slide.title.toLowerCase().includes(query) ||
+        slide.summary.toLowerCase().includes(query) ||
+        slide.slide_number.toString().includes(query)
+      );
+    });
+  }, [slidesAlignment, searchQuery]);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  // Adjust timestamp for a single slide (+/- offset seconds)
+  const handleShiftTime = async (
+    slideNumber: number,
+    offsetSeconds: number,
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation();
+    const target = slidesAlignment.find((s) => s.slide_number === slideNumber);
+    if (!target) return;
+
+    const times = getSlideTimes(target, audioParts);
+    const newStart = Math.max(0, times.relativeStart + offsetSeconds);
+    const newEnd = Math.max(newStart, times.relativeEnd + offsetSeconds);
+
+    const updated = adjustSlideTimestamps(slidesAlignment, slideNumber, newStart, newEnd);
+    await onUpdateSlides?.(updated);
+    showToast(`Slide ${slideNumber}: tempo regolato a ${formatTime(newStart)}`);
+  };
+
+  // Pin slide start time to current audio playback position
+  const handlePinCurrentTime = async (slideNumber: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const target = slidesAlignment.find((s) => s.slide_number === slideNumber);
+    if (!target) return;
+
+    const partOffset =
+      audioParts && audioParts[currentPartIndex] ? audioParts[currentPartIndex].startOffset : 0;
+    const relativeCurrentTime = Math.max(0, Math.round(currentTime - partOffset));
+
+    const times = getSlideTimes(target, audioParts);
+    const duration = Math.max(30, times.relativeEnd - times.relativeStart);
+    const newEnd = relativeCurrentTime + duration;
+
+    const updated = adjustSlideTimestamps(slidesAlignment, slideNumber, relativeCurrentTime, newEnd);
+    await onUpdateSlides?.(updated);
+    showToast(`Slide ${slideNumber} fissata a ${formatTime(relativeCurrentTime)}`);
+  };
+
+  // Run AI Re-alignment with transcript
+  const handleRealignAI = async () => {
+    const apiKey = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null;
+    if (!apiKey) {
+      alert('Chiave API Gemini mancante. Configurala nelle impostazioni.');
+      return;
+    }
+
+    if (!slidesMarkdown || transcript.length === 0) {
+      alert('Trascrizione o contenuto slide mancante per eseguire il riallineamento.');
+      return;
+    }
+
+    if (!confirm('Vuoi ricalcolare la sincronizzazione temporale delle slide confrontandole con la trascrizione audio?')) {
+      return;
+    }
+
+    setIsRealigning(true);
+    setRealignStatus('Confronto semantico trascrizione e slide...');
+
+    try {
+      const realigned = await realignSlidesWithGemini(
+        transcript,
+        slidesMarkdown,
+        course,
+        lectureTitle,
+        apiKey,
+        (stage) => setRealignStatus(stage)
+      );
+
+      await onUpdateSlides?.(realigned);
+      showToast('Sincronizzazione slide aggiornata con successo!');
+    } catch (err: any) {
+      console.error('Riallineamento slide fallito:', err);
+      alert('Errore durante il riallineamento: ' + err.message);
+    } finally {
+      setIsRealigning(false);
+      setRealignStatus(null);
+    }
+  };
 
   if (!hasSlides && slidesAlignment.length === 0) {
     return (
@@ -76,15 +190,23 @@ export const SlidesTab: React.FC<SlidesTabProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-purple-900 border border-purple-500 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-2xl animate-in fade-in flex items-center gap-2">
+          <Check className="w-4 h-4 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 rounded-xl bg-zinc-900 border border-zinc-800">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl bg-zinc-900 border border-zinc-800 shadow-md">
         <div className="flex items-center gap-3">
           <div className="p-2.5 rounded-xl bg-purple-950/80 border border-purple-800/60 text-purple-400 shrink-0">
             <Presentation className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-zinc-100">Allineamento Multimodale Slide</h3>
+              <h3 className="text-sm font-bold text-zinc-100">Sincronizzazione Slide Audio</h3>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800">
                 {slidesAlignment.length} slide
               </span>
@@ -97,9 +219,9 @@ export const SlidesTab: React.FC<SlidesTabProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Search */}
-          <div className="relative flex-1 sm:w-60">
+          <div className="relative flex-1 sm:w-56">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
@@ -110,32 +232,58 @@ export const SlidesTab: React.FC<SlidesTabProps> = ({
             />
           </div>
 
+          {/* AI Re-alignment Button */}
+          {transcript.length > 0 && slidesMarkdown && (
+            <button
+              onClick={handleRealignAI}
+              disabled={isRealigning}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-950/40 transition shrink-0 disabled:opacity-50"
+              title="Ricalcola la sincronizzazione di ogni slide basandosi esattamente su quanto detto dal docente nella trascrizione"
+            >
+              {isRealigning ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="w-3.5 h-3.5" />
+              )}
+              <span>{isRealigning ? 'Riallineamento...' : 'Riallinea con AI'}</span>
+            </button>
+          )}
+
           {onOpenSlidesModal && (
             <button
               onClick={onOpenSlidesModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-950/60 hover:bg-purple-900/60 text-purple-200 border border-purple-800 transition shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition shrink-0"
               title="Visualizza le slide in Markdown (.md) o carica un nuovo file PDF"
             >
               <FileText className="w-3.5 h-3.5 text-purple-400" />
-              <span>Gestione Slide (.md)</span>
+              <span className="hidden sm:inline">Gestione Slide (.md)</span>
+              <span className="sm:hidden">.md</span>
             </button>
           )}
         </div>
       </div>
 
+      {/* Progress banner during AI re-alignment */}
+      {isRealigning && (
+        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-purple-950/50 border border-purple-800/60 text-xs text-purple-200 animate-pulse">
+          <Loader2 className="w-4 h-4 animate-spin text-purple-400 shrink-0" />
+          <span>{realignStatus || 'Ricalcolo della sincronizzazione audio in corso...'}</span>
+        </div>
+      )}
+
       {/* Slide Timeline Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 sm:gap-4">
         {filteredSlides.map((slide) => {
-          const isPartMatch = slide.part === currentPartIndex;
-          const isActive =
-            isPartMatch &&
-            currentTime >= slide.start_time_seconds &&
-            currentTime <= slide.end_time_seconds;
+          const originalIndex = slidesAlignment.findIndex(
+            (s) => s.slide_number === slide.slide_number && s.part === slide.part
+          );
+          const isActive = originalIndex === activeIndex;
+          const times = getSlideTimes(slide, audioParts);
 
           return (
             <div
               key={`${slide.part}-${slide.slide_number}-${slide.start_time_seconds}`}
-              onClick={() => onSeek?.(slide.start_time_seconds, slide.part)}
+              onClick={() => onSeek?.(times.relativeStart, slide.part ?? currentPartIndex)}
               className={`p-4 rounded-xl border transition cursor-pointer flex flex-col justify-between group ${
                 isActive
                   ? 'bg-purple-950/40 border-purple-500 shadow-lg shadow-purple-950/50 ring-1 ring-purple-500/40'
@@ -161,19 +309,19 @@ export const SlidesTab: React.FC<SlidesTabProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSeek?.(slide.start_time_seconds, slide.part);
+                      onSeek?.(times.relativeStart, slide.part ?? currentPartIndex);
                     }}
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition ${
                       isActive
                         ? 'bg-purple-600 text-white shadow-md'
                         : 'bg-zinc-800 text-zinc-300 hover:bg-purple-600 hover:text-white border border-zinc-700'
                     }`}
-                    title={`Vai a ${formatTime(slide.start_time_seconds)} (Parte ${slide.part + 1})`}
+                    title={`Vai a ${formatTime(times.relativeStart)} (Parte ${(slide.part ?? 0) + 1})`}
                   >
                     <Play className="w-3 h-3 fill-current" />
                     <span>
-                      {slide.part > 0 ? `P${slide.part + 1}: ` : ''}
-                      {formatTime(slide.start_time_seconds)} - {formatTime(slide.end_time_seconds)}
+                      {(slide.part ?? 0) > 0 ? `P${(slide.part ?? 0) + 1}: ` : ''}
+                      {formatTime(times.relativeStart)} - {formatTime(times.relativeEnd)}
                     </span>
                   </button>
                 </div>
@@ -189,14 +337,38 @@ export const SlidesTab: React.FC<SlidesTabProps> = ({
                 </p>
               </div>
 
-              {/* Bottom Info Bar */}
-              <div className="pt-3 mt-3 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-500">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-zinc-400" />
-                  Durata discussa: ~{Math.max(1, Math.round((slide.end_time_seconds - slide.start_time_seconds) / 60))} min
-                </span>
-                <span className="text-purple-400 group-hover:translate-x-0.5 transition-transform text-xs font-medium">
-                  Ascolta spiegazione &rarr;
+              {/* Bottom Row: Manual Timestamp Adjustment Controls */}
+              <div className="pt-3 mt-3 border-t border-zinc-800/60 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => handleShiftTime(slide.slide_number, -15, e)}
+                    className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[10px] font-mono border border-zinc-700 transition"
+                    title="Anticipa inizio di 15 secondi"
+                  >
+                    -15s
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleShiftTime(slide.slide_number, 15, e)}
+                    className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-[10px] font-mono border border-zinc-700 transition"
+                    title="Posticipa inizio di 15 secondi"
+                  >
+                    +15s
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handlePinCurrentTime(slide.slide_number, e)}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded bg-purple-950/70 hover:bg-purple-900 border border-purple-800/60 text-purple-300 hover:text-white text-[10px] transition"
+                    title="Fissa l'inizio di questa slide al timestamp audio attualmente in riproduzione"
+                  >
+                    <Pin className="w-2.5 h-2.5" />
+                    <span>Fissa a tempo</span>
+                  </button>
+                </div>
+
+                <span className="text-purple-400 group-hover:translate-x-0.5 transition-transform text-[11px] font-medium hidden sm:inline">
+                  Ascolta &rarr;
                 </span>
               </div>
             </div>

@@ -61,6 +61,7 @@ export default function HomePage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncSuccessToast, setSyncSuccessToast] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [activePartIndex, setActivePartIndex] = useState(0);
 
   const waveSurferRef = useRef<WaveSurferPlayerHandle>(null);
   const hasInitializedRef = useRef(false);
@@ -888,6 +889,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     audioBlob={currentLecture.audioBlob}
                     bookmarks={currentLecture.bookmarks || currentLecture.data?.bookmarks || []}
                     onTimeUpdate={(t) => setCurrentTime(t)}
+                    onPartChange={(idx) => setActivePartIndex(idx)}
                     onDurationChange={(dur) => {
                       if ((!currentLecture.duration || currentLecture.duration === 0) && dur > 0) {
                         db.lectures.update(currentLecture.id, { duration: Math.round(dur) }).catch(console.error);
@@ -904,6 +906,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     audioBlob={currentLecture.audioBlob}
                     bookmarks={currentLecture.bookmarks || currentLecture.data?.bookmarks || []}
                     onTimeUpdate={(t) => setCurrentTime(t)}
+                    onPartChange={(idx) => setActivePartIndex(idx)}
                     onDurationChange={(dur) => {
                       if ((!currentLecture.duration || currentLecture.duration === 0) && dur > 0) {
                         db.lectures.update(currentLecture.id, { duration: Math.round(dur) }).catch(console.error);
@@ -1031,9 +1034,33 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                     slidesFileName={currentLecture.slidesFileName}
                     hasSlides={currentLecture.hasSlides}
                     currentTime={currentTime}
-                    currentPartIndex={0}
+                    currentPartIndex={activePartIndex}
+                    audioParts={currentLecture.audioParts}
+                    transcript={currentLecture.data?.timestamped_transcript || []}
+                    slidesMarkdown={currentLecture.slidesMarkdown || currentLecture.data?.slides_markdown}
+                    lectureTitle={currentLecture.title}
+                    course={currentLecture.course}
                     onSeek={handleSeekFromTranscript}
                     onOpenSlidesModal={() => setIsSlidesModalOpen(true)}
+                    onUpdateSlides={async (updatedSlides) => {
+                      if (!currentLecture) return;
+                      const updatedData = currentLecture.data
+                        ? { ...currentLecture.data, slides_alignment: updatedSlides }
+                        : undefined;
+
+                      await db.lectures.update(currentLecture.id, {
+                        slidesAlignment: updatedSlides,
+                        data: updatedData,
+                        updatedAt: new Date().toISOString(),
+                      });
+
+                      if (currentUser && currentLecture.isCloudSynced) {
+                        const refreshed = await getLectureById(currentLecture.id);
+                        if (refreshed) {
+                          await syncLectureToSupabase(refreshed, currentUser.id).catch(console.warn);
+                        }
+                      }
+                    }}
                   />
                 )}
               </div>

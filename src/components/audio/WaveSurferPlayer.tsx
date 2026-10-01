@@ -18,6 +18,7 @@ interface WaveSurferPlayerProps {
   bookmarks?: LectureBookmark[];
   onTimeUpdate?: (currentTime: number) => void;
   onDurationChange?: (duration: number) => void;
+  onPartChange?: (partIndex: number) => void;
   onAddBookmark?: (timeSeconds: number, partIndex: number, label: string, note?: string) => void;
   onRemoveBookmark?: (id: string) => void;
 }
@@ -38,6 +39,7 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
       bookmarks,
       onTimeUpdate,
       onDurationChange,
+      onPartChange,
       onAddBookmark,
       onRemoveBookmark,
     },
@@ -93,6 +95,13 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
 
     const onDurationChangeRef = useRef(onDurationChange);
     onDurationChangeRef.current = onDurationChange;
+
+    const onPartChangeRef = useRef(onPartChange);
+    onPartChangeRef.current = onPartChange;
+
+    useEffect(() => {
+      onPartChangeRef.current?.(activePartIndex);
+    }, [activePartIndex]);
 
     const playbackRateRef = useRef(playbackRate);
     playbackRateRef.current = playbackRate;

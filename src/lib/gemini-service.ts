@@ -426,7 +426,14 @@ Struttura dei campi JSON richiesta:
 1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Se l'audio è in italiano, text_it conterrà la trascrizione esatta e text_en la traduzione inglese. Includi partIndex indicando l'indice (0-based) della registrazione di riferimento.
 2. "glossary": Estrai SOLO i termini tecnici realmente pronunciati o spiegati nell'audio con traduzione e definizione accademica. Se nell'audio non sono stati pronunciati termini tecnici (es. registrazioni di prova, test microfono, audio non didattico), restituisci un array VUOTO [].
 3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), la macro di citazione \\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}, impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, inserendo citazioni temporali \\ts{parteIndex}{secondi} ad ogni snodo teorico o passaggio matematico, terminando con \\end{document}. Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
-4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].`;
+4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].
+5. "slides_alignment": Se sono allegate slide PDF, compila con MASSIMA PRECISIONE TEMPORALE l'intervallo [start_time_seconds, end_time_seconds] di ciascuna slide spiegata:
+   - "slide_number": Numero della slide da 1 in avanti
+   - "title": Titolo della slide
+   - "part": Indice parte audio (0-based)
+   - "start_time_seconds": Il secondo ESATTO in cui il docente passa alla spiegazione di questa slide (ascolta attentamente quando ne introduce i concetti o ne legge il titolo)
+   - "end_time_seconds": Il secondo in cui termina la discussione della slide e si passa alla successiva
+   - "summary": Sintesi dei punti salienti e formule della slide spiegati oralmente. I timestamp devono essere rigorosamente cronologici e sincronizzati con il parlato.`;
 
     // Create and persist chunks in Dexie for traceability and resilience
     let chunksPlan: LectureProcessingChunk[] = [];
@@ -613,7 +620,7 @@ Struttura dei campi JSON richiesta:
       onProgress?.('Trascrizione ed elaborazione accademica con Gemini...', 40);
 
       const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Inserisci citazioni temporali puntuali nella forma \\ts{0}{secondi} (es. \\ts{0}{120}) per ogni formula e passaggio fondamentale.${
-        uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment.' : ''
+        uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment con la massima precisione cronologica (secondi esatti di inizio e fine in cui ogni slide viene discussa).' : ''
       } Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
       const singleUserParts: any[] = [
@@ -1058,4 +1065,125 @@ Confronta la registrazione vocale con le slide, unisci i contenuti e restituisci
   }
 
   return enrichedData;
+}
+
+/**
+ * Accurately realigns each slide with the exact timestamps of the speech transcription.
+ * Cross-references spoken keywords, formulas, and slide titles against the transcript.
+ */
+export async function realignSlidesWithGemini(
+  transcript: TranscriptSegment[],
+  slidesMarkdown: string,
+  course: string,
+  title: string,
+  apiKey: string,
+  onProgress?: (stage: string) => void
+): Promise<SlideAlignment[]> {
+  onProgress?.('Analisi della trascrizione e sincronizzazione millimetrica delle slide...');
+
+  const realignSchema = {
+    type: 'OBJECT',
+    properties: {
+      slides_alignment: {
+        type: 'ARRAY',
+        description: 'Chronological temporal alignment between slides and transcript timestamps',
+        items: {
+          type: 'OBJECT',
+          properties: {
+            slide_number: { type: 'INTEGER', description: 'Page or slide number from 1 upwards' },
+            title: { type: 'STRING', description: 'Slide title or topic' },
+            part: { type: 'INTEGER', description: 'Audio part index (0-indexed)' },
+            start_time_seconds: { type: 'INTEGER', description: 'Exact audio second where this slide explanation begins' },
+            end_time_seconds: { type: 'INTEGER', description: 'Exact audio second where this slide explanation concludes' },
+            summary: { type: 'STRING', description: 'Key concepts and formulas explained in this slide' },
+          },
+          required: ['slide_number', 'title', 'part', 'start_time_seconds', 'end_time_seconds', 'summary'],
+        },
+      },
+    },
+    required: ['slides_alignment'],
+  };
+
+  const systemPrompt = `Sei un assistente accademico esperto nella sincronizzazione temporale multimediale.
+Il tuo compito è determinare con MASSIMA PRECISIONE TEMPORALE l'intervallo [start_time_seconds, end_time_seconds] di ciascuna slide proiettata, confrontando il testo delle slide con la trascrizione temporizzata audio della lezione di "${course}" (titolo: "${title}").
+
+REGOLE DI SINCRONIZZAZIONE MILLIMETRICA:
+1. "start_time_seconds": Il secondo ESATTO in cui il docente passa alla slide (es. inizia a leggerne il titolo, ne commenta i primi punti elenco o formule). Corrisponde al tempo del segmento di trascrizione in cui inizia la spiegazione.
+2. "end_time_seconds": Il secondo in cui termina la spiegazione di quella slide e il docente passa alla successiva.
+3. Se il docente salta una slide o non ne parla, NON inventare tempi fittizi: escludila oppure assegna tempi congruenti.
+4. I tempi devono essere strettamente cronologici e sequenziali per ogni parte: slide[k].start_time_seconds <= slide[k].end_time_seconds <= slide[k+1].start_time_seconds.
+5. "part": Indice della registrazione audio (0-based) a cui appartiene il timestamp.
+
+Restituisci esclusivamente il JSON conforme allo schema specificato.`;
+
+  const transcriptLines = transcript
+    .map((s) => `[P${s.partIndex ?? 0} ${s.start}s - ${s.end}s] ${s.text_en} (IT: ${s.text_it})`)
+    .join('\n');
+
+  const promptText = `Ecco la trascrizione audio temporizzata e il testo delle slide:
+
+=== TRASCRIZIONE TEMPORIZZATA DELL'AUDIO ===
+${transcriptLines}
+
+=== TESTO DELLE SLIDE DEL DOCENTE ===
+${slidesMarkdown}
+
+Allinea con la massima precisione cronologica ogni slide al momento esatto in cui viene spiegata.`;
+
+  const modelsToTry = getModelFallbackChain();
+  let generationResponse: Response | null = null;
+
+  for (const model of modelsToTry) {
+    onProgress?.(`Allineamento slide con ${model}...`);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const payload = {
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: promptText }] }],
+      generationConfig: {
+        response_mime_type: 'application/json',
+        response_schema: realignSchema,
+        temperature: 0.1,
+      },
+    };
+
+    try {
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (resp.ok) {
+        generationResponse = resp;
+        break;
+      }
+    } catch (e) {
+      console.warn(`Model ${model} failed in realign:`, e);
+    }
+  }
+
+  if (!generationResponse || !generationResponse.ok) {
+    const errText = generationResponse ? await generationResponse.text() : 'Nessuna risposta da Gemini.';
+    throw new Error(`Riallineamento slide fallito: ${errText}`);
+  }
+
+  const genData = await generationResponse.json();
+  const candidateText = genData.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!candidateText) {
+    throw new Error('Risposta vuota da Gemini durante il riallineamento.');
+  }
+
+  let cleanJson = candidateText.trim();
+  if (cleanJson.startsWith('```json')) {
+    cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
+  } else if (cleanJson.startsWith('```')) {
+    cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
+  }
+
+  const parsed = JSON.parse(cleanJson);
+  const rawList: SlideAlignment[] = Array.isArray(parsed.slides_alignment)
+    ? parsed.slides_alignment
+    : [];
+
+  return consolidateSlidesAlignment([rawList]);
 }
