@@ -1030,18 +1030,29 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
 
                 {activeTab === 'slides' && (
                   <SlidesTab
+                    slidesBlob={currentLecture.slidesBlob}
                     slidesAlignment={currentLecture.data?.slides_alignment || currentLecture.slidesAlignment || []}
                     slidesFileName={currentLecture.slidesFileName}
-                    hasSlides={currentLecture.hasSlides}
+                    hasSlides={currentLecture.hasSlides || !!currentLecture.slidesBlob}
                     currentTime={currentTime}
                     currentPartIndex={activePartIndex}
                     audioParts={currentLecture.audioParts}
+                    totalDuration={currentLecture.duration}
                     transcript={currentLecture.data?.timestamped_transcript || []}
                     slidesMarkdown={currentLecture.slidesMarkdown || currentLecture.data?.slides_markdown}
                     lectureTitle={currentLecture.title}
                     course={currentLecture.course}
                     onSeek={handleSeekFromTranscript}
                     onOpenSlidesModal={() => setIsSlidesModalOpen(true)}
+                    onAttachPdf={async (file: File) => {
+                      if (!currentLecture) return;
+                      await db.lectures.update(currentLecture.id, {
+                        slidesBlob: file,
+                        slidesFileName: file.name,
+                        hasSlides: true,
+                        updatedAt: new Date().toISOString(),
+                      });
+                    }}
                     onUpdateSlides={async (updatedSlides) => {
                       if (!currentLecture) return;
                       const updatedData = currentLecture.data

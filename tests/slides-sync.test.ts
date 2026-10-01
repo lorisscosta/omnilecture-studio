@@ -4,6 +4,7 @@ import {
   findActiveSlideIndex,
   adjustSlideTimestamps,
   parseSlideHeadings,
+  clampAndNormalizeSlideTimestamps,
 } from '../src/lib/slides-sync';
 import { SlideAlignment, AudioPart } from '../src/lib/types';
 
@@ -125,3 +126,45 @@ describe('slides-sync: parseSlideHeadings', () => {
     expect(parsed[1].title).toBe('Convolution Formula');
   });
 });
+
+describe('slides-sync: clampAndNormalizeSlideTimestamps', () => {
+  it('rescales hallucinated timestamps that exceed actual audio duration (e.g. 31m on a 19:18 audio)', () => {
+    // Audio duration: 19:18 = 1158s
+    const totalAudioDuration = 1158;
+    // Slide timestamps hallucinated up to 31:00 = 1860s
+    const hallucinatedSlides: SlideAlignment[] = [
+      { slide_number: 1, title: 'Intro', part: 0, start_time_seconds: 0, end_time_seconds: 300, summary: '' },
+      { slide_number: 2, title: 'Mid', part: 0, start_time_seconds: 300, end_time_seconds: 1200, summary: '' },
+      { slide_number: 3, title: 'Penultimate', part: 0, start_time_seconds: 1200, end_time_seconds: 1600, summary: '' },
+      { slide_number: 4, title: 'Final', part: 0, start_time_seconds: 1600, end_time_seconds: 1860, summary: '' }, // 31 min
+    ];
+
+    const normalized = clampAndNormalizeSlideTimestamps(hallucinatedSlides, totalAudioDuration);
+
+    expect(normalized.length).toBe(4);
+    // Max timestamp must strictly NOT exceed 1158s
+    const maxEnd = Math.max(...normalized.map((s) => s.end_time_seconds));
+    expect(maxEnd).toBe(1158);
+    // First slide starts at 0
+    expect(normalized[0].start_time_seconds).toBe(0);
+    // Slide 4 ends at 1158s (19:18)
+    expect(normalized[3].end_time_seconds).toBe(1158);
+    // All slides must be chronological
+    for (let i = 0; i < normalized.length; i++) {
+      expect(normalized[i].start_time_seconds).toBeLessThanOrEqual(normalized[i].end_time_seconds);
+      expect(normalized[i].end_time_seconds).toBeLessThanOrEqual(totalAudioDuration);
+    }
+  });
+
+  it('keeps normal timestamps intact if within audio duration', () => {
+    const normalSlides: SlideAlignment[] = [
+      { slide_number: 1, title: 'Intro', part: 0, start_time_seconds: 0, end_time_seconds: 100, summary: '' },
+      { slide_number: 2, title: 'End', part: 0, start_time_seconds: 100, end_time_seconds: 200, summary: '' },
+    ];
+    const normalized = clampAndNormalizeSlideTimestamps(normalSlides, 200);
+    expect(normalized[0].start_time_seconds).toBe(0);
+    expect(normalized[0].end_time_seconds).toBe(100);
+    expect(normalized[1].end_time_seconds).toBe(200);
+  });
+});
+

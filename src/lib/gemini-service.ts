@@ -15,6 +15,7 @@ import {
   updateProcessingChunkStatus,
 } from './db';
 import { injectTimestampPreambleMacro } from './latex-linter';
+import { clampAndNormalizeSlideTimestamps } from './slides-sync';
 
 // Strict JSON Schema for Gemini
 export const responseSchema = {
@@ -1077,9 +1078,16 @@ export async function realignSlidesWithGemini(
   course: string,
   title: string,
   apiKey: string,
-  onProgress?: (stage: string) => void
+  onProgress?: (stage: string) => void,
+  totalDuration?: number
 ): Promise<SlideAlignment[]> {
   onProgress?.('Analisi della trascrizione e sincronizzazione millimetrica delle slide...');
+
+  const maxTranscriptEnd = transcript.reduce((max, s) => Math.max(max, s.end || 0), 0);
+  const effectiveDuration = (totalDuration && totalDuration > 0) ? totalDuration : maxTranscriptEnd;
+  const durMins = Math.floor(effectiveDuration / 60);
+  const durSecs = Math.round(effectiveDuration % 60);
+  const durFormatted = `${durMins}:${durSecs.toString().padStart(2, '0')}`;
 
   const realignSchema = {
     type: 'OBJECT',
@@ -1113,6 +1121,11 @@ REGOLE DI SINCRONIZZAZIONE MILLIMETRICA:
 3. Se il docente salta una slide o non ne parla, NON inventare tempi fittizi: escludila oppure assegna tempi congruenti.
 4. I tempi devono essere strettamente cronologici e sequenziali per ogni parte: slide[k].start_time_seconds <= slide[k].end_time_seconds <= slide[k+1].start_time_seconds.
 5. "part": Indice della registrazione audio (0-based) a cui appartiene il timestamp.
+6. LIMITE ASSOLUTO DI DURATA AUDIO:
+L'intera registrazione audio dura ESATTAMENTE ${durFormatted} (${Math.round(effectiveDuration)} secondi).
+È TASSATIVAMENTE VIETATO generare 'start_time_seconds' o 'end_time_seconds' superiori a ${Math.round(effectiveDuration)}.
+Tutti i timestamp devono essere rigorosamente compresi tra 0 e ${Math.round(effectiveDuration)} secondi.
+L'ultima slide spiegata deve terminare al massimo a ${Math.round(effectiveDuration)} secondi. Non inventare mai timestamp oltre la fine dell'audio!
 
 Restituisci esclusivamente il JSON conforme allo schema specificato.`;
 
@@ -1122,13 +1135,16 @@ Restituisci esclusivamente il JSON conforme allo schema specificato.`;
 
   const promptText = `Ecco la trascrizione audio temporizzata e il testo delle slide:
 
+=== INFORMAZIONI AUDIO ===
+Durata totale registrazione: ${durFormatted} (${Math.round(effectiveDuration)} secondi). Nessun timestamp può superare questo limite.
+
 === TRASCRIZIONE TEMPORIZZATA DELL'AUDIO ===
 ${transcriptLines}
 
 === TESTO DELLE SLIDE DEL DOCENTE ===
 ${slidesMarkdown}
 
-Allinea con la massima precisione cronologica ogni slide al momento esatto in cui viene spiegata.`;
+Allinea con la massima precisione cronologica ogni slide al momento esatto in cui viene spiegata (entro e non oltre ${Math.round(effectiveDuration)}s).`;
 
   const modelsToTry = getModelFallbackChain();
   let generationResponse: Response | null = null;
@@ -1184,6 +1200,6 @@ Allinea con la massima precisione cronologica ogni slide al momento esatto in cu
   const rawList: SlideAlignment[] = Array.isArray(parsed.slides_alignment)
     ? parsed.slides_alignment
     : [];
-
-  return consolidateSlidesAlignment([rawList]);
+  const consolidated = consolidateSlidesAlignment([rawList]);
+  return clampAndNormalizeSlideTimestamps(consolidated, effectiveDuration);
 }

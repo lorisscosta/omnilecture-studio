@@ -163,3 +163,44 @@ export function parseSlideHeadings(
   flush();
   return items;
 }
+
+/**
+ * Clamps and normalizes slide timestamps to ensure they strictly respect the total audio duration.
+ * Fixes AI hallucination or scale issues (e.g. timestamps stretching up to 31 min for a 19:18 audio).
+ */
+export function clampAndNormalizeSlideTimestamps(
+  slides: SlideAlignment[],
+  totalAudioDuration: number
+): SlideAlignment[] {
+  if (!slides || slides.length === 0 || !totalAudioDuration || totalAudioDuration <= 0) {
+    return slides;
+  }
+
+  const durationSec = Math.round(totalAudioDuration);
+  const maxSlideEnd = Math.max(...slides.map((s) => s.end_time_seconds || 0), 0);
+
+  // If timestamps severely overshoot the actual audio duration (> 10s over duration)
+  const isOvershot = maxSlideEnd > durationSec + 10;
+  const scale = isOvershot && maxSlideEnd > 0 ? durationSec / maxSlideEnd : 1;
+
+  return slides.map((slide, idx) => {
+    let start = isOvershot ? Math.round(slide.start_time_seconds * scale) : slide.start_time_seconds;
+    let end = isOvershot ? Math.round(slide.end_time_seconds * scale) : slide.end_time_seconds;
+
+    // Strict boundary clamps
+    start = Math.max(0, Math.min(start, durationSec));
+    end = Math.max(start, Math.min(end, durationSec));
+
+    // If it's the last slide, ensure end reaches the end of the audio
+    if (idx === slides.length - 1 && end < durationSec) {
+      end = durationSec;
+    }
+
+    return {
+      ...slide,
+      start_time_seconds: start,
+      end_time_seconds: end,
+    };
+  });
+}
+

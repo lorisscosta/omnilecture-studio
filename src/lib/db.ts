@@ -105,10 +105,11 @@ export async function updateLectureSlides(
   slidesFileName: string,
   slidesMarkdown: string,
   updatedData: Lecture['data'],
-  slidesAlignment?: SlideAlignment[]
+  slidesAlignment?: SlideAlignment[],
+  slidesBlob?: Blob
 ): Promise<void> {
   const alignment = slidesAlignment || updatedData?.slides_alignment;
-  await db.lectures.update(id, {
+  const payload: Partial<Lecture> = {
     slidesFileName,
     slidesMarkdown,
     slidesAlignment: alignment,
@@ -118,6 +119,19 @@ export async function updateLectureSlides(
     processingProgress: undefined,
     processingPercentage: 100,
     errorMessage: undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  if (slidesBlob) {
+    payload.slidesBlob = slidesBlob;
+  }
+  await db.lectures.update(id, payload);
+}
+
+export async function attachSlidesPdf(id: string, pdfBlob: Blob, fileName: string): Promise<void> {
+  await db.lectures.update(id, {
+    slidesBlob: pdfBlob,
+    slidesFileName: fileName,
+    hasSlides: true,
     updatedAt: new Date().toISOString(),
   });
 }

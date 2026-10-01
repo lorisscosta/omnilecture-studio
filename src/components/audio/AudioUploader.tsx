@@ -234,6 +234,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         fileSize: effectiveTotalBytes,
         fileName: primaryFileName,
         audioBlob: processedAudioFiles[0], // primary or part 0 for fallback
+        slidesBlob: selectedPdf || undefined,
         slidesFileName: selectedPdf ? selectedPdf.name : undefined,
         hasSlides: !!selectedPdf,
         status: 'processing',
@@ -333,7 +334,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           selectedPdf.name,
           slidesMarkdown,
           lectureData,
-          lectureData.slides_alignment
+          lectureData.slides_alignment,
+          selectedPdf
         );
       } else {
         await updateLectureData(lectureId, lectureData);

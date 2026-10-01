@@ -93,6 +93,7 @@ export interface Lecture {
   fileName: string;
   audioBlob?: Blob; // for backward compatibility, part 0 blob
   audioParts?: AudioPart[]; // ordered list of recordings in this lecture
+  slidesBlob?: Blob; // Raw PDF blob for native PowerPoint presentation mode
   slidesFileName?: string;
   slidesMarkdown?: string;
   slidesAlignment?: SlideAlignment[];
