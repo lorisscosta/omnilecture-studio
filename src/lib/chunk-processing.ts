@@ -67,36 +67,130 @@ export function createLectureChunksPlan(
   return chunks;
 }
 
+export interface RetryOptions {
+  maxRetries?: number;
+  baseDelayMs?: number;
+  signal?: AbortSignal;
+  isRetryable?: (err: unknown) => boolean;
+}
+
+/**
+ * Checks whether an error is transient and safe to retry.
+ * Non-retryable: 400 (Bad Request), 401 (Unauthorized), 403 (Forbidden), 404 (Not Found), 413 (Payload Too Large), 422.
+ * Retryable: 408, 429 (Rate Limit), 500, 502, 503, 504, and network drops.
+ */
+export function isRetryableError(err: unknown): boolean {
+  if (!err) return false;
+  if (err instanceof Error && err.name === 'AbortError') return false;
+
+  const anyErr = err as any;
+  const status = anyErr.status || anyErr.statusCode || anyErr.response?.status;
+  if (typeof status === 'number') {
+    if ([400, 401, 403, 404, 413, 422].includes(status)) {
+      return false;
+    }
+    if ([408, 429, 500, 502, 503, 504].includes(status)) {
+      return true;
+    }
+  }
+
+  const msg = (anyErr.message || String(err)).toLowerCase();
+  if (
+    msg.includes('400 bad request') ||
+    msg.includes('invalid argument') ||
+    msg.includes('api key not valid') ||
+    msg.includes('permission denied') ||
+    msg.includes('401 unauthorized') ||
+    msg.includes('403 forbidden') ||
+    msg.includes('404 not found') ||
+    msg.includes('413 payload too large')
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export function extractRetryAfterMs(err: unknown): number | null {
+  if (!err) return null;
+  const anyErr = err as any;
+  const retryAfter = anyErr.headers?.get?.('retry-after') || anyErr.retryAfter;
+  if (retryAfter) {
+    const sec = Number(retryAfter);
+    if (!Number.isNaN(sec) && sec > 0) {
+      return sec * 1000;
+    }
+  }
+  return null;
+}
+
 /**
  * Exponential backoff with random jitter for resilient network retries.
+ * Respects Retry-After header and AbortSignal.
  */
 export async function retryWithBackoff<T>(
   operation: (attempt: number) => Promise<T>,
-  maxRetries = 3,
+  optionsOrMaxRetries: number | RetryOptions = 3,
   baseDelayMs = 1500
 ): Promise<T> {
+  const options: RetryOptions =
+    typeof optionsOrMaxRetries === 'number'
+      ? { maxRetries: optionsOrMaxRetries, baseDelayMs }
+      : optionsOrMaxRetries;
+
+  const maxRetries = options.maxRetries ?? 3;
+  const delayBase = options.baseDelayMs ?? 1500;
+  const signal = options.signal;
+  const checkRetryable = options.isRetryable || isRetryableError;
+
   let attempt = 0;
   while (true) {
+    if (signal?.aborted) {
+      throw new DOMException('Operation aborted', 'AbortError');
+    }
+
     try {
       return await operation(attempt);
     } catch (err: unknown) {
+      if (signal?.aborted) {
+        throw new DOMException('Operation aborted', 'AbortError');
+      }
+
+      if (!checkRetryable(err)) {
+        throw err;
+      }
+
       attempt++;
       if (attempt > maxRetries) {
         throw err;
       }
 
-      // Exponential backoff: base * 2^(attempt-1) + jitter (0-500ms)
-      const delay = baseDelayMs * Math.pow(2, attempt - 1) + Math.random() * 500;
+      const explicitDelay = extractRetryAfterMs(err);
+      const delay = explicitDelay ?? (delayBase * Math.pow(2, attempt - 1) + Math.random() * 500);
       const errMsg = err instanceof Error ? err.message : String(err);
       console.warn(`Tentativo ${attempt}/${maxRetries} fallito (${errMsg}). Riprovo tra ${Math.round(delay)}ms...`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+
+      await new Promise<void>((resolve, reject) => {
+        if (signal?.aborted) {
+          return reject(new DOMException('Operation aborted', 'AbortError'));
+        }
+        const timer = setTimeout(resolve, delay);
+        signal?.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timer);
+            reject(new DOMException('Operation aborted', 'AbortError'));
+          },
+          { once: true }
+        );
+      });
     }
   }
 }
 
 /**
  * Merges transcript segments from multiple chunks, adjusting relative start/end
- * timestamps according to cumulative start offsets.
+ * timestamps according to cumulative start offsets and chunk start offsets.
  */
 export function mergeTranscriptSegments(
   chunksData: Array<{
@@ -109,10 +203,11 @@ export function mergeTranscriptSegments(
   const merged: TranscriptSegment[] = [];
 
   for (const chunk of chunksData) {
+    const chunkBaseOffset = (chunk.cumulativePartOffset || 0) + (chunk.chunkStartSeconds || 0);
     for (const seg of chunk.segments) {
       // Calculate true continuous timestamp
-      const adjustedStart = Math.round(chunk.cumulativePartOffset + seg.start);
-      const adjustedEnd = Math.round(chunk.cumulativePartOffset + seg.end);
+      const adjustedStart = Math.round(chunkBaseOffset + seg.start);
+      const adjustedEnd = Math.round(chunkBaseOffset + seg.end);
 
       merged.push({
         start: adjustedStart,

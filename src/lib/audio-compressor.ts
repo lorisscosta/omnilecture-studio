@@ -13,21 +13,125 @@ export interface AudioOptimizationResult {
   durationSeconds: number;
 }
 
+export interface WavHeaderInfo {
+  isWav: boolean;
+  audioFormat?: number;
+  numChannels?: number;
+  sampleRate?: number;
+  byteRate?: number;
+  blockAlign?: number;
+  bitsPerSample?: number;
+}
+
+/**
+ * Parses the RIFF / WAVE header and fmt chunk from a buffer.
+ */
+export function parseWavHeader(buffer: ArrayBuffer): WavHeaderInfo {
+  if (buffer.byteLength < 44) {
+    return { isWav: false };
+  }
+  const view = new DataView(buffer);
+  const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+  const wave = String.fromCharCode(view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11));
+
+  if (riff !== 'RIFF' || wave !== 'WAVE') {
+    return { isWav: false };
+  }
+
+  // Scan chunks to locate 'fmt ' subchunk
+  let offset = 12;
+  while (offset + 8 <= buffer.byteLength) {
+    const chunkId = String.fromCharCode(
+      view.getUint8(offset),
+      view.getUint8(offset + 1),
+      view.getUint8(offset + 2),
+      view.getUint8(offset + 3)
+    );
+    const chunkSize = view.getUint32(offset + 4, true);
+
+    if (chunkId === 'fmt ') {
+      if (offset + 8 + 16 <= buffer.byteLength) {
+        const audioFormat = view.getUint16(offset + 8, true);
+        const numChannels = view.getUint16(offset + 10, true);
+        const sampleRate = view.getUint32(offset + 12, true);
+        const byteRate = view.getUint32(offset + 16, true);
+        const blockAlign = view.getUint16(offset + 20, true);
+        const bitsPerSample = view.getUint16(offset + 22, true);
+        return {
+          isWav: true,
+          audioFormat,
+          numChannels,
+          sampleRate,
+          byteRate,
+          blockAlign,
+          bitsPerSample,
+        };
+      }
+      break;
+    }
+    offset += 8 + chunkSize;
+  }
+
+  return { isWav: true };
+}
+
+/**
+ * Inspects a File or Blob or ArrayBuffer to extract WAV header information.
+ */
+export async function checkWavHeader(fileOrBlob: Blob | ArrayBuffer): Promise<WavHeaderInfo> {
+  let buffer: ArrayBuffer;
+  if (fileOrBlob instanceof ArrayBuffer) {
+    buffer = fileOrBlob;
+  } else {
+    // Read the first 128 bytes to capture RIFF and fmt chunks
+    const slice = fileOrBlob.slice(0, 128);
+    buffer = await slice.arrayBuffer();
+  }
+  return parseWavHeader(buffer);
+}
+
 /**
  * Determines whether an audio file should be downsampled/optimized
- * (e.g. heavy uncompressed WAV > 25MB or any huge audio file > 80MB)
+ * (e.g. heavy uncompressed WAV > 25MB or any huge audio file > 80MB).
+ * Inspects the WAV header to skip downsampling if already 16kHz mono 16-bit PCM.
  */
-export function shouldOptimizeAudio(file: File): boolean {
-  const isWav = file.name.toLowerCase().endsWith('.wav') || file.type.includes('wav');
+export async function shouldOptimizeAudio(file: File | Blob): Promise<boolean> {
+  const name = 'name' in file ? (file as File).name.toLowerCase() : '';
+  const isWav = name.endsWith('.wav') || file.type.includes('wav');
   const sizeMb = file.size / (1024 * 1024);
 
   if (isWav && sizeMb > 25) {
+    try {
+      const header = await checkWavHeader(file);
+      if (
+        header.isWav &&
+        header.audioFormat === 1 &&
+        header.numChannels === 1 &&
+        header.sampleRate === 16000 &&
+        header.bitsPerSample === 16
+      ) {
+        // Audio is already 16kHz mono PCM16; bypass downsampling
+        return false;
+      }
+    } catch {
+      // On header read failure, fall back to optimizing
+    }
     return true;
   }
   if (sizeMb > 80) {
     return true;
   }
   return false;
+}
+
+/**
+ * Synchronous size-based heuristic for quick UI badges.
+ */
+export function shouldOptimizeAudioSync(file: File | Blob): boolean {
+  const name = 'name' in file ? (file as File).name.toLowerCase() : '';
+  const isWav = name.endsWith('.wav') || file.type.includes('wav');
+  const sizeMb = file.size / (1024 * 1024);
+  return (isWav && sizeMb > 25) || sizeMb > 80;
 }
 
 /**
@@ -101,6 +205,31 @@ export async function optimizeAudioFile(
   targetSampleRate = 16000,
   onProgress?: (stage: string, percent: number) => void
 ): Promise<AudioOptimizationResult> {
+  // Fast path: inspect WAV header first to skip unnecessary decoding if already 16kHz mono PCM16
+  try {
+    const header = await checkWavHeader(file);
+    if (
+      header.isWav &&
+      header.audioFormat === 1 &&
+      header.numChannels === 1 &&
+      header.sampleRate === targetSampleRate &&
+      header.bitsPerSample === 16
+    ) {
+      const byteRate = header.byteRate || targetSampleRate * 2;
+      const dataSize = Math.max(0, file.size - 44);
+      const durationSeconds = dataSize / byteRate;
+      return {
+        file,
+        originalSize: file.size,
+        optimizedSize: file.size,
+        ratio: 1,
+        durationSeconds: Math.round(durationSeconds),
+      };
+    }
+  } catch {
+    // Proceed to standard decoding if header check fails
+  }
+
   const AudioContextClass =
     typeof window !== 'undefined'
       ? window.AudioContext || (window as any).webkitAudioContext

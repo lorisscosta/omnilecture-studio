@@ -56,6 +56,22 @@ const responseSchema = {
         required: ['question', 'answer_latex', 'importance_level'],
       },
     },
+    slides_alignment: {
+      type: 'ARRAY',
+      description: 'Alignment of slides with audio timestamps',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          slide_number: { type: 'INTEGER', description: 'Slide number starting from 1' },
+          title: { type: 'STRING', description: 'Slide title' },
+          part: { type: 'INTEGER', description: 'Audio part index (0-based)' },
+          start_time_seconds: { type: 'NUMBER', description: 'Start time in seconds relative to part' },
+          end_time_seconds: { type: 'NUMBER', description: 'End time in seconds relative to part' },
+          summary: { type: 'STRING', description: 'Summary of the slide content' },
+        },
+        required: ['slide_number', 'title', 'start_time_seconds', 'end_time_seconds'],
+      },
+    },
   },
   required: [
     'glossary',
@@ -144,6 +160,10 @@ async function uploadToGeminiFilesAPI(
     attempts++;
   }
 
+  if (state && state !== 'ACTIVE') {
+    throw new Error(`Google AI Studio file state is ${state}, expected ACTIVE.`);
+  }
+
   return { fileUri, fileResourceName };
 }
 
@@ -159,6 +179,7 @@ async function deleteGeminiFile(fileResourceName: string, apiKey: string): Promi
 
 export async function POST(req: NextRequest) {
   let uploadedFileResource: string | null = null;
+  let uploadedPdfResource: string | null = null;
   let apiKey = '';
 
   try {
@@ -170,6 +191,7 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const audioFile = formData.get('audio') as File | null;
+    const pdfFile = (formData.get('pdf') || formData.get('slides')) as File | null;
     const course = (formData.get('course') as string) || 'Ingegneria / STEM';
     const title = (formData.get('title') as string) || 'Lezione Magistrale';
     const requestedModel = (formData.get('model') as string) || undefined;
@@ -201,7 +223,7 @@ export async function POST(req: NextRequest) {
     const fileName = audioFile.name || 'lecture_audio.wav';
     const mimeType = detectAudioMimeType(arrayBuffer, fileName, audioFile.type);
 
-    // Step 1: Upload to Google AI Studio Files API
+    // Step 1: Upload Audio to Google AI Studio Files API
     const { fileUri, fileResourceName } = await uploadToGeminiFilesAPI(
       arrayBuffer,
       mimeType,
@@ -209,6 +231,24 @@ export async function POST(req: NextRequest) {
       apiKey
     );
     uploadedFileResource = fileResourceName;
+
+    // Step 1b: Upload optional PDF
+    let pdfUri: string | null = null;
+    if (pdfFile) {
+      try {
+        const pdfBuffer = await pdfFile.arrayBuffer();
+        const pdfUpload = await uploadToGeminiFilesAPI(
+          pdfBuffer,
+          'application/pdf',
+          pdfFile.name || 'slides.pdf',
+          apiKey
+        );
+        uploadedPdfResource = pdfUpload.fileResourceName;
+        pdfUri = pdfUpload.fileUri;
+      } catch (pdfErr) {
+        console.warn('PDF upload to Gemini Files API failed in server route:', pdfErr);
+      }
+    }
 
     // Step 2: System prompt and query
     const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria.
@@ -221,9 +261,30 @@ Struttura dei campi JSON richiesta:
 1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Se l'audio è in italiano, text_it conterrà la trascrizione esatta e text_en la traduzione inglese.
 2. "glossary": Estrai SOLO i termini tecnici realmente pronunciati o spiegati nell'audio con traduzione e definizione accademica. Se nell'audio non sono stati pronunciati termini tecnici (es. registrazioni di prova, test microfono, audio non didattico), restituisci un array VUOTO [].
 3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), la macro di citazione \\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}, impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, inserendo citazioni temporali \\ts{parteIndex}{secondi} ad ogni snodo concettuale o dimostrazione, terminando con \\end{document}. Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
-4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].`;
+4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].
+5. "slides_alignment": Se sono allegate slide, allinea con precisione cronologica le slide spiegate, con start_time_seconds e end_time_seconds rigorosamente compresi nella durata dell'audio.`;
 
-    const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}"). Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+    const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}").${pdfUri ? ' Correla inoltre le spiegazioni orali alle slide del PDF fornito.' : ''} Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+
+    const userParts: any[] = [
+      {
+        file_data: {
+          mime_type: mimeType,
+          file_uri: fileUri,
+        },
+      },
+    ];
+
+    if (pdfUri) {
+      userParts.push({
+        file_data: {
+          mime_type: 'application/pdf',
+          file_uri: pdfUri,
+        },
+      });
+    }
+
+    userParts.push({ text: promptText });
 
     const modelsToTry = getModelFallbackChain(requestedModel);
     let generationResponse: Response | null = null;
@@ -238,15 +299,7 @@ Struttura dei campi JSON richiesta:
         contents: [
           {
             role: 'user',
-            parts: [
-              {
-                file_data: {
-                  mime_type: mimeType,
-                  file_uri: fileUri,
-                },
-              },
-              { text: promptText },
-            ],
+            parts: userParts,
           },
         ],
         generationConfig: {
@@ -304,6 +357,10 @@ Struttura dei campi JSON richiesta:
       await deleteGeminiFile(uploadedFileResource, apiKey);
       uploadedFileResource = null;
     }
+    if (uploadedPdfResource) {
+      await deleteGeminiFile(uploadedPdfResource, apiKey);
+      uploadedPdfResource = null;
+    }
 
     return NextResponse.json({
       success: true,
@@ -316,6 +373,9 @@ Struttura dei campi JSON richiesta:
     // Ensure temp file cleanup even on failure
     if (uploadedFileResource && apiKey) {
       await deleteGeminiFile(uploadedFileResource, apiKey);
+    }
+    if (uploadedPdfResource && apiKey) {
+      await deleteGeminiFile(uploadedPdfResource, apiKey);
     }
 
     return NextResponse.json(

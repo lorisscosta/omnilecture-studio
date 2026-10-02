@@ -25,7 +25,27 @@ export async function saveLecture(lecture: Lecture): Promise<void> {
 }
 
 export async function getLectureById(id: string): Promise<Lecture | undefined> {
-  return await db.lectures.get(id);
+  const lec = await db.lectures.get(id);
+  if (
+    lec &&
+    lec.status === 'processing' &&
+    lec.data &&
+    (Boolean(lec.data.study_guide_it) ||
+      (Array.isArray(lec.data.timestamped_transcript) && lec.data.timestamped_transcript.length > 0))
+  ) {
+    lec.status = 'completed';
+    lec.processingProgress = undefined;
+    lec.processingPercentage = 100;
+    db.lectures
+      .update(lec.id, {
+        status: 'completed',
+        processingProgress: undefined,
+        processingPercentage: 100,
+        updatedAt: new Date().toISOString(),
+      })
+      .catch(console.warn);
+  }
+  return lec;
 }
 
 export async function getAllLectures(): Promise<Lecture[]> {
@@ -137,14 +157,19 @@ export async function attachSlidesPdf(id: string, pdfBlob: Blob, fileName: strin
 }
 
 export async function appendChatMessage(id: string, message: Lecture['chatMessages'][0]): Promise<void> {
-  const lecture = await db.lectures.get(id);
-  if (lecture) {
-    const updatedMessages = [...(lecture.chatMessages || []), message];
+  await db.transaction('rw', db.lectures, async () => {
+    const lecture = await db.lectures.get(id);
+    if (!lecture) return;
+    const existing = lecture.chatMessages || [];
+    if (message.id && existing.some((m) => m.id === message.id)) {
+      return;
+    }
+    const updatedMessages = [...existing, message];
     await db.lectures.update(id, {
       chatMessages: updatedMessages,
       updatedAt: new Date().toISOString(),
     });
-  }
+  });
 }
 
 // Processing Chunks Operations

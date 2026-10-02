@@ -258,5 +258,6 @@ export function getModelFallbackChain(preferredModel?: string): string[] {
     }
   }
 
-  return chain;
+  const audioCapableChain = chain.filter(isAudioCapableModel);
+  return audioCapableChain.length > 0 ? audioCapableChain : defaultChain;
 }

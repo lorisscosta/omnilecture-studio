@@ -1,4 +1,4 @@
-import { SlideAlignment, AudioPart, TranscriptSegment } from './types';
+import { SlideAlignment, AudioPart } from './types';
 
 export interface ResolvedSlideTimes {
   relativeStart: number;
@@ -9,7 +9,11 @@ export interface ResolvedSlideTimes {
 
 /**
  * Resolves both relative (within-part) and continuous (whole-lecture) timestamps
- * for a slide, handling whether Gemini output cumulative or relative seconds.
+ * for a slide.
+ * CANONICAL CONTRACT: All slide timestamps stored internally are STRICTLY relative
+ * to the audio part (partIndex). Continuous timestamps are derived deterministically:
+ * continuousStart = partOffset + relativeStart
+ * continuousEnd   = partOffset + relativeEnd
  */
 export function getSlideTimes(
   slide: SlideAlignment,
@@ -19,27 +23,11 @@ export function getSlideTimes(
   const partOffset =
     audioParts && audioParts[partIndex] ? audioParts[partIndex].startOffset : 0;
 
-  const rawStart = Math.max(0, slide.start_time_seconds ?? 0);
-  const rawEnd = Math.max(rawStart, slide.end_time_seconds ?? rawStart);
+  const relativeStart = Math.max(0, slide.start_time_seconds ?? 0);
+  const relativeEnd = Math.max(relativeStart, slide.end_time_seconds ?? relativeStart);
 
-  let relativeStart = rawStart;
-  let relativeEnd = rawEnd;
-  let continuousStart = rawStart;
-  let continuousEnd = rawEnd;
-
-  // If partOffset > 0 and rawStart >= partOffset, it means timestamps are already continuous
-  if (partOffset > 0 && rawStart >= partOffset) {
-    relativeStart = Math.max(0, rawStart - partOffset);
-    relativeEnd = Math.max(relativeStart, rawEnd - partOffset);
-    continuousStart = rawStart;
-    continuousEnd = rawEnd;
-  } else {
-    // rawStart is relative to the part
-    relativeStart = rawStart;
-    relativeEnd = rawEnd;
-    continuousStart = partOffset + rawStart;
-    continuousEnd = partOffset + rawEnd;
-  }
+  const continuousStart = partOffset + relativeStart;
+  const continuousEnd = partOffset + relativeEnd;
 
   return {
     relativeStart,
@@ -51,8 +39,11 @@ export function getSlideTimes(
 
 /**
  * Determines which slide is currently active during playback at `continuousTime`.
- * Accurately bridges small gaps between slides so that the slide stays active
- * until the next slide begins.
+ * EXPLICIT OVERLAP POLICY:
+ * When slides overlap in time, the most recently started slide takes precedence
+ * (i.e. the subsequent slide becomes active as soon as its start time is reached,
+ * preventing an erroneous end_time on a previous slide from hiding the next slide).
+ * Also bridges minor pause gaps between slides until the next slide begins.
  */
 export function findActiveSlideIndex(
   slides: SlideAlignment[],
@@ -62,7 +53,7 @@ export function findActiveSlideIndex(
 ): number {
   if (!slides || slides.length === 0) return -1;
 
-  // Filter and sort slides belonging to the current active part
+  // Map each slide of the active part with its resolved times and original index
   const partSlideEntries = slides
     .map((slide, originalIndex) => ({
       slide,
@@ -74,15 +65,27 @@ export function findActiveSlideIndex(
 
   if (partSlideEntries.length === 0) return -1;
 
+  // 1. Direct match: filter all slides that have started and not finished
+  const activeCandidates = partSlideEntries.filter(
+    (entry) => continuousTime >= entry.times.continuousStart && continuousTime <= entry.times.continuousEnd
+  );
+
+  if (activeCandidates.length > 0) {
+    // If multiple slides overlap, pick the one with the latest start time (most recent)
+    activeCandidates.sort((a, b) => b.times.continuousStart - a.times.continuousStart);
+    return activeCandidates[0].originalIndex;
+  }
+
+  // 2. Gap bridging: if continuousTime is in a gap between slides, keep the previous slide
+  // active until the next slide's start time is reached
   for (let i = 0; i < partSlideEntries.length; i++) {
     const current = partSlideEntries[i];
     const next = partSlideEntries[i + 1];
 
     const start = current.times.continuousStart;
-    // Current slide is active up to either its end time, or the start of the next slide
-    const end = next ? Math.max(current.times.continuousEnd, next.times.continuousStart) : current.times.continuousEnd;
+    const bridgeEnd = next ? next.times.continuousStart : current.times.continuousEnd;
 
-    if (continuousTime >= start && continuousTime <= end) {
+    if (continuousTime >= start && continuousTime < bridgeEnd) {
       return current.originalIndex;
     }
   }
@@ -91,8 +94,8 @@ export function findActiveSlideIndex(
 }
 
 /**
- * Updates a slide's timestamp, adjusting the subsequent slide's start time if needed
- * to maintain strict chronological integrity.
+ * Updates a slide's timestamp and deterministically adjusts adjacent slides
+ * in the same part to prevent overlap, out-of-order slides, and end < start.
  */
 export function adjustSlideTimestamps(
   slides: SlideAlignment[],
@@ -100,23 +103,54 @@ export function adjustSlideTimestamps(
   newStartSeconds: number,
   newEndSeconds?: number
 ): SlideAlignment[] {
+  const targetIndex = slides.findIndex((s) => s.slide_number === slideNumber);
+  if (targetIndex === -1) return [...slides];
+
+  const targetPart = slides[targetIndex].part ?? 0;
   const clampedStart = Math.max(0, Math.round(newStartSeconds));
+  const clampedEnd =
+    typeof newEndSeconds === 'number'
+      ? Math.max(clampedStart, Math.round(newEndSeconds))
+      : Math.max(clampedStart, slides[targetIndex].end_time_seconds);
 
-  return slides.map((slide) => {
-    if (slide.slide_number === slideNumber) {
-      const clampedEnd =
-        typeof newEndSeconds === 'number'
-          ? Math.max(clampedStart, Math.round(newEndSeconds))
-          : Math.max(clampedStart, slide.end_time_seconds);
+  // Deep clone slides
+  const result: SlideAlignment[] = slides.map((s) => ({ ...s }));
+  result[targetIndex].start_time_seconds = clampedStart;
+  result[targetIndex].end_time_seconds = clampedEnd;
 
-      return {
-        ...slide,
-        start_time_seconds: clampedStart,
-        end_time_seconds: clampedEnd,
-      };
+  // Get all slide indices in the same part, ordered by slide_number
+  const samePartIndices = result
+    .map((s, idx) => ({ s, idx }))
+    .filter((item) => (item.s.part ?? 0) === targetPart)
+    .sort((a, b) => a.s.slide_number - b.s.slide_number)
+    .map((item) => item.idx);
+
+  const posInPart = samePartIndices.indexOf(targetIndex);
+
+  // 1. Backward pass: prevent previous slides from overlapping the target's new start
+  for (let i = posInPart - 1; i >= 0; i--) {
+    const prevIdx = samePartIndices[i];
+    const nextIdx = samePartIndices[i + 1];
+    if (result[prevIdx].end_time_seconds > result[nextIdx].start_time_seconds) {
+      result[prevIdx].end_time_seconds = result[nextIdx].start_time_seconds;
+      if (result[prevIdx].start_time_seconds > result[prevIdx].end_time_seconds) {
+        result[prevIdx].start_time_seconds = result[prevIdx].end_time_seconds;
+      }
     }
-    return slide;
-  });
+  }
+
+  // 2. Forward pass: prevent subsequent slides from starting before target's new end
+  for (let i = posInPart + 1; i < samePartIndices.length; i++) {
+    const prevIdx = samePartIndices[i - 1];
+    const currIdx = samePartIndices[i];
+    if (result[currIdx].start_time_seconds < result[prevIdx].end_time_seconds) {
+      const duration = Math.max(0, result[currIdx].end_time_seconds - result[currIdx].start_time_seconds);
+      result[currIdx].start_time_seconds = result[prevIdx].end_time_seconds;
+      result[currIdx].end_time_seconds = result[currIdx].start_time_seconds + duration;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -165,42 +199,57 @@ export function parseSlideHeadings(
 }
 
 /**
- * Clamps and normalizes slide timestamps to ensure they strictly respect the total audio duration.
- * Fixes AI hallucination or scale issues (e.g. timestamps stretching up to 31 min for a 19:18 audio).
+ * Validates and normalizes slide timestamps against the measured audio duration.
+ *
+ * POLICY:
+ * - Small numerical errors within tolerance (<= 5s beyond duration) are clamped.
+ * - Outliers exceeding the duration (> 5s beyond duration) or malformed intervals (start > end)
+ *   are marked as `needs_review: true` and `status: 'needs_review'`.
+ * - NO arbitrary mathematical scaling (e.g. compressing 1860s to 1158s) is performed,
+ *   preserving truthfulness and allowing AI errors to be detected explicitly.
  */
 export function clampAndNormalizeSlideTimestamps(
   slides: SlideAlignment[],
-  totalAudioDuration: number
+  totalAudioDuration: number,
+  toleranceSeconds = 5
 ): SlideAlignment[] {
-  if (!slides || slides.length === 0 || !totalAudioDuration || totalAudioDuration <= 0) {
-    return slides;
+  if (!slides || slides.length === 0) return [];
+  if (!totalAudioDuration || totalAudioDuration <= 0) {
+    return slides.map((s) => ({ ...s, status: 'valid' as const }));
   }
 
   const durationSec = Math.round(totalAudioDuration);
-  const maxSlideEnd = Math.max(...slides.map((s) => s.end_time_seconds || 0), 0);
 
-  // If timestamps severely overshoot the actual audio duration (> 10s over duration)
-  const isOvershot = maxSlideEnd > durationSec + 10;
-  const scale = isOvershot && maxSlideEnd > 0 ? durationSec / maxSlideEnd : 1;
-
-  return slides.map((slide, idx) => {
-    let start = isOvershot ? Math.round(slide.start_time_seconds * scale) : slide.start_time_seconds;
-    let end = isOvershot ? Math.round(slide.end_time_seconds * scale) : slide.end_time_seconds;
-
-    // Strict boundary clamps
-    start = Math.max(0, Math.min(start, durationSec));
-    end = Math.max(start, Math.min(end, durationSec));
-
-    // If it's the last slide, ensure end reaches the end of the audio
-    if (idx === slides.length - 1 && end < durationSec) {
-      end = durationSec;
+  return slides.map((slide) => {
+    if (slide.status === 'not_discussed') {
+      return { ...slide };
     }
+
+    const rawStart = slide.start_time_seconds ?? 0;
+    const rawEnd = slide.end_time_seconds ?? rawStart;
+
+    // Check for severe outliers or invalid ordering
+    const isOutOfRange = rawStart > durationSec + toleranceSeconds || rawEnd > durationSec + toleranceSeconds;
+    const isInvalidOrder = rawStart > rawEnd;
+
+    if (isOutOfRange || isInvalidOrder) {
+      return {
+        ...slide,
+        needs_review: true,
+        status: 'needs_review' as const,
+      };
+    }
+
+    // Minor numerical clamping within tolerance
+    const clampedStart = Math.max(0, Math.min(rawStart, durationSec));
+    const clampedEnd = Math.max(clampedStart, Math.min(rawEnd, durationSec));
 
     return {
       ...slide,
-      start_time_seconds: start,
-      end_time_seconds: end,
+      start_time_seconds: clampedStart,
+      end_time_seconds: clampedEnd,
+      needs_review: false,
+      status: 'valid' as const,
     };
   });
 }
-

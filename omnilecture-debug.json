@@ -1,0 +1,2752 @@
+{
+  "lectures": [
+    {
+      "id": "0a04452c-e7ca-499c-b129-188f4338332d",
+      "title": "20261001112643",
+      "course": "python",
+      "date": "2026-10-01",
+      "duration": 1158,
+      "fileSize": 37049004,
+      "fileName": "20261001112643_optimized.wav",
+      "slidesFileName": "Lesson4_Theory_Slides.pdf",
+      "hasSlides": true,
+      "status": "completed",
+      "chatMessages": [],
+      "createdAt": "2026-10-01T10:31:35.174Z",
+      "updatedAt": "2026-10-01T12:48:33.011Z",
+      "processingPercentage": 100,
+      "slidesMarkdown": "",
+      "slidesAlignment": [
+        {
+          "slide_number": 1,
+          "title": "Lesson 4: Functions I — Using Built-ins & Modules",
+          "part": 0,
+          "start_time_seconds": 0,
+          "end_time_seconds": 6,
+          "summary": "Introduction to lesson four covering built-in functions and modules."
+        },
+        {
+          "slide_number": 2,
+          "title": "What we'll cover in 30 minutes",
+          "part": 0,
+          "start_time_seconds": 6,
+          "end_time_seconds": 38,
+          "summary": "Roadmap including built-in functions, importing modules, math module, random module, and function composition."
+        },
+        {
+          "slide_number": 4,
+          "title": "A function is a mini-machine",
+          "part": 0,
+          "start_time_seconds": 130,
+          "end_time_seconds": 194,
+          "summary": "Explanation of functions as mini-machines taking arguments and returning a value, illustrated with round()."
+        },
+        {
+          "slide_number": 5,
+          "title": "A few more built-ins worth knowing",
+          "part": 0,
+          "start_time_seconds": 266,
+          "end_time_seconds": 387,
+          "summary": "Overview of built-in functions like max, min, sum, abs, sorted, and pow."
+        },
+        {
+          "slide_number": 6,
+          "title": "A module is a file full of ready-made functions",
+          "part": 0,
+          "start_time_seconds": 390,
+          "end_time_seconds": 445,
+          "summary": "Introduction to standard library modules: math, random, datetime, and os."
+        },
+        {
+          "slide_number": 7,
+          "title": "Three ways to import",
+          "part": 0,
+          "start_time_seconds": 446,
+          "end_time_seconds": 592,
+          "summary": "Demonstration of import statements: import math, from math import sqrt, and import random as r."
+        },
+        {
+          "slide_number": 8,
+          "title": "A few math functions you'll use often",
+          "part": 0,
+          "start_time_seconds": 626,
+          "end_time_seconds": 876,
+          "summary": "Math module functions: sqrt, floor, ceil, pow, pi, and gcd."
+        },
+        {
+          "slide_number": 9,
+          "title": "Randomness, on demand",
+          "part": 0,
+          "start_time_seconds": 882,
+          "end_time_seconds": 1009,
+          "summary": "Random module functions: random, randint, choice, and shuffle."
+        },
+        {
+          "slide_number": 10,
+          "title": "Feed one function's output into another",
+          "part": 0,
+          "start_time_seconds": 1009,
+          "end_time_seconds": 1158,
+          "summary": "Function composition explained via inside-out evaluation of nested function calls."
+        }
+      ],
+      "data": {
+        "glossary": [
+          {
+            "term_en": "function",
+            "translation_it": "funzione",
+            "academic_definition": "A mini-machine that takes in some inputs (arguments), performs a procedure, and returns an output (the return value)."
+          },
+          {
+            "term_en": "module",
+            "translation_it": "modulo",
+            "academic_definition": "A file containing ready-made functions and variables that can be imported into Python programs."
+          },
+          {
+            "term_en": "import",
+            "translation_it": "importazione",
+            "academic_definition": "A statement used to include external modules into the current namespace to access their functionality."
+          },
+          {
+            "term_en": "function composition",
+            "translation_it": "composizione di funzioni",
+            "academic_definition": "The process of feeding the output of one function directly as the input into another function."
+          }
+        ],
+        "timestamped_transcript": [
+          {
+            "end": 9,
+            "start": 0,
+            "speaker": "Professor",
+            "text_en": "Lesson four. Today we're talking about built-in functions, and also to zoom the title lesson for free.",
+            "text_it": "Lezione quattro. Oggi parliamo di funzioni integrate, e anche...",
+            "partIndex": 0
+          },
+          {
+            "end": 30,
+            "start": 9,
+            "speaker": "Professor",
+            "text_en": "How we can import some modules, and so we can unlock extra functionality by using import, the math module that allows us, you know, to use some mathematical tools by square roots, rounding, constants, and more.",
+            "text_it": "Come possiamo importare alcuni moduli, e quindi sbloccare funzionalità extra usando l'importazione, il modulo math che ci consente di usare alcuni strumenti matematici come radici quadrate, arrotondamenti, costanti e altro.",
+            "partIndex": 0
+          },
+          {
+            "end": 45,
+            "start": 30,
+            "speaker": "Professor",
+            "text_en": "How we can use the random module, which you know is useful when we are designing like dice, cards, you know, when we need some management of numbers.",
+            "text_it": "Come possiamo usare il modulo random, che sapete essere utile quando progettiamo dadi, carte, quando abbiamo bisogno di una gestione dei numeri.",
+            "partIndex": 0
+          },
+          {
+            "end": 61,
+            "start": 46,
+            "speaker": "Professor",
+            "text_en": "And how we can use function composition, how we can compose different functions, so use the output from a function as input for another function.",
+            "text_it": "E come possiamo usare la composizione di funzioni, come possiamo comporre diverse funzioni, quindi usare l'output di una funzione come input per un'altra funzione.",
+            "partIndex": 0
+          },
+          {
+            "end": 105,
+            "start": 61,
+            "speaker": "Professor",
+            "text_en": "Just starting. So last time, you remember, we went through, you know, the definition and how we use strings.",
+            "text_it": "Iniziamo. Quindi l'ultima volta, ricordate, abbiamo esaminato la definizione e come usiamo le stringhe.",
+            "partIndex": 0
+          },
+          {
+            "end": 127,
+            "start": 105,
+            "speaker": "Professor",
+            "text_en": "We saw also the indexing, slicing, so how we can extract some parts of the strings, and also some of the methods that could be called strings.",
+            "text_it": "Abbiamo visto anche l'indicizzazione, il sezionamento (slicing), quindi come possiamo estrarre alcune parti delle stringhe, e anche alcuni dei metodi che possono essere chiamati sulle stringhe.",
+            "partIndex": 0
+          },
+          {
+            "end": 144,
+            "start": 128,
+            "speaker": "Professor",
+            "text_en": "How we can use the f-strings that allows you, you know, also to print very easily something and also how we can ask for the user to type something and read what the user is giving us.",
+            "text_it": "Come possiamo usare le f-string che vi consentono anche di stampare molto facilmente qualcosa e anche come possiamo chiedere all'utente di digitare qualcosa e leggere ciò che l'utente ci sta fornendo.",
+            "partIndex": 0
+          },
+          {
+            "end": 154,
+            "start": 144,
+            "speaker": "Professor",
+            "text_en": "And we went through some of the errors that might appear, you know, that Python can give us.",
+            "text_it": "E abbiamo esaminato alcuni degli errori che potrebbero comparire, che Python può darci.",
+            "partIndex": 0
+          },
+          {
+            "end": 211,
+            "start": 154,
+            "speaker": "Professor",
+            "text_en": "But of course, we in the past classes, in the past lessons already saw how we can use the functions, you know, like print, len, input, type. Now we are, let's say, going deeper on these things.",
+            "text_it": "Ma naturalmente, nelle lezioni passate abbiamo già visto come possiamo usare le funzioni, come print, len, input, type. Ora stiamo, diciamo, approfondendo queste cose.",
+            "partIndex": 0
+          },
+          {
+            "end": 232,
+            "start": 212,
+            "speaker": "Professor",
+            "text_en": "In the end, a function we can call it is like a mini-machine. So it takes in some inputs, you know, we have some arguments, performs or does something with them, and hands back an output.",
+            "text_it": "Alla fine, una funzione che possiamo chiamare è come una mini-macchina. Prende alcuni input, abbiamo degli argomenti, esegue o fa qualcosa con essi, e restituisce un output.",
+            "partIndex": 0
+          },
+          {
+            "end": 278,
+            "start": 233,
+            "speaker": "Professor",
+            "text_en": "And hands back an output, so we have some kind of input values, some kind of operations that are done inside that function and we are receiving some outputs, right?",
+            "text_it": "E restituisce un output, quindi abbiamo un certo tipo di valori di input, un certo tipo di operazioni che vengono fatte all'interno di quella funzione e riceviamo degli output, giusto?",
+            "partIndex": 0
+          },
+          {
+            "end": 315,
+            "start": 279,
+            "speaker": "Professor",
+            "text_en": "So you remember the round function, it's simply the number and how many digits we need to consider, and the output, of course, in this case is 3.14.",
+            "text_it": "Quindi ricordate la funzione round, è semplicemente il numero e quante cifre dobbiamo considerare, e l'output, ovviamente, in questo caso è 3.14.",
+            "partIndex": 0
+          },
+          {
+            "end": 366,
+            "start": 315,
+            "speaker": "Professor",
+            "text_en": "So, we have a few more built-ins worth knowing. For example, PI, we can use pi to have numbers with many decimals. But in case we are using, for example, pi, which is something that we can use directly without typing 3.1414, it's very useful to use round.",
+            "text_it": "Quindi, abbiamo qualche altra funzione integrata degna di nota. Ad esempio, PI, possiamo usare pi per avere numeri con molti decimali. Ma nel caso in cui usiamo, ad esempio, pi, che è qualcosa che possiamo usare direttamente senza digitare 3.1414, è molto utile usare round.",
+            "partIndex": 0
+          },
+          {
+            "end": 465,
+            "start": 431,
+            "speaker": "Professor",
+            "text_en": "Okay, so these are other a few more building functions that is more knowing. Bodysing max is doing, guys, is we are passing, you know, for example, here some numbers.",
+            "text_it": "Ok, quindi queste sono altre funzioni integrate degne di nota. Cosa fa max, ragazzi, è che passiamo, ad esempio, qui alcuni numeri.",
+            "partIndex": 0
+          },
+          {
+            "end": 504,
+            "start": 465,
+            "speaker": "Professor",
+            "text_en": "It returns the maximum, you know, the largest value, okay? And of course, min returns the smallest value. The sum, the sum can be applied to, you know, a list or an interval, let's say, also a tuple or range.",
+            "text_it": "Restituisce il massimo, il valore più grande, ok? E naturalmente, min restituisce il valore più piccolo. La somma, la somma può essere applicata a, sai, una lista o un intervallo, diciamo, anche una tupla o un range.",
+            "partIndex": 0
+          },
+          {
+            "end": 537,
+            "start": 515,
+            "speaker": "Professor",
+            "text_en": "And returns, of course, the sum of the elements of the list. The abs, you remember what is the abs? So, returns the absolute value.",
+            "text_it": "E restituisce, naturalmente, la somma degli elementi della lista. L'abs, ricordate cos'è l'abs? Restituisce il valore assoluto.",
+            "partIndex": 0
+          },
+          {
+            "end": 580,
+            "start": 537,
+            "speaker": "Professor",
+            "text_en": "So, if the number is negative, it returns, you know, the positive number, or if it's already positive, it's the same number. Sorted list, it's like the name says, so it returns a new sorted list.",
+            "text_it": "Quindi, se il numero è negativo, restituisce, sai, il numero positivo, o se è già positivo, è lo stesso numero. Sorted list, come dice il nome, restituisce una nuova lista ordinata.",
+            "partIndex": 0
+          },
+          {
+            "end": 628,
+            "start": 601,
+            "speaker": "Professor",
+            "text_en": "Pow, it's like the power. Yeah, this is a built-in function of Python, and of course, it's like new x to the power of y. So, remember that some of them can accept multiple inputs.",
+            "text_it": "Pow, è come la potenza. Sì, questa è una funzione integrata di Python, e ovviamente, è come x elevato alla potenza di y. Quindi, ricordate che alcune di esse possono accettare input multipli.",
+            "partIndex": 0
+          },
+          {
+            "end": 680,
+            "start": 632,
+            "speaker": "Professor",
+            "text_en": "Then, it can be useful, you know, because we have some building functions in Python, but not everything is a built-in function, so we need to import a module. What what is, you know, a module? Is a file full of ready-made functions.",
+            "text_it": "Quindi, può essere utile, sai, perché abbiamo alcune funzioni integrate in Python, ma non tutto è una funzione integrata, quindi dobbiamo importare un modulo. Che cos'è, sai, un modulo? È un file pieno di funzioni già pronte.",
+            "partIndex": 0
+          },
+          {
+            "end": 722,
+            "start": 680,
+            "speaker": "Professor",
+            "text_en": "What does it mean? That when we are importing that module, we can use a lot of functions that have been already written, you know, and included in that module. So math and random are very common, and we will see those today.",
+            "text_it": "Cosa significa? Che quando importiamo quel modulo, possiamo usare molte funzioni che sono già state scritte e incluse in quel modulo. Quindi math e random sono molto comuni, e le vedremo oggi.",
+            "partIndex": 0
+          },
+          {
+            "end": 810,
+            "start": 723,
+            "speaker": "Professor",
+            "text_en": "So, how can we import a module? Oh, there are three ways to import a module. So we can just, you know, type in our code import math, and then we can use all the functions inside math, but we need to remember to specify math point the function with point notation.",
+            "text_it": "Quindi, come possiamo importare un modulo? Oh, ci sono tre modi per importare un modulo. Quindi possiamo semplicemente, sai, digitare nel nostro codice import math, e poi possiamo usare tutte le funzioni all'interno di math, ma dobbiamo ricordarci di specificare math punto la funzione con la notazione puntata.",
+            "partIndex": 0
+          },
+          {
+            "end": 851,
+            "start": 810,
+            "speaker": "Professor",
+            "text_en": "This is the first way. Or we can import directly from math just the operation, let's say, the functions that we need. Did you get the difference?",
+            "text_it": "Questo è il primo modo. O possiamo importare direttamente da math solo l'operazione, diciamo, le funzioni di cui abbiamo bisogno. Avete capito la differenza?",
+            "partIndex": 0
+          },
+          {
+            "end": 890,
+            "start": 851,
+            "speaker": "Professor",
+            "text_en": "Here is import math, we are importing everything, and we just need to for math full stop whatever the functions including that, or we can just import the specific, you know, operation and function that we need.",
+            "text_it": "Qui c'è import math, stiamo importando tutto, e dobbiamo solo fare math punto qualsiasi sia la funzione inclusa in esso, oppure possiamo semplicemente importare l'operazione e la funzione specifica di cui abbiamo bisogno.",
+            "partIndex": 0
+          },
+          {
+            "end": 907,
+            "start": 890,
+            "speaker": "Professor",
+            "text_en": "So from math import sqrt, but then in this way, we can use sqrt without prefixes.",
+            "text_it": "Quindi da math import sqrt, ma poi in questo modo, possiamo usare sqrt senza prefissi.",
+            "partIndex": 0
+          },
+          {
+            "end": 960,
+            "start": 907,
+            "speaker": "Professor",
+            "text_en": "The third one is, let's say, derived from the first one. We can say that we are importing, for example, in this case, random, and not math, and we are calling it R. So then, to call a function of random, we can use r.",
+            "text_it": "Il terzo è, diciamo, derivato dal primo. Possiamo dire che stiamo importando, ad esempio, in questo caso, random, e non math, e lo chiamiamo R. Quindi, per chiamare una funzione di random, possiamo usare r.",
+            "partIndex": 0
+          },
+          {
+            "end": 1050,
+            "start": 1015,
+            "speaker": "Professor",
+            "text_en": "Some of the math functions that you will also be using, I think a lot, you know, in the next few lessons, are, of course, math.sqrt.",
+            "text_it": "Alcune delle funzioni matematiche che userete anche, penso molto, sai, nelle prossime lezioni, sono, ovviamente, math.sqrt.",
+            "partIndex": 0
+          },
+          {
+            "end": 1115,
+            "start": 1051,
+            "speaker": "Professor",
+            "text_en": "Of course, it's like a square root of x. So if we are calling square t on the map module, we will get the square root of x. Then you can call math.floor.",
+            "text_it": "Ovviamente, è come una radice quadrata di x. Quindi se chiamiamo sqrt sul modulo math, otterremo la radice quadrata di x. Poi potete chiamare math.floor.",
+            "partIndex": 0
+          },
+          {
+            "end": 1177,
+            "start": 1116,
+            "speaker": "Professor",
+            "text_en": "Okay, floor rounds the number down to the nearest integer. Okay. Or we can say that returns the greatest integer less than or equal than.",
+            "text_it": "Ok, floor arrotonda il numero per difetto all'intero più vicino. Ok. Oppure possiamo dire che restituisce il più grande intero minore o uguale.",
+            "partIndex": 0
+          },
+          {
+            "end": 1235,
+            "start": 1177,
+            "speaker": "Professor",
+            "text_en": "Then we have ceil, that is, like I said for the previous one, rounds a number up to the nearest integer toward positive infinity.",
+            "text_it": "Poi abbiamo ceil, che è, come ho detto per il precedente, arrotonda un numero per eccesso all'intero più vicino verso l'infinito positivo.",
+            "partIndex": 0
+          },
+          {
+            "end": 1307,
+            "start": 1235,
+            "speaker": "Professor",
+            "text_en": "And then, as I mentioned before, you know, guys, we can use pi. The dimension before, pi is between x and y. Yes. That is why we are getting this one.",
+            "text_it": "E poi, come ho menzionato prima, sai, ragazzi, possiamo usare pi. La dimensione prima, pi è tra x e y. Sì. Ecco perché otteniamo questo.",
+            "partIndex": 0
+          },
+          {
+            "end": 1346,
+            "start": 1307,
+            "speaker": "Professor",
+            "text_en": "So math pi, that's why I mentioned it before, is 3.1414159, and when we are using, for example, round math pi, it helps you to, you know, consider just two digits.",
+            "text_it": "Quindi math pi, ecco perché l'ho menzionato prima, è 3.1414159, e quando usiamo, ad esempio, round math pi, vi aiuta a, sai, considerare solo due cifre.",
+            "partIndex": 0
+          },
+          {
+            "end": 1420,
+            "start": 1351,
+            "speaker": "Professor",
+            "text_en": "And finally, math.gcd, guys. Can you guess? Returns the greatest common divisor of a and b.",
+            "text_it": "E infine, math.gcd, ragazzi. Potete indovinare? Restituisce il massimo comun divisore di a e b.",
+            "partIndex": 0
+          },
+          {
+            "end": 1515,
+            "start": 1431,
+            "speaker": "Professor",
+            "text_en": "So, we can go with import random, and then we can call random.random, and the result is, you know, a float included between 0.0 and 1.0.",
+            "text_it": "Quindi, possiamo procedere con import random, e poi possiamo chiamare random.random, e il risultato è, sai, un float incluso tra 0.0 e 1.0.",
+            "partIndex": 0
+          },
+          {
+            "end": 1580,
+            "start": 1515,
+            "speaker": "Professor",
+            "text_en": "Or you can, you know, use randint, as the name says, you will get, you know, a number between a and b, like, you know, rounding 1, 6.",
+            "text_it": "O potete, sai, usare randint, come dice il nome, otterrete, sai, un numero tra a e b, tipo, sai, arrotondando 1, 6.",
+            "partIndex": 0
+          },
+          {
+            "end": 1698,
+            "start": 1637,
+            "speaker": "Professor",
+            "text_en": "Okay, the last thing is about, you know, using function composition. So we can feed one function's output into another.",
+            "text_it": "Ok, l'ultima cosa riguarda, sai, l'uso della composizione di funzioni. Quindi possiamo dare in pasto l'output di una funzione a un'altra.",
+            "partIndex": 0
+          },
+          {
+            "end": 1740,
+            "start": 1698,
+            "speaker": "Professor",
+            "text_en": "So we can, you know, compose different functions, and Python remember that evaluates from the inside out, it's just like using message parentheses.",
+            "text_it": "Quindi possiamo, sai, comporre diverse funzioni, e Python ricordate che valuta dall'interno verso l'esterno, è proprio come usare le parentesi.",
+            "partIndex": 0
+          },
+          {
+            "end": 1821,
+            "start": 1740,
+            "speaker": "Professor",
+            "text_en": "So, if you have something like round math.square root of 50, then you have comma two, what do you think is doing as a first thing?",
+            "text_it": "Quindi, se avete qualcosa come round math.square root of 50, poi avete virgola due, cosa pensiate che stia facendo come prima cosa?",
+            "partIndex": 0
+          },
+          {
+            "end": 1878,
+            "start": 1821,
+            "speaker": "Professor",
+            "text_en": "Of course, it's computing the math square root of 50, and the result is rounded in the digits.",
+            "text_it": "Naturalmente, sta calcolando la radice quadrata di 50 di math, e il risultato viene arrotondato nelle cifre.",
+            "partIndex": 0
+          }
+        ],
+        "study_guide_it": "\\documentclass[11pt,a4paper]{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[italian]{babel}\n\\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}\n\\geometry{margin=2.5cm}\n\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}\n\\title{Guida allo Studio: Funzioni e Moduli in Python}\n\\author{OmniLecture Studio}\n\\date{\\today}\n\\begin{document}\n\\maketitle\n\n\\section{Introduzione alle Funzioni e Moduli}\nIn questa lezione introduciamo l'utilizzo delle funzioni integrate (\\textit{built-in functions}) e l'importazione di moduli in Python \\ts{0}{0}.\n\nUna funzione viene descritta concettualmente come una mini-macchina che prende in ingresso degli argomenti (input), esegue un'operazione e restituisce un valore di ritorno (output) \\ts{0}{212}.\n\n\\section{Funzioni Integrate Principali}\nTra le funzioni integrate più importanti menzionate dal docente troviamo:\n\\begin{itemize}\n    \\item \\texttt{round(number, digits)}: arrotonda un numero decimale al numero specificato di cifre \\ts{0}{279}.\n    \\item \\texttt{max(a, b, ...)}: restituisce il valore massimo tra gli argomenti passati \\ts{0}{431}.\n    \\item \\texttt{min(a, b, ...)}: restituisce il valore minimo tra gli argomenti passati \\ts{0}{465}.\n    \\item \\texttt{sum(list)}: calcola la somma degli elementi di una lista o iterabile \\ts{0}{465}.\n    \\item \\texttt{abs(x)}: restituisce il valore assoluto del numero $x$ \\ts{0}{515}.\n    \\item \\texttt{sorted(list)}: restituisce una nuova lista ordinata \\ts{0}{537}.\n    \\item \\texttt{pow(x, y)}: calcola la potenza $x^y$ \\ts{0}{601}.\n\\end{itemize}\n\n\\section{Il Modulo Math e le Modalità di Importazione}\nPer estendere le funzionalità di base, Python mette a disposizione moduli standard. Esistono tre modi principali per importarli \\ts{0}{723}:\n\\begin{enumerate}\n    \\item \\texttt{import math}: importa l'intero modulo; per accedere alle funzioni si utilizza la notazione puntata (es. \\texttt{math.sqrt(9)}) \\ts{0}{723}.\n    \\item \\texttt{from math import sqrt}: importa specificamente una funzione, permettendone l'uso diretto senza prefisso \\ts{0}{890}.\n    \\item \\texttt{import random as r}: importa un modulo assegnandogli un alias o un nickname abbreviato \\ts{0}{907}.\n\\end{enumerate}\n\nAlcune funzioni matematiche fondamentali incluse nel modulo \\texttt{math} sono:\n\\[ \\text{math.sqrt}(x) \\quad \\text{e} \\quad \\text{math.floor}(x) \\quad \\text{e} \\quad \\text{math.ceil}(x) \\quad \\text{e} \\quad \\text{math.gcd}(a,b) \\]\n\n\\section{Composizione di Funzioni}\nLa composizione di funzioni consiste nel passare l'output di una funzione direttamente come input a un'altra funzione. Python valuta le espressioni dall'interno verso l'esterno, esattamente come le parentesi annidate in matematica \\ts{0}{1698}:\n\\[ \\text{round}(\\text{math.sqrt}(50), 2) \\]\n\n\\end{document}",
+        "potential_exam_questions": [
+          {
+            "question": "Spiegare la differenza tra l'importazione tramite `import math` e `from math import sqrt` in Python.",
+            "answer_latex": "Utilizzando \\texttt{import math}, si importa l'intero modulo e le funzioni devono essere richiamate anteponendo il prefisso del modulo (es. \\texttt{math.sqrt(9)}). Utilizzando invece \\texttt{from math import sqrt}, si importa esclusivamente la funzione desiderata nello spazio dei nomi corrente, consentendone l'utilizzo diretto senza prefisso (es. \\texttt{sqrt(9)}).",
+            "importance_level": "High"
+          },
+          {
+            "question": "Come valuta Python la composizione di funzioni come `round(math.sqrt(50), 2)`?",
+            "answer_latex": "Python valuta le espressioni dall'interno verso l'esterno, proprio come le parentesi annidate in matematica. Per prima cosa viene eseguita la funzione interna \\texttt{math.sqrt(50)} (restituendo circa $7.0710678...$), e successivamente il risultato viene passato come input alla funzione esterna \\texttt{round(..., 2)} per ottenere il valore finale arrotondato.",
+            "importance_level": "High"
+          }
+        ],
+        "bookmarks": [],
+        "mermaid_mindmap": "",
+        "has_slides": false,
+        "slides_alignment": [
+          {
+            "slide_number": 1,
+            "title": "Lesson 4: Functions I — Using Built-ins & Modules",
+            "part": 0,
+            "start_time_seconds": 0,
+            "end_time_seconds": 6,
+            "summary": "Introduction to lesson four covering built-in functions and modules."
+          },
+          {
+            "slide_number": 2,
+            "title": "What we'll cover in 30 minutes",
+            "part": 0,
+            "start_time_seconds": 6,
+            "end_time_seconds": 38,
+            "summary": "Roadmap including built-in functions, importing modules, math module, random module, and function composition."
+          },
+          {
+            "slide_number": 4,
+            "title": "A function is a mini-machine",
+            "part": 0,
+            "start_time_seconds": 130,
+            "end_time_seconds": 194,
+            "summary": "Explanation of functions as mini-machines taking arguments and returning a value, illustrated with round()."
+          },
+          {
+            "slide_number": 5,
+            "title": "A few more built-ins worth knowing",
+            "part": 0,
+            "start_time_seconds": 266,
+            "end_time_seconds": 387,
+            "summary": "Overview of built-in functions like max, min, sum, abs, sorted, and pow."
+          },
+          {
+            "slide_number": 6,
+            "title": "A module is a file full of ready-made functions",
+            "part": 0,
+            "start_time_seconds": 390,
+            "end_time_seconds": 445,
+            "summary": "Introduction to standard library modules: math, random, datetime, and os."
+          },
+          {
+            "slide_number": 7,
+            "title": "Three ways to import",
+            "part": 0,
+            "start_time_seconds": 446,
+            "end_time_seconds": 592,
+            "summary": "Demonstration of import statements: import math, from math import sqrt, and import random as r."
+          },
+          {
+            "slide_number": 8,
+            "title": "A few math functions you'll use often",
+            "part": 0,
+            "start_time_seconds": 626,
+            "end_time_seconds": 876,
+            "summary": "Math module functions: sqrt, floor, ceil, pow, pi, and gcd."
+          },
+          {
+            "slide_number": 9,
+            "title": "Randomness, on demand",
+            "part": 0,
+            "start_time_seconds": 882,
+            "end_time_seconds": 1009,
+            "summary": "Random module functions: random, randint, choice, and shuffle."
+          },
+          {
+            "slide_number": 10,
+            "title": "Feed one function's output into another",
+            "part": 0,
+            "start_time_seconds": 1009,
+            "end_time_seconds": 1158,
+            "summary": "Function composition explained via inside-out evaluation of nested function calls."
+          }
+        ]
+      },
+      "isCloudSynced": true,
+      "cloudSyncedAt": "2026-10-01T12:48:20.654748+00:00",
+      "userId": "8cf569b2-8291-4e11-a375-1de3089dd781",
+      "audioParts": [
+        {
+          "id": "f2fcb16b-294c-406b-9102-da2457a59b6b",
+          "fileName": "20261001112643_optimized.wav",
+          "fileSize": 37049004,
+          "duration": 1158,
+          "startOffset": 0
+        }
+      ]
+    },
+    {
+      "id": "2e5a50d5-97f6-475c-8841-8f167c8c17f3",
+      "title": "20261002093842",
+      "course": "electromagnetic propagation",
+      "date": "2026-10-02",
+      "duration": 4723,
+      "fileSize": 151122692,
+      "fileName": "3 registrazioni: 20261002093842.wav, 20261002100233_optimized.wav, 20261002110910_optimized.wav",
+      "hasSlides": false,
+      "status": "completed",
+      "chatMessages": [],
+      "createdAt": "2026-10-02T09:50:50.089Z",
+      "updatedAt": "2026-10-02T09:58:35.745Z",
+      "processingPercentage": 100,
+      "data": {
+        "timestamped_transcript": [
+          {
+            "start": 0,
+            "end": 34,
+            "speaker": "Professor",
+            "text_en": "So, we start, uh, this Friday we're going to, we'll see the introduction to the course and, uh, particularly we will deal with Maxwell equations, okay? So, a fundamental part of this course are the Maxwell equations and, uh, we saw in different Maxwell equations in the literature, okay?",
+            "text_it": "Quindi iniziamo, eh, questo venerdì vedremo l'introduzione al corso e, eh, in particolare tratteremo le equazioni di Maxwell, ok? Quindi una parte fondamentale di questo corso sono le equazioni di Maxwell e, eh, abbiamo visto diverse equazioni di Maxwell in letteratura, ok?",
+            "partIndex": 0
+          },
+          {
+            "start": 34,
+            "end": 88,
+            "speaker": "Professor",
+            "text_en": "One important thing on the, on the Maxwell equation differential forms, which is these are the first two Maxwell equations, so the Faraday and the Gauss, and then generalized and parallel rows. The important things of the differential form that you have to keep in mind is that they are defined locally.",
+            "text_it": "Una cosa importante sulle, sulle forme differenziali delle equazioni di Maxwell, che sono le prime due equazioni di Maxwell, ovvero Faraday e Gauss, e poi le forme generalizzate e parallele. La cosa importante della forma differenziale che dovete tenere a mente è che sono definite localmente.",
+            "partIndex": 0
+          },
+          {
+            "start": 88,
+            "end": 128,
+            "speaker": "Professor",
+            "text_en": "Okay? So, again, this is a, let's say, animation, a representation. So you can apply the differential equations of Maxwell on a cell in R2, R3, R1. You cannot apply Maxwell equations in R4, R5, okay? Because they are not cool.",
+            "text_it": "Ok? Quindi, di nuovo, questa è una, diciamo, animazione, una rappresentazione. Quindi potete applicare le equazioni differenziali di Maxwell su una cella in R2, R3, R1. Non potete applicare le equazioni di Maxwell in R4, R5, ok? Perché non hanno senso.",
+            "partIndex": 0
+          },
+          {
+            "start": 128,
+            "end": 180,
+            "speaker": "Professor",
+            "text_en": "We will see, what we will see today is that we need to somehow formulate in a different way Maxwell equations in order to find a way to compute the, to let me work on also non-local components.",
+            "text_it": "Vedremo, quello che vedremo oggi è che dobbiamo in qualche modo formulare in un modo diverso le equazioni di Maxwell per trovare un modo di calcolare, di farmi lavorare anche su componenti non locali.",
+            "partIndex": 0
+          },
+          {
+            "start": 180,
+            "end": 220,
+            "speaker": "Professor",
+            "text_en": "Because you can imagine that, I mean, they are powerful if we, if we if we can compute them on the points, but we still need to post-compute the non-local points.",
+            "text_it": "Perché potete immaginare che, voglio dire, sono potenti se possiamo, se possiamo calcolarli sui punti, ma abbiamo ancora bisogno di post-calcolare i punti non locali.",
+            "partIndex": 0
+          },
+          {
+            "start": 220,
+            "end": 312,
+            "speaker": "Professor",
+            "text_en": "I would say that, I will show you together and it's quite interesting that actually knowing only the point for us are the most interesting, okay? Because it means that there is an interface of between for example the fields.",
+            "text_it": "Direi che, vi mostrerò insieme ed è piuttosto interessante che in realtà conoscere solo il punto per noi è la cosa più interessante, ok? Perché significa che c'è un'interfaccia tra ad esempio i campi.",
+            "partIndex": 0
+          },
+          {
+            "start": 312,
+            "end": 395,
+            "speaker": "Professor",
+            "text_en": "So, again, these are the definitions of the electromagnetic fields, and what I just want you to recall is the fact that they are the gold underlined for the fields, so the depends, they are vector fields, so they are a vector, which the definition depends on the position.",
+            "text_it": "Quindi, di nuovo, queste sono le definizioni dei campi elettromagnetici, e quello che voglio solo che ricordiate è il fatto che sono sottolineati in oro per i campi, quindi dipendono, sono campi vettoriali, quindi sono un vettore, la cui definizione dipende dalla posizione.",
+            "partIndex": 0
+          },
+          {
+            "start": 395,
+            "end": 506,
+            "speaker": "Professor",
+            "text_en": "And the other things that are not of course to be specified is that in order to define a quantity, you have to answer to these three or let's say these three, these three supports. So, which kind of quantity is this? So, is it a scalar, is it a vector field, which is the unit of the danger?",
+            "text_it": "E l'altra cosa che non è ovviamente da specificare è che per definire una grandezza, bisogna rispondere a queste tre o diciamo queste tre, questi tre supporti. Quindi, che tipo di grandezza è questa? Quindi, è uno scalare, è un campo vettoriale, qual è l'unità di misura?",
+            "partIndex": 0
+          },
+          {
+            "start": 429,
+            "end": 489,
+            "speaker": "Professor",
+            "text_en": "And we can apply Gauss law for the electric field, which is the divergence of D is equal to rho.",
+            "text_it": "E possiamo applicare la legge di Gauss per il campo elettrico, ovvero la divergenza di D è uguale a rho.",
+            "partIndex": 1
+          },
+          {
+            "start": 489,
+            "end": 549,
+            "speaker": "Professor",
+            "text_en": "Now I will go to only this Gauss law, because the other one is the same, just one star more.",
+            "text_it": "Ora passerò solo a questa legge di Gauss, poiché l'altra è la stessa, solo con un asterisco in più.",
+            "partIndex": 1
+          },
+          {
+            "start": 506,
+            "end": 600,
+            "speaker": "Professor",
+            "text_en": "So, again, in the last lecture we started from these definitions, okay? Which are, let's say, the basic Maxwell equations. We went into the definitions of some sources, so like magnetic sources or the electric sources, as I was saying before, let's say a battery.",
+            "text_it": "Quindi, di nuovo, nella scorsa lezione siamo partiti da queste definizioni, ok? Che sono, diciamo, le equazioni di Maxwell di base. Siamo entrati nelle definizioni di alcune sorgenti, come le sorgenti magnetiche o le sorgenti elettriche, come dicevo prima, diciamo una batteria.",
+            "partIndex": 0
+          },
+          {
+            "start": 549,
+            "end": 609,
+            "speaker": "Professor",
+            "text_en": "So, how we compute the Gauss law for the electric field? To compute this equation, you start from two equations.",
+            "text_it": "Quindi, come calcoliamo la legge di Gauss per il campo elettrico? Per calcolare questa equazione, si parte da due equazioni.",
+            "partIndex": 1
+          },
+          {
+            "start": 600,
+            "end": 709,
+            "speaker": "Professor",
+            "text_en": "Induced sources, that are, for example, let's say the current, because, of course, the current is the, uh, the flux of this surface and that, and the definition which is important is this. So, the, we reach this definition, which are the fundamental equations, so the 2 Maxwell equations plus the charge conservation and the integration in the differential form.",
+            "text_it": "Sorgenti indotte, che sono, per esempio, diciamo la corrente, perché, naturalmente, la corrente è il, eh, il flusso di questa superficie e che, e la definizione che è importante è questa. Quindi, abbiamo raggiunto questa definizione, che sono le equazioni fondamentali, cioè le 2 equazioni di Maxwell più la conservazione della carica e l'integrazione nella forma differenziale.",
+            "partIndex": 0
+          },
+          {
+            "start": 609,
+            "end": 669,
+            "speaker": "Professor",
+            "text_en": "The first one is the Maxwell equation, which is the curl of the electric field minus the time derivative.",
+            "text_it": "La prima è l'equazione di Maxwell, che è il rotore del campo elettrico meno la derivata temporale.",
+            "partIndex": 1
+          },
+          {
+            "start": 669,
+            "end": 729,
+            "speaker": "Professor",
+            "text_en": "And you apply the divergence. So, the idea here is that we have an equation.",
+            "text_it": "E si applica la divergenza. Quindi, l'idea qui è che abbiamo un'equazione.",
+            "partIndex": 1
+          },
+          {
+            "start": 729,
+            "end": 789,
+            "speaker": "Professor",
+            "text_en": "And that's why we are here. So, we have the divergence of the curl of the electric field.",
+            "text_it": "Ed è per questo che siamo qui. Quindi, abbiamo la divergenza del rotore del campo elettrico.",
+            "partIndex": 1
+          },
+          {
+            "start": 789,
+            "end": 849,
+            "speaker": "Professor",
+            "text_en": "In order to apply this formulation, you must say, between these quantities, the fact that the scalar field is continuous.",
+            "text_it": "Per applicare questa formulazione, bisogna dire, tra queste grandezze, il fatto che il campo scalare è continuo.",
+            "partIndex": 1
+          },
+          {
+            "start": 849,
+            "end": 909,
+            "speaker": "Professor",
+            "text_en": "So, it means that, for example, if you have a certain field, it's two in one point.",
+            "text_it": "Quindi significa che, ad esempio, se hai un certo campo, è due in un punto.",
+            "partIndex": 1
+          },
+          {
+            "start": 909,
+            "end": 969,
+            "speaker": "Professor",
+            "text_en": "And this is true for both the respective time, so it can be compact.",
+            "text_it": "E questo vale per entrambi i rispettivi tempi, quindi può essere compatto.",
+            "partIndex": 1
+          },
+          {
+            "start": 969,
+            "end": 1029,
+            "speaker": "Professor",
+            "text_en": "And then we have the second term, so we have the divergence of the partial derivative.",
+            "text_it": "E poi abbiamo il secondo termine, quindi abbiamo la divergenza della derivata parziale.",
+            "partIndex": 1
+          },
+          {
+            "start": 1029,
+            "end": 1089,
+            "speaker": "Professor",
+            "text_en": "So, actually, since let's say the divergence is something related to the spatial properties of our field.",
+            "text_it": "Quindi, in realtà, poiché diciamo che la divergenza è qualcosa legato alle proprietà spaziali del nostro campo.",
+            "partIndex": 1
+          },
+          {
+            "start": 1089,
+            "end": 1149,
+            "speaker": "Professor",
+            "text_en": "And here you can apply the second equation, right? The charge conservation equation.",
+            "text_it": "E qui puoi applicare la seconda equazione, giusto? L'equazione di conservazione della carica.",
+            "partIndex": 1
+          },
+          {
+            "start": 1149,
+            "end": 1209,
+            "speaker": "Professor",
+            "text_en": "This means that this term is equal to a given function of position.",
+            "text_it": "Questo significa che questo termine è uguale a una data funzione della posizione.",
+            "partIndex": 1
+          },
+          {
+            "start": 1209,
+            "end": 1269,
+            "speaker": "Professor",
+            "text_en": "So, we know that there must have been some somewhere in time.",
+            "text_it": "Quindi, sappiamo che ci deve essere stato qualcosa da qualche parte nel tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 1269,
+            "end": 1329,
+            "speaker": "Professor",
+            "text_en": "We know that in term sources, so it means that both is equal to zero, and also J is equal to zero.",
+            "text_it": "Sappiamo che in termini di sorgenti, quindi significa che entrambi sono uguali a zero, e anche J è uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 1329,
+            "end": 1389,
+            "speaker": "Professor",
+            "text_en": "We know that at certain point in time, this equation, the divergence of B minus rho, was equal to zero.",
+            "text_it": "Sappiamo che a un certo punto nel tempo, questa equazione, la divergenza di B meno rho, era uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 1389,
+            "end": 1449,
+            "speaker": "Professor",
+            "text_en": "It's very obvious for both the respective time, so we can say we can compute this further.",
+            "text_it": "È molto ovvio per entrambi i rispettivi tempi, quindi possiamo dire che possiamo calcolarlo ulteriormente.",
+            "partIndex": 1
+          },
+          {
+            "start": 1449,
+            "end": 1509,
+            "speaker": "Professor",
+            "text_en": "And so, again, we have the time derivative of the partial derivative with respect to time of the divergence of B, minus rho, is equal to zero.",
+            "text_it": "E quindi, di nuovo, abbiamo la derivata temporale della derivata parziale rispetto al tempo della divergenza di B, meno rho, è uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 1509,
+            "end": 1569,
+            "speaker": "Professor",
+            "text_en": "So what does it mean? What does this mean?",
+            "text_it": "Quindi cosa significa? Cosa significa questo?",
+            "partIndex": 1
+          },
+          {
+            "start": 1569,
+            "end": 1629,
+            "speaker": "Professor",
+            "text_en": "This means that if this, if the time derivative with respect to time is equal to zero, it means that this term is equal to a constant with respect to time.",
+            "text_it": "Questo significa che se questo, se la derivata temporale rispetto al tempo è uguale a zero, significa che questo termine è uguale a una costante rispetto al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 1629,
+            "end": 1689,
+            "speaker": "Professor",
+            "text_en": "So it means that this term is equal to a given function of position.",
+            "text_it": "Quindi significa che questo termine è uguale a una data funzione della posizione.",
+            "partIndex": 1
+          },
+          {
+            "start": 1689,
+            "end": 1749,
+            "speaker": "Professor",
+            "text_en": "So, we know that at certain point, we have that there are no charges, right? Divergence of C is zero.",
+            "text_it": "Quindi, sappiamo che a un certo punto, abbiamo che non ci sono cariche, giusto? La divergenza di C è zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 1749,
+            "end": 1809,
+            "speaker": "Professor",
+            "text_en": "One important point that we need to remember, which is a is a relation here, is that in order to apply this formulation, you must uh let's say uh between these uh quantities.",
+            "text_it": "Un punto importante che dobbiamo ricordare, che è una relazione qui, è che per applicare questa formulazione, bisogna eh diciamo eh tra queste eh grandezze.",
+            "partIndex": 1
+          },
+          {
+            "start": 1809,
+            "end": 1869,
+            "speaker": "Professor",
+            "text_en": "So, the fact that the scalar fields, so we have the magnetic field and the surface currents solution are continuous, with continuous first order.",
+            "text_it": "Quindi, il fatto che i campi scalari, quindi abbiamo il campo magnetico e la soluzione delle correnti superficiali siano continui, con derivate prime continue.",
+            "partIndex": 1
+          },
+          {
+            "start": 1869,
+            "end": 1929,
+            "speaker": "Professor",
+            "text_en": "Okay? Uh derivatives, because it has to be continuous with respect to all of the pressure derivative.",
+            "text_it": "Ok? Uh derivate, perché deve essere continuo rispetto a tutte le derivate di pressione.",
+            "partIndex": 1
+          },
+          {
+            "start": 1929,
+            "end": 1989,
+            "speaker": "Professor",
+            "text_en": "So, it means that uh for example, you assume that if you have a certain field, let's say, I will do just a scalar field.",
+            "text_it": "Quindi significa che uh ad esempio, si suppone che se hai un certo campo, diciamo, farò solo un campo scalare.",
+            "partIndex": 1
+          },
+          {
+            "start": 1989,
+            "end": 2049,
+            "speaker": "Professor",
+            "text_en": "If it's uh to in one point, it moves to the immediate next point, for example, game number two.",
+            "text_it": "Se è uh due in un punto, si sposta al punto immediatamente successivo, ad esempio, il gioco numero due.",
+            "partIndex": 1
+          },
+          {
+            "start": 2049,
+            "end": 2109,
+            "speaker": "Professor",
+            "text_en": "Okay? That must be continuously changing.",
+            "text_it": "Ok? Quello deve cambiare continuamente.",
+            "partIndex": 1
+          },
+          {
+            "start": 2109,
+            "end": 2169,
+            "speaker": "Professor",
+            "text_en": "Okay? There are no steps, there are no jumps, okay? And this is true uh for uh the the function itself and also for the derivative.",
+            "text_it": "Ok? Non ci sono gradini, non ci sono salti, ok? E questo è vero uh per uh la funzione stessa e anche per la derivata.",
+            "partIndex": 1
+          },
+          {
+            "start": 2169,
+            "end": 2229,
+            "speaker": "Professor",
+            "text_en": "This is an important point for this, okay? We will see that in our case, most of the time we can uh let's say we can uh we can fulfill these hypotheses.",
+            "text_it": "Questo è un punto importante per questo, ok? Vedremo che nel nostro caso, la maggior parte delle volte possiamo uh diciamo possiamo uh possiamo soddisfare queste ipotesi.",
+            "partIndex": 1
+          },
+          {
+            "start": 2229,
+            "end": 2289,
+            "speaker": "Professor",
+            "text_en": "But you have to keep in mind that if it's not, you cannot apply this uh solution.",
+            "text_it": "Ma bisogna tenere presente che se non lo è, non si può applicare questa uh soluzione.",
+            "partIndex": 1
+          },
+          {
+            "start": 2289,
+            "end": 2349,
+            "speaker": "Professor",
+            "text_en": "Okay, so we say that this term is equal to zero, so let me check.",
+            "text_it": "Ok, quindi diciamo che questo termine è uguale a zero, quindi fatemi controllare.",
+            "partIndex": 1
+          },
+          {
+            "start": 2349,
+            "end": 2409,
+            "speaker": "Professor",
+            "text_en": "Then we have let's say the second term, so we have the divergence of the partial derivative with time.",
+            "text_it": "Poi abbiamo diciamo il secondo termine, quindi abbiamo la divergenza della derivata parziale rispetto al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 2409,
+            "end": 2469,
+            "speaker": "Professor",
+            "text_en": "So, actually, since let's say the divergence is something related to let's say the the spatial properties of our field.",
+            "text_it": "Quindi, in realtà, poiché diciamo che la divergenza è qualcosa legato diciamo alle proprietà spaziali del nostro campo.",
+            "partIndex": 1
+          },
+          {
+            "start": 2469,
+            "end": 2529,
+            "speaker": "Professor",
+            "text_en": "So, it's not related to the time.",
+            "text_it": "Quindi, non è legato al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 2529,
+            "end": 2589,
+            "speaker": "Professor",
+            "text_en": "It means that actually this, you can say, it's uh somehow constant with respect to time.",
+            "text_it": "Significa che in realtà questo, si può dire, è uh in qualche modo costante rispetto al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 2589,
+            "end": 2649,
+            "speaker": "Professor",
+            "text_en": "So it means that actually we can take this divergence operator and we can put it inside the uh the partial derivative thing.",
+            "text_it": "Quindi significa che in realtà possiamo prendere questo operatore di divergenza e possiamo metterlo dentro la uh cosa della derivata parziale.",
+            "partIndex": 1
+          },
+          {
+            "start": 2649,
+            "end": 2709,
+            "speaker": "Professor",
+            "text_en": "So, again, we have that the partial derivative with respect to time of the divergence of the electric field displacement is equal to the divergence of the J, okay? The surface current distribution.",
+            "text_it": "Quindi, di nuovo, abbiamo che la derivata parziale rispetto al tempo della divergenza dello spostamento del campo elettrico è uguale alla divergenza del J, ok? La distribuzione della corrente superficiale.",
+            "partIndex": 1
+          },
+          {
+            "start": 2697,
+            "end": 2703,
+            "speaker": "Professor",
+            "text_en": "These two theorems, okay? The Gauss theorem and Stokes theorem.",
+            "text_it": "Questi due teoremi, ok? Il teorema di Gauss e il teorema di Stokes.",
+            "partIndex": 2
+          },
+          {
+            "start": 2703,
+            "end": 2719,
+            "speaker": "Professor",
+            "text_en": "I told you that these two theorems is what we need in order to go from the differential equations or Maxwell's equations to the integral Maxwell's equations.",
+            "text_it": "Vi ho detto che questi due teoremi sono ciò di cui abbiamo bisogno per passare dalle equazioni differenziali o equazioni di Maxwell alle equazioni di Maxwell integrali.",
+            "partIndex": 2
+          },
+          {
+            "start": 2709,
+            "end": 2769,
+            "speaker": "Professor",
+            "text_en": "And here you can apply the second equation, right? The charge current continuity equation.",
+            "text_it": "E qui si può applicare la seconda equazione, giusto? L'equazione di continuità della carica-corrente.",
+            "partIndex": 1
+          },
+          {
+            "start": 2719,
+            "end": 2729,
+            "speaker": "Professor",
+            "text_en": "So this is just the definition we write for, let's say, convenience.",
+            "text_it": "Quindi questa è solo la definizione che scriviamo per, diciamo, comodità.",
+            "partIndex": 2
+          },
+          {
+            "start": 2729,
+            "end": 2740,
+            "speaker": "Professor",
+            "text_en": "At first we want to compute the, sorry, first of all, the one equation in integral form is already known, okay?",
+            "text_it": "Innanzitutto vogliamo calcolare la, scusate, prima di tutto, un'equazione in forma integrale è già nota, ok?",
+            "partIndex": 2
+          },
+          {
+            "start": 2740,
+            "end": 2755,
+            "speaker": "Professor",
+            "text_en": "Because if you remember, okay, this is something that we already solved in the last lecture, right? As electrostatic, okay?",
+            "text_it": "Perché se ricordate, ok, questo è qualcosa che abbiamo già risolto nella scorsa lezione, giusto? Come elettrostatica, ok?",
+            "partIndex": 2
+          },
+          {
+            "start": 2755,
+            "end": 2767,
+            "speaker": "Professor",
+            "text_en": "And I told you that we can go from this to the differential, to the differential, differential form, solving those two systems.",
+            "text_it": "E vi ho detto che possiamo passare da questo al differenziale, alla forma differenziale, risolvendo questi due sistemi.",
+            "partIndex": 2
+          },
+          {
+            "start": 2767,
+            "end": 2777,
+            "speaker": "Professor",
+            "text_en": "But actually this is already an equation in integral form, okay?",
+            "text_it": "Ma in realtà questa è già un'equazione in forma integrale, ok?",
+            "partIndex": 2
+          },
+          {
+            "start": 2769,
+            "end": 2829,
+            "speaker": "Professor",
+            "text_en": "Okay, which is this? So, we can replace this term by the second term, the charge current continuity equation.",
+            "text_it": "Ok, cos'è questo? Quindi, possiamo sostituire questo termine con il secondo termine, l'equazione di continuità della carica-corrente.",
+            "partIndex": 1
+          },
+          {
+            "start": 2777,
+            "end": 2787,
+            "speaker": "Professor",
+            "text_en": "So this is the charge problem in integral form. So we already know one of the equations.",
+            "text_it": "Quindi questo è il problema delle cariche in forma integrale. Quindi conosciamo già una delle equazioni.",
+            "partIndex": 2
+          },
+          {
+            "start": 2787,
+            "end": 2792,
+            "speaker": "Professor",
+            "text_en": "We need to compute the other two.",
+            "text_it": "Dobbiamo calcolare le altre due.",
+            "partIndex": 2
+          },
+          {
+            "start": 2792,
+            "end": 2830,
+            "speaker": "Professor",
+            "text_en": "So, let's start from the Faraday-Lenz law, okay? How we pass from the differential form of the Faraday integral form, which is this? Let's go step by step in order to show us, okay, how we reach this.",
+            "text_it": "Quindi, partiamo dalla legge di Faraday-Lenz, ok? Come passiamo dalla forma differenziale della forma integrale di Faraday, che è questa? Andiamo passo dopo passo per mostrarvi, ok, come arriviamo a questo.",
+            "partIndex": 2
+          },
+          {
+            "start": 2829,
+            "end": 2889,
+            "speaker": "Professor",
+            "text_en": "So, again, we have the time derivative of the partial derivative with respect to time of the divergence of B is equal to minus the partial derivative with respect to time of what? Of the charge.",
+            "text_it": "Quindi, di nuovo, abbiamo la derivata temporale della derivata parziale rispetto al tempo della divergenza di B è uguale a meno la derivata parziale rispetto al tempo di cosa? Della carica.",
+            "partIndex": 1
+          },
+          {
+            "start": 2830,
+            "end": 2867,
+            "speaker": "Professor",
+            "text_en": "So we have the differential form. We compute the flux through a surface S bounded by a simple closed curve C.",
+            "text_it": "Quindi abbiamo la forma differenziale. Calcoliamo il flusso attraverso una superficie S delimitata da una curva chiusa semplice C.",
+            "partIndex": 2
+          },
+          {
+            "start": 2867,
+            "end": 2887,
+            "speaker": "Professor",
+            "text_en": "Again, the important part here is something that I want to focus on. First of all, we already know, okay?",
+            "text_it": "Di nuovo, la parte importante qui è qualcosa su cui voglio concentrarmi. Prima di tutto, lo sappiamo già, ok?",
+            "partIndex": 2
+          },
+          {
+            "start": 2887,
+            "end": 2907,
+            "speaker": "Professor",
+            "text_en": "Because we want to define a surface S bounded by a simple curve C.",
+            "text_it": "Perché vogliamo definire una superficie S delimitata da una curva semplice C.",
+            "partIndex": 2
+          },
+          {
+            "start": 2889,
+            "end": 2949,
+            "speaker": "Professor",
+            "text_en": "Okay, it's a very little proof for both with respect to time, so we can say we can compact these two terms.",
+            "text_it": "Ok, è una piccolissima dimostrazione per entrambi rispetto al tempo, quindi possiamo dire che possiamo compattare questi due termini.",
+            "partIndex": 1
+          },
+          {
+            "start": 2907,
+            "end": 2921,
+            "speaker": "Professor",
+            "text_en": "So probably we want to apply the statistics.",
+            "text_it": "Quindi probabilmente vogliamo applicare la statistica.",
+            "partIndex": 2
+          },
+          {
+            "start": 2921,
+            "end": 2947,
+            "speaker": "Professor",
+            "text_en": "The other things, the other thing is that, and is something that I want to focus on, here I'm not saying that the surface S should be a square, should be a circle, should be, I don't know, a cup.",
+            "text_it": "Le altre cose, l'altra cosa è che, ed è qualcosa su cui voglio concentrarmi, qui non sto dicendo che la superficie S debba essere un quadrato, debba essere un cerchio, debba essere, non so, una tazza.",
+            "partIndex": 2
+          },
+          {
+            "start": 2947,
+            "end": 3027,
+            "speaker": "Professor",
+            "text_en": "This is for whatever surface S that I want to define until this fulfills this desire. So it's up to me to define the surface. So it's up to me to define a surface which is compliant with this. So, let's say, this surface I define so that it is compliant, is...",
+            "text_it": "Questo vale per qualsiasi superficie S che voglio definire finché questa soddisfa questo desiderio. Quindi sta a me definire la superficie. Quindi sta a me definire una superficie che sia conforme a questo. Quindi, diciamo, questa superficie la definisco in modo che sia conforme, è...",
+            "partIndex": 2
+          },
+          {
+            "start": 2949,
+            "end": 3009,
+            "speaker": "Professor",
+            "text_en": "And so, again, we have that the derivative with respect to time of this equation, so the divergence of D minus rho is equal to zero.",
+            "text_it": "E quindi, di nuovo, abbiamo che la derivata rispetto al tempo di questa equazione, quindi la divergenza di D meno rho è uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 3009,
+            "end": 3069,
+            "speaker": "Professor",
+            "text_en": "Okay, which is this? So what does it mean? What does this mean?",
+            "text_it": "Ok, cos'è questo? Quindi cosa significa? Cosa significa questo?",
+            "partIndex": 1
+          },
+          {
+            "start": 3069,
+            "end": 3129,
+            "speaker": "Professor",
+            "text_en": "This means that if this, if the time derivative with respect to time is equal to zero, it means that this term has to be equal to a constant with respect to time.",
+            "text_it": "Questo significa che se questo, se la derivata temporale rispetto al tempo è uguale a zero, significa che questo termine deve essere uguale a una costante rispetto al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 3129,
+            "end": 3189,
+            "speaker": "Professor",
+            "text_en": "So it means that this term is equal to a given function of position.",
+            "text_it": "Quindi significa che questo termine è uguale a una data funzione della posizione.",
+            "partIndex": 1
+          },
+          {
+            "start": 3189,
+            "end": 3249,
+            "speaker": "Professor",
+            "text_en": "So we know that that this is constant, but we do not which which which is the the value of this constant.",
+            "text_it": "Quindi sappiamo che questo è costante, ma non sappiamo quale sia il valore di questa costante.",
+            "partIndex": 1
+          },
+          {
+            "start": 3249,
+            "end": 3309,
+            "speaker": "Professor",
+            "text_en": "In order to compute the value of this constant, we need to apply let's say the causality here.",
+            "text_it": "Per calcolare il valore di questa costante, dobbiamo applicare diciamo la causalità qui.",
+            "partIndex": 1
+          },
+          {
+            "start": 3309,
+            "end": 3369,
+            "speaker": "Professor",
+            "text_en": "So, we know that there must have been, okay? Some somewhere, okay? In in time, a moment where there were no charges, okay? Divergence of C is six.",
+            "text_it": "Quindi, sappiamo che ci deve essere stato, ok? Da qualche parte, ok? Nel nel tempo, un momento in cui non c'erano cariche, ok? La divergenza di C è sei.",
+            "partIndex": 1
+          },
+          {
+            "start": 3369,
+            "end": 3429,
+            "speaker": "Professor",
+            "text_en": "We know that in terms sources, so it means that both is equal to zero, and also J is equal to zero.",
+            "text_it": "Sappiamo che in termini di sorgenti, quindi significa che entrambi sono uguali a zero, e anche J è uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 3429,
+            "end": 3489,
+            "speaker": "Professor",
+            "text_en": "We know that if these the sources are equal to zero, also the uh the electromagnetic fields are equal to zero, okay?",
+            "text_it": "Sappiamo che se queste sorgenti sono uguali a zero, anche i uh campi elettromagnetici sono uguali a zero, ok?",
+            "partIndex": 1
+          },
+          {
+            "start": 3489,
+            "end": 3549,
+            "speaker": "Professor",
+            "text_en": "So, we know that at certain point, time instant, this equation, the divergence of E minus rho was equal to zero.",
+            "text_it": "Quindi, sappiamo che a un certo punto, istante di tempo, questa equazione, la divergenza di E meno rho era uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 3549,
+            "end": 3609,
+            "speaker": "Professor",
+            "text_en": "Okay? And this we can say we can take it for let's say for granted.",
+            "text_it": "Ok? E questo possiamo dire che possiamo prenderlo per diciamo per scontato.",
+            "partIndex": 1
+          },
+          {
+            "start": 3609,
+            "end": 3669,
+            "speaker": "Professor",
+            "text_en": "But again, for the causality theorem, if this there was a time in which this quantity was zero, and this has to be constant, so it cannot change, it means that for whatever position uh or whatever time, okay? This quantity has to be equal to zero.",
+            "text_it": "Ma di nuovo, per il teorema di causalità, se c'è stato un tempo in cui questa quantità era zero, e questa deve essere costante, quindi non può cambiare, significa che per qualsiasi posizione uh o qualsiasi tempo, ok? Questa quantità deve essere uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 3669,
+            "end": 3729,
+            "speaker": "Professor",
+            "text_en": "Okay? So you can write the uh these equations, so the divergence of P minus rho is equal to zero, which is exactly the Gauss law for the.",
+            "text_it": "Ok? Quindi si possono scrivere le uh queste equazioni, quindi la divergenza di P meno rho è uguale a zero, che è esattamente la legge di Gauss per il.",
+            "partIndex": 1
+          }
+        ],
+        "glossary": [
+          {
+            "term_en": "Maxwell equations",
+            "translation_it": "equazioni di Maxwell",
+            "academic_definition": "Fundamental set of partial differential equations that describe how electric and magnetic fields are generated and altered by each other and by charges and currents."
+          },
+          {
+            "term_en": "electromagnetic field",
+            "translation_it": "campo elettromagnetico",
+            "academic_definition": "A physical field produced by electrically charged objects, affecting the behavior of charged objects in the vicinity of the field."
+          },
+          {
+            "term_en": "source",
+            "translation_it": "sorgente",
+            "academic_definition": "Electric charges and currents that give rise to electromagnetic fields."
+          },
+          {
+            "term_en": "divergence",
+            "translation_it": "divergenza",
+            "academic_definition": "A vector operator that operates on a vector field, producing a signed scalar field giving the quantity of a vector field's source per unit volume."
+          },
+          {
+            "term_en": "curl",
+            "translation_it": "rotore",
+            "academic_definition": "A vector operator that describes the infinitesimal rotation of a 3D vector field."
+          },
+          {
+            "term_en": "Divergence Theorem",
+            "translation_it": "Teorema della divergenza",
+            "academic_definition": "Theorem that relates the flux of a vector field through a closed surface to the volume integral of the divergence over the region inside."
+          },
+          {
+            "term_en": "Stokes' Theorem",
+            "translation_it": "Teorema di Stokes",
+            "academic_definition": "A theorem in calculus that relates a surface integral of the curl of a vector field over a surface to a line integral of the vector field over the boundary curve."
+          },
+          {
+            "term_en": "simple curve",
+            "translation_it": "curva semplice",
+            "academic_definition": "A curve that does not intersect itself anywhere, except possibly at its endpoints."
+          },
+          {
+            "term_en": "open surface",
+            "translation_it": "superficie aperta",
+            "academic_definition": "A surface that has a boundary, i.e., it is not closed."
+          },
+          {
+            "term_en": "scalar product",
+            "translation_it": "Prodotto scalare",
+            "academic_definition": "An algebraic operation that takes two equal-length sequences of numbers (usually coordinate vectors) and returns a single number."
+          },
+          {
+            "term_en": "Green's theorem",
+            "translation_it": "Teorema di Green",
+            "academic_definition": "A mathematical theorem relating a line integral around a simple closed curve C to a double integral over the plane region D bounded by C."
+          },
+          {
+            "term_en": "Flux",
+            "translation_it": "Flusso",
+            "academic_definition": "The integral of a vector field over a given surface, representing the amount of field passing through that surface."
+          },
+          {
+            "term_en": "Circulation",
+            "translation_it": "Circolazione",
+            "academic_definition": "The line integral of a vector field around a closed curve."
+          },
+          {
+            "term_en": "Vector field",
+            "translation_it": "Campo vettoriale",
+            "academic_definition": "An assignment of a vector to each point in a subset of space."
+          },
+          {
+            "term_en": "Differential form",
+            "translation_it": "Forma differenziale",
+            "academic_definition": "An expression of the form that can be integrated over a region of appropriate dimension."
+          },
+          {
+            "term_en": "Stationary condition",
+            "translation_it": "Condizione stazionaria",
+            "academic_definition": "A condition in which quantities do not change with respect to time."
+          }
+        ],
+        "potential_exam_questions": [
+          {
+            "question": "Discutere il ruolo delle sorgenti e della conservazione della carica nella formulazione delle equazioni elettromagnetiche.",
+            "answer_latex": "Le sorgenti del campo elettromagnetico includono cariche libere, correnti e sorgenti indotte. L'equazione di continuità per la conservazione della carica si esprime come:\n\\[ \\nabla \\cdot \\mathbf{J} + \\frac{\\partial \\rho}{\\partial t} = 0 \\]\nQuesta relazione lega strettamente la divergenza della densità di corrente alla variazione temporale della densità di carica, garantendo la consistenza matematica delle equazioni di Maxwell.",
+            "importance_level": "Crucial"
+          },
+          {
+            "question": "Scrivere e spiegare la forma integrale della legge di Ampère-Maxwell derivandola dalla forma differenziale.",
+            "answer_latex": "Partendo dalla forma differenziale di Ampère-Maxwell:\\begin{equation}\\nabla \\times \\mathbf{H} = \\mathbf{J} + \\frac{\\partial \\mathbf{D}}{\\partial t}\\end{equation}integrando sulla superficie $S$ e applicando il teorema di Stokes si ottiene:\\begin{equation}\\oint_C \\mathbf{H} \\cdot d\\mathbf{l} = \\int_S \\mathbf{J} \\cdot d\\mathbf{S} + \\frac{d}{dt}\\int_S \\mathbf{D} \\cdot d\\mathbf{S}\\end{equation}",
+            "importance_level": "Crucial"
+          },
+          {
+            "question": "Spiegare la natura locale delle equazioni differenziali di Maxwell e perché non possono essere definite in spazi di dimensione superiore a tre.",
+            "answer_latex": "Le equazioni differenziali di Maxwell descrono variazioni spaziali e temporali dei campi vettoriali in domini fisici tridimensionali ($\\mathbb{R}^3$). La formulazione differenziale si basa su operatori come il rotore e la divergenza, definiti rigorosamente nello spazio euclideo ordinario. In spazi a $n$ dimensioni con $n > 3$, tali operatori non mantengono la stessa interpretazione geometrica e fisica, rendendo inapplicabile il modello standard.",
+            "importance_level": "High"
+          },
+          {
+            "question": "Enunciare e dimostrare la consistenza della legge di Gauss partendo dalle equazioni di Maxwell e dall'equazione di continuità.",
+            "answer_latex": "Partendo dall'equazione di Maxwell $\\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t}$ e applicando l'operatore divergenza, combinato con l'equazione di continuità $\\nabla \\cdot \\mathbf{J} + \\frac{\\partial \\rho}{\\partial t} = 0$, si dimostra che la quantità $\\nabla \\cdot \\mathbf{D} - \\rho$ si mantiene costante nel tempo. Sfruttando il principio di causalità e assumendo che in un istante passato le sorgenti e i campi fossero nulli, si conclude che $\\nabla \\cdot \\mathbf{D} = \\rho$ ovunque.",
+            "importance_level": "High"
+          },
+          {
+            "question": "Mostrare il passaggio dalla forma differenziale della legge di Faraday-Lenz alla sua forma integrale utilizzando il teorema di Stokes.",
+            "answer_latex": "Partendo dall'equazione differenziale:\\begin{equation}\\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t}\\end{equation}Si integra ambo i membri su una superficie aperta $S$ delimitata da una curva chiusa $C$:\\begin{equation}\\int_S (\\nabla \\times \\mathbf{E}) \\cdot d\\mathbf{S} = -\\int_S \\frac{\\partial \\mathbf{B}}{\\partial t} \\cdot d\\mathbf{S}\\end{equation}Applicando il teorema di Stokes al primo membro:\\begin{equation}\\oint_C \\mathbf{E} \\cdot d\\mathbf{l} = -\\frac{d}{dt}\\int_S \\mathbf{B} \\cdot d\\mathbf{S}\\end{equation}",
+            "importance_level": "High"
+          },
+          {
+            "question": "Spiegare il ruolo del Teorema della divergenza e del Teorema di Stokes nell'elettromagnetismo.",
+            "answer_latex": "Il Teorema della divergenza (o di Gauss) collega il flusso di un campo vettoriale attraverso una superficie chiusa all'integrale della sua divergenza nel volume racchiuso. Il Teorema di Stokes collega la circolazione di un campo lungo una curva chiusa al flusso del suo rotore attraverso la superficie delimitata. Entrambi sono essenziali per convertire le equazioni di Maxwell dalla forma differenziale a quella integrale.",
+            "importance_level": "Medium"
+          }
+        ],
+        "study_guide_it": "\\documentclass[11pt,a4paper]{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[italian]{babel}\n\\usepackage{amsmath,amssymb,amsthm,mathtools}\n\\usepackage{geometry}\n\\geometry{a4paper, margin=2.5cm}\n\\usepackage{hyperref}\n\\usepackage{xcolor}\n\\usepackage{microtype}\n\n\\hypersetup{\n    colorlinks=true,\n    linkcolor=blue!70!black,\n    citecolor=green!50!black,\n    urlcolor=purple!70!black\n}\n\n% Macro citazione temporale (sicura per Overleaf / pdflatex)\n\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}\n\n\\newtheorem{theorem}{Teorema}[section]\n\\newtheorem{definition}{Definizione}[section]\n\\newtheorem{lemma}{Lemma}[section]\n\\newtheorem{corollary}{Corollario}[section]\n\n\\title{\\textbf{20261002093842}\\\\ \\large \\textit{Corso di electromagnetic propagation}}\n\\author{OmniLecture Studio \\and Trascrizione Accademica Integrale}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\\tableofcontents\n\\vspace{1cm}\n\\hrule\n\\vspace{0.5cm}\n\n% =========================================\n% Sezione di Trattazione: Modulo 1\n% =========================================\n\n\\section{Introduzione alle Equazioni di Maxwell}\n\\ts{0}{0}\nIl corso di \\textit{Electromagnetic Propagation} prende le mosse dall'analisi rigorosa delle equazioni di Maxwell \\ts{0}{21}. Durante la trattazione iniziale, il docente introduce la formulazione differenziale delle equazioni fondamentali, ponendo particolare enfasi su come queste descrivano i campi elettromagnetici nello spazio a tre dimensioni $\\mathbb{R}^3$.\n\n\\subsection{Campi Vettoriali e Località}\n\\ts{0}{88} Le equazioni differenziali di Maxwell sono definite localmente in domini spaziali come $\\mathbb{R}^2$ o $\\mathbb{R}^3$. Non possono essere applicate direttamente in spazi di dimensione superiore come $\\mathbb{R}^4$ o $\\mathbb{R}^5$ in quanto perdono significato fisico in tale contesto.\n\nUna delle problematiche principali affrontate riguarda la necessità di formulare le equazioni in modo da poter gestire anche componenti non locali, sebbene la conoscenza puntuale dei campi rimanga di fondamentale interesse per descrivere le interfacce tra diversi mezzi \\ts{0}{207}.\n\n\\section{Definizioni Fondamentali e Sorgenti}\n\\ts{0}{516} Vengono richiamate le definizioni dei campi elettromagnetici e delle relative sorgenti:\n\\begin{itemize}\n    \\item \\textbf{Sorgenti elettriche e magnetiche}: ad esempio batterie o distribuzioni di carica \\ts{0}{580}.\n    \\item \\textbf{Correnti indotte}: definite come il flusso attraverso una superficie \\ts{0}{556}.\n\\end{itemize}\n\nL'analisi culmina nella combinazione delle equazioni di Maxwell con l'equazione di conservazione della carica, fornendo il quadro teorico completo per ricavare le leggi di propagazione e le relative condizioni al contorno \\ts{0}{600}.\n\n\\vspace{0.8cm}\n\\hrule\n\\vspace{0.8cm}\n\n% =========================================\n% Sezione di Trattazione: Modulo 2\n% =========================================\n\n\\section{Le equazioni di Maxwell e la Legge di Gauss}\n\nLa trattazione parte dall'applicazione della legge di Gauss per il campo elettrico \\ts{1}{0}:\n\n\\begin{equation}\n\\nabla \\cdot \\mathbf{D} = \\rho\n\\end{equation}\n\nUtilizzando le equazioni di Maxwell, in particolare il rotore del campo elettrico e la conservazione della carica, si dimostra la consistenza temporale e spaziale delle formulazioni.\n\n\\subsection{Teoremi integrali e differenziali}\n\nVengono richiamati i teoremi fondamentali dell'analisi vettoriale applicati ai campi elettromagnetici:\n\n\\begin{itemize}\n    \\item \\textbf{Teorema della divergenza (Teorema di Gauss):}\n    \\[\n    \\int_{V} \\nabla \\cdot \\mathbf{F} \\, dv = \\oint_{\\partial V} \\mathbf{F} \\cdot \\hat{n} \\, ds\n    \\]\n    \\item \\textbf{Teorema di Stokes (Teorema del rotore):}\n    \\[\n    \\int_{S} (\\nabla \\times \\mathbf{F}) \\cdot \\hat{n} \\, ds = \\oint_{\\partial S} \\mathbf{F} \\cdot d\\mathbf{r}\n    \\]\n\\end{itemize}\n\nQuesti teoremi consentono di passare dalla forma differenziale alla forma integrale delle equazioni di Maxwell, stabilendo rigorosamente le condizioni al contorno e le ipotesi di continuità per i campi e le sorgenti $\\rho$ e $\\mathbf{J}$.\n\n\\vspace{0.8cm}\n\\hrule\n\\vspace{0.8cm}\n\n% =========================================\n% Sezione di Trattazione: Modulo 3\n% =========================================\n\n\\section{Introduzione ai Teoremi Integrali e Differenziali}\nIn questa lezione analizziamo il passaggio dalle equazioni di Maxwell in forma differenziale alla loro forma integrale mediante l'uso dei teoremi fondamentali del calcolo vettoriale: il teorema di Gauss (della divergenza) e il teorema di Stokes \\ts{2}{0}.\n\nRicordiamo che il problema delle cariche in forma integrale è già noto dall'elettrostatica \\ts{2}{38}, e l'obiettivo è ricavare le restanti equazioni integrali per il campo elettromagnetico.\n\n\\section{Legge di Faraday-Lenz in Forma Integrale}\nPartendo dalla forma differenziale della legge di Faraday-Lenz \\ts{2}{132}:\n\\begin{equation}\n\\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t}\n\\end{equation}\nvogliamo calcolare il flusso attraverso una superficie $S$ delimitata da una curva chiusa semplice $C$ \\ts{2}{170}.\n\nApplicando il teorema di Stokes, la circuitazione del campo elettrico lungo il contorno $C$ è correlata al flusso del rotore del campo attraverso la superficie $S$ \\ts{2}{825}:\n\\begin{equation}\n\\oint_C \\mathbf{E} \\cdot d\\mathbf{l} = \\int_S (\\nabla \\times \\mathbf{E}) \\cdot d\\mathbf{S}\n\\end{equation}\n\nSostituendo l'espressione differenziale all'interno dell'integrale di superficie, otteniamo la forma integrale della legge di Faraday-Lenz \\ts{2}{1210}:\n\\begin{equation}\n\\oint_C \\mathbf{E} \\cdot d\\mathbf{l} = - \\frac{d}{dt} \\int_S \\mathbf{B} \\cdot d\\mathbf{S}\n\\end{equation}\n\n\\section{Legge di Ampère-Maxwell in Forma Integrale}\nAnalogamente, partendo dalla legge di Ampère-Maxwell in forma differenziale con il termine di corrente di spostamento \\ts{2}{1500}:\n\\begin{equation}\n\\nabla \\times \\mathbf{H} = \\mathbf{J} + \\frac{\\partial \\mathbf{D}}{\\partial t}\n\\end{equation}\nintegrando su una superficie $S$ e applicando il teorema di Stokes, otteniamo la forma integrale \\ts{2}{2820}:\n\\begin{equation}\n\\oint_C \\mathbf{H} \\cdot d\\mathbf{l} = \\int_S \\mathbf{J} \\cdot d\\mathbf{S} + \\frac{d}{dt} \\int_S \\mathbf{D} \\cdot d\\mathbf{S}\n\\end{equation}\n\n\\section{Teorema di Gauss per il Campo Magnetico}\nPer il campo magnetico $\\mathbf{B}$, essendo un campo solenoidale (privo di divergenza), vale la condizione \\ts{2}{2910}:\n\\begin{equation}\n\\nabla \\cdot \\mathbf{B} = 0\n\\end{equation}\nIntegrando su un volume $V$ delimitato da una superficie chiusa $S$, tramite il teorema della divergenza si ottiene \\ts{2}{2890}:\n\\begin{equation}\n\\oint_S \\mathbf{B} \\cdot d\\mathbf{S} = 0\n\\end{equation}\n\n\\end{document}\n"
+      },
+      "audioParts": [
+        {
+          "id": "4f9b3b45-caf7-41b7-8118-837ac74a9e2e",
+          "fileName": "20261002093842.wav",
+          "fileSize": 13721644,
+          "duration": 429,
+          "startOffset": 0
+        },
+        {
+          "id": "7b741a07-9665-4e82-b132-b24ca31f1644",
+          "fileName": "20261002100233_optimized.wav",
+          "fileSize": 72582444,
+          "duration": 2268,
+          "startOffset": 429
+        },
+        {
+          "id": "37baf54a-c995-44fb-b4c1-8eebd0888c74",
+          "fileName": "20261002110910_optimized.wav",
+          "fileSize": 64818604,
+          "duration": 2026,
+          "startOffset": 2697
+        }
+      ]
+    },
+    {
+      "id": "e1782441-f1a4-431f-a077-72e0152b4829",
+      "title": "AUD 20260929 WA0006",
+      "course": "Python",
+      "date": "2026-09-29",
+      "duration": 117,
+      "fileSize": 0,
+      "fileName": "AUD-20260929-WA0006.aac",
+      "hasSlides": false,
+      "status": "completed",
+      "chatMessages": [],
+      "userId": "8cf569b2-8291-4e11-a375-1de3089dd781",
+      "isCloudSynced": true,
+      "cloudSyncedAt": "2026-09-29T12:13:43.84+00:00",
+      "createdAt": "2026-09-29T08:36:40.528+00:00",
+      "updatedAt": "2026-09-29T12:13:43.84+00:00",
+      "data": {
+        "glossary": [
+          {
+            "term_en": "string",
+            "translation_it": "stringa",
+            "academic_definition": "A sequence of characters where each character has a position, starting at index 0 in Python (or starting from 1 in other programming languages)."
+          },
+          {
+            "term_en": "indices",
+            "translation_it": "indici",
+            "academic_definition": "Integer positions used to access elements within a sequence such as a string, which can start from 0 up to n-1, or use negative values starting from -1 counting backwards."
+          }
+        ],
+        "timestamped_transcript": [
+          {
+            "end": 11,
+            "start": 1,
+            "speaker": "Professor",
+            "text_en": "So, the program is fix echo language.",
+            "text_it": "Quindi, il programma è fix echo language."
+          },
+          {
+            "end": 20,
+            "start": 12,
+            "speaker": "Professor",
+            "text_en": "So starting from the basics, um string, a string in the end is just a sequence of characters.",
+            "text_it": "Quindi partendo dalle basi, uhm stringa, una stringa in fin dei conti è semplicemente una sequenza di caratteri."
+          },
+          {
+            "end": 34,
+            "start": 21,
+            "speaker": "Professor",
+            "text_en": "And we know that each character has a position, so it's a new, let's say, it has a new index and this index starts at zero. It's like in the C language, right? Starting from zero.",
+            "text_it": "E sappiamo che ogni carattere ha una posizione, quindi ha un nuovo, diciamo, ha un nuovo indice e questo indice parte da zero. È come nel linguaggio C, giusto? Partendo da zero."
+          },
+          {
+            "end": 49,
+            "start": 35,
+            "speaker": "Professor",
+            "text_en": "Is that MATLAB starts in general, it starts from one, you know? So Python is, let's say, it's like C, it's the same language.",
+            "text_it": "Mentre MATLAB parte in generale, parte da uno, capito? Quindi Python è, diciamo, è come C, è lo stesso linguaggio."
+          },
+          {
+            "end": 63,
+            "start": 50,
+            "speaker": "Professor",
+            "text_en": "But it's nice also here because the negative indices count from the end.",
+            "text_it": "Ma è bello anche qui perché gli indici negativi contano dalla fine."
+          },
+          {
+            "end": 74,
+            "start": 64,
+            "speaker": "Professor",
+            "text_en": "So, we can, you know, find the positions so starting from 0 to end.",
+            "text_it": "Quindi, possiamo, sai, trovare le posizioni quindi partendo da 0 fino alla fine."
+          },
+          {
+            "end": 84,
+            "start": 75,
+            "speaker": "Professor",
+            "text_en": "So P is in position 0, Y in 1 up to 5, of course, and here we have six characters, so it's to the five.",
+            "text_it": "Quindi P è in posizione 0, Y in 1 fino a 5, ovviamente, e qui abbiamo sei caratteri, quindi arriva a 5."
+          },
+          {
+            "end": 96,
+            "start": 85,
+            "speaker": "Professor",
+            "text_en": "But we can also use negative indices starting from -1 going, you know, backward for these mistakes.",
+            "text_it": "Ma possiamo anche usare indici negativi partendo da -1 andando, sai, all'indietro per questi errori."
+          },
+          {
+            "end": 103,
+            "start": 97,
+            "speaker": "Professor",
+            "text_en": "So, if our word is Python, so we remember that a string, you know, is like denoted in quotes.",
+            "text_it": "Quindi, se la nostra parola è Python, quindi ricordiamo che una stringa, sai, è come indicata tra virgolette."
+          },
+          {
+            "end": 114,
+            "start": 104,
+            "speaker": "Professor",
+            "text_en": "Double quotes or also single quotes, is the same.",
+            "text_it": "Doppie virgolette o anche virgolette singole, è la stessa cosa."
+          },
+          {
+            "end": 125,
+            "start": 115,
+            "speaker": "Professor",
+            "text_en": "So, word zero is like the character corresponding to, of course, the first letter is, after, let's say, P.",
+            "text_it": "Quindi, word zero è come il carattere corrispondente a, ovviamente, la prima lettera è, dopo, diciamo, P."
+          },
+          {
+            "end": 133,
+            "start": 126,
+            "speaker": "Professor",
+            "text_en": "And word -1 is of course N in lowercase, is our word.",
+            "text_it": "E word -1 è ovviamente N minuscola, è la nostra parola."
+          },
+          {
+            "end": 137,
+            "start": 134,
+            "speaker": "Professor",
+            "text_en": "And, of course, please...",
+            "text_it": "E, ovviamente, prego..."
+          }
+        ],
+        "study_guide_it": "# Guida allo Studio: Concetti Fondamentali delle Stringhe in Python\n\n> [!note] Contesto della Lezione\n> La lezione introduce i concetti basilari relativi alla manipolazione delle stringhe in Python, confrontando l'indicizzazione basata su zero con altri linguaggi di programmazione.\n\n## 1. Definizione di Stringa\nUna stringa è definita come una sequenza ordinata di caratteri racchiusa tra virgolette singole o doppie:\n$$\\text{word} = \\text{\"Python\"}$$ o $$\\text{word} = \\text{'Python'}$$\n\n## 2. Sistema di Indicizzazione (Indexing)\nIn Python, come nel linguaggio C, l'indicizzazione parte da $0$:\n- Primo carattere (`P`): Indice $0$\n- Ultimo carattere di una stringa di $n$ elementi: Indice $n-1$\n\n> [!important] Confronto con altri linguaggi\n> A differenza di MATLAB, in cui gli indici partono tradizionalmente da $1$, Python adotta una convenzione basata sullo zero ($0$-based indexing).\n\n### Indici Negativi\nPython supporta nativamente l'uso di indici negativi per accedere agli elementi partendo dalla fine della stringa:\n- L'ultimo carattere (`n` in \"Python\") corrisponde all'indice `-1`.\n- Procedendo verso sinistra, gli indici decrementano (es. `-2`, `-3`, ecc.).",
+        "potential_exam_questions": [
+          {
+            "question": "Qual è la convenzione di indicizzazione iniziale per le stringhe in Python e come si differenzia da MATLAB?",
+            "answer_latex": "In Python l'indicizzazione parte da $0$ (0-based indexing), in modo analogo al linguaggio C. Al contrario, in MATLAB la numerazione degli indici parte da $1$.",
+            "importance_level": "Medium"
+          },
+          {
+            "question": "Come funzionano gli indici negativi nelle stringhe in Python?",
+            "answer_latex": "Gli indici negativi permettono di accedere agli elementi di una sequenza partendo dalla fine. Ad esempio, data la stringa $\\text{\"Python\"}$, l'indice `-1` corrisponde all'ultimo carattere ('n'), l'indice `-2` al penultimo, e così via procedendo a ritroso.",
+            "importance_level": "High"
+          }
+        ],
+        "mermaid_mindmap": "flowchart TD\n  A[Python Strings] --> B[Definizione Sequenza Caratteri]\n  A --> C[Delimitatori]\n  C --> C1[Virgolette Doppie \"\"]\n  C --> C2[Virgolette Singole '']\n  A --> D[Indicizzazione (Indexing)]\n  D --> D1[0-based Indexing (stile C)]\n  D --> D2[Indici Negativi (da -1 in poi)]",
+        "has_slides": false
+      },
+      "audioParts": []
+    }
+  ],
+  "chunks": [
+    {
+      "id": "0a04452c-e7ca-499c-b129-188f4338332d_chunk_0",
+      "lectureId": "0a04452c-e7ca-499c-b129-188f4338332d",
+      "index": 0,
+      "partIndex": 0,
+      "startSeconds": 0,
+      "endSeconds": 1158,
+      "duration": 1158,
+      "status": "done",
+      "retryCount": 0,
+      "updatedAt": "2026-10-01T10:33:19.043Z",
+      "data": {
+        "glossary": [
+          {
+            "term_en": "function",
+            "translation_it": "funzione",
+            "academic_definition": "A mini-machine that takes in some inputs (arguments), performs a procedure, and returns an output (the return value)."
+          },
+          {
+            "term_en": "module",
+            "translation_it": "modulo",
+            "academic_definition": "A file containing ready-made functions and variables that can be imported into Python programs."
+          },
+          {
+            "term_en": "import",
+            "translation_it": "importazione",
+            "academic_definition": "A statement used to include external modules into the current namespace to access their functionality."
+          },
+          {
+            "term_en": "function composition",
+            "translation_it": "composizione di funzioni",
+            "academic_definition": "The process of feeding the output of one function directly as the input into another function."
+          }
+        ],
+        "timestamped_transcript": [
+          {
+            "start": 0,
+            "end": 9,
+            "speaker": "Professor",
+            "text_en": "Lesson four. Today we're talking about built-in functions, and also to zoom the title lesson for free.",
+            "text_it": "Lezione quattro. Oggi parliamo di funzioni integrate, e anche...",
+            "partIndex": 0
+          },
+          {
+            "start": 9,
+            "end": 30,
+            "speaker": "Professor",
+            "text_en": "How we can import some modules, and so we can unlock extra functionality by using import, the math module that allows us, you know, to use some mathematical tools by square roots, rounding, constants, and more.",
+            "text_it": "Come possiamo importare alcuni moduli, e quindi sbloccare funzionalità extra usando l'importazione, il modulo math che ci consente di usare alcuni strumenti matematici come radici quadrate, arrotondamenti, costanti e altro.",
+            "partIndex": 0
+          },
+          {
+            "start": 30,
+            "end": 45,
+            "speaker": "Professor",
+            "text_en": "How we can use the random module, which you know is useful when we are designing like dice, cards, you know, when we need some management of numbers.",
+            "text_it": "Come possiamo usare il modulo random, che sapete essere utile quando progettiamo dadi, carte, quando abbiamo bisogno di una gestione dei numeri.",
+            "partIndex": 0
+          },
+          {
+            "start": 46,
+            "end": 61,
+            "speaker": "Professor",
+            "text_en": "And how we can use function composition, how we can compose different functions, so use the output from a function as input for another function.",
+            "text_it": "E come possiamo usare la composizione di funzioni, come possiamo comporre diverse funzioni, quindi usare l'output di una funzione come input per un'altra funzione.",
+            "partIndex": 0
+          },
+          {
+            "start": 61,
+            "end": 105,
+            "speaker": "Professor",
+            "text_en": "Just starting. So last time, you remember, we went through, you know, the definition and how we use strings.",
+            "text_it": "Iniziamo. Quindi l'ultima volta, ricordate, abbiamo esaminato la definizione e come usiamo le stringhe.",
+            "partIndex": 0
+          },
+          {
+            "start": 105,
+            "end": 127,
+            "speaker": "Professor",
+            "text_en": "We saw also the indexing, slicing, so how we can extract some parts of the strings, and also some of the methods that could be called strings.",
+            "text_it": "Abbiamo visto anche l'indicizzazione, il sezionamento (slicing), quindi come possiamo estrarre alcune parti delle stringhe, e anche alcuni dei metodi che possono essere chiamati sulle stringhe.",
+            "partIndex": 0
+          },
+          {
+            "start": 128,
+            "end": 144,
+            "speaker": "Professor",
+            "text_en": "How we can use the f-strings that allows you, you know, also to print very easily something and also how we can ask for the user to type something and read what the user is giving us.",
+            "text_it": "Come possiamo usare le f-string che vi consentono anche di stampare molto facilmente qualcosa e anche come possiamo chiedere all'utente di digitare qualcosa e leggere ciò che l'utente ci sta fornendo.",
+            "partIndex": 0
+          },
+          {
+            "start": 144,
+            "end": 154,
+            "speaker": "Professor",
+            "text_en": "And we went through some of the errors that might appear, you know, that Python can give us.",
+            "text_it": "E abbiamo esaminato alcuni degli errori che potrebbero comparire, che Python può darci.",
+            "partIndex": 0
+          },
+          {
+            "start": 154,
+            "end": 211,
+            "speaker": "Professor",
+            "text_en": "But of course, we in the past classes, in the past lessons already saw how we can use the functions, you know, like print, len, input, type. Now we are, let's say, going deeper on these things.",
+            "text_it": "Ma naturalmente, nelle lezioni passate abbiamo già visto come possiamo usare le funzioni, come print, len, input, type. Ora stiamo, diciamo, approfondendo queste cose.",
+            "partIndex": 0
+          },
+          {
+            "start": 212,
+            "end": 232,
+            "speaker": "Professor",
+            "text_en": "In the end, a function we can call it is like a mini-machine. So it takes in some inputs, you know, we have some arguments, performs or does something with them, and hands back an output.",
+            "text_it": "Alla fine, una funzione che possiamo chiamare è come una mini-macchina. Prende alcuni input, abbiamo degli argomenti, esegue o fa qualcosa con essi, e restituisce un output.",
+            "partIndex": 0
+          },
+          {
+            "start": 233,
+            "end": 278,
+            "speaker": "Professor",
+            "text_en": "And hands back an output, so we have some kind of input values, some kind of operations that are done inside that function and we are receiving some outputs, right?",
+            "text_it": "E restituisce un output, quindi abbiamo un certo tipo di valori di input, un certo tipo di operazioni che vengono fatte all'interno di quella funzione e riceviamo degli output, giusto?",
+            "partIndex": 0
+          },
+          {
+            "start": 279,
+            "end": 315,
+            "speaker": "Professor",
+            "text_en": "So you remember the round function, it's simply the number and how many digits we need to consider, and the output, of course, in this case is 3.14.",
+            "text_it": "Quindi ricordate la funzione round, è semplicemente il numero e quante cifre dobbiamo considerare, e l'output, ovviamente, in questo caso è 3.14.",
+            "partIndex": 0
+          },
+          {
+            "start": 315,
+            "end": 366,
+            "speaker": "Professor",
+            "text_en": "So, we have a few more built-ins worth knowing. For example, PI, we can use pi to have numbers with many decimals. But in case we are using, for example, pi, which is something that we can use directly without typing 3.1414, it's very useful to use round.",
+            "text_it": "Quindi, abbiamo qualche altra funzione integrata degna di nota. Ad esempio, PI, possiamo usare pi per avere numeri con molti decimali. Ma nel caso in cui usiamo, ad esempio, pi, che è qualcosa che possiamo usare direttamente senza digitare 3.1414, è molto utile usare round.",
+            "partIndex": 0
+          },
+          {
+            "start": 431,
+            "end": 465,
+            "speaker": "Professor",
+            "text_en": "Okay, so these are other a few more building functions that is more knowing. Bodysing max is doing, guys, is we are passing, you know, for example, here some numbers.",
+            "text_it": "Ok, quindi queste sono altre funzioni integrate degne di nota. Cosa fa max, ragazzi, è che passiamo, ad esempio, qui alcuni numeri.",
+            "partIndex": 0
+          },
+          {
+            "start": 465,
+            "end": 504,
+            "speaker": "Professor",
+            "text_en": "It returns the maximum, you know, the largest value, okay? And of course, min returns the smallest value. The sum, the sum can be applied to, you know, a list or an interval, let's say, also a tuple or range.",
+            "text_it": "Restituisce il massimo, il valore più grande, ok? E naturalmente, min restituisce il valore più piccolo. La somma, la somma può essere applicata a, sai, una lista o un intervallo, diciamo, anche una tupla o un range.",
+            "partIndex": 0
+          },
+          {
+            "start": 515,
+            "end": 537,
+            "speaker": "Professor",
+            "text_en": "And returns, of course, the sum of the elements of the list. The abs, you remember what is the abs? So, returns the absolute value.",
+            "text_it": "E restituisce, naturalmente, la somma degli elementi della lista. L'abs, ricordate cos'è l'abs? Restituisce il valore assoluto.",
+            "partIndex": 0
+          },
+          {
+            "start": 537,
+            "end": 580,
+            "speaker": "Professor",
+            "text_en": "So, if the number is negative, it returns, you know, the positive number, or if it's already positive, it's the same number. Sorted list, it's like the name says, so it returns a new sorted list.",
+            "text_it": "Quindi, se il numero è negativo, restituisce, sai, il numero positivo, o se è già positivo, è lo stesso numero. Sorted list, come dice il nome, restituisce una nuova lista ordinata.",
+            "partIndex": 0
+          },
+          {
+            "start": 601,
+            "end": 628,
+            "speaker": "Professor",
+            "text_en": "Pow, it's like the power. Yeah, this is a built-in function of Python, and of course, it's like new x to the power of y. So, remember that some of them can accept multiple inputs.",
+            "text_it": "Pow, è come la potenza. Sì, questa è una funzione integrata di Python, e ovviamente, è come x elevato alla potenza di y. Quindi, ricordate che alcune di esse possono accettare input multipli.",
+            "partIndex": 0
+          },
+          {
+            "start": 632,
+            "end": 680,
+            "speaker": "Professor",
+            "text_en": "Then, it can be useful, you know, because we have some building functions in Python, but not everything is a built-in function, so we need to import a module. What what is, you know, a module? Is a file full of ready-made functions.",
+            "text_it": "Quindi, può essere utile, sai, perché abbiamo alcune funzioni integrate in Python, ma non tutto è una funzione integrata, quindi dobbiamo importare un modulo. Che cos'è, sai, un modulo? È un file pieno di funzioni già pronte.",
+            "partIndex": 0
+          },
+          {
+            "start": 680,
+            "end": 722,
+            "speaker": "Professor",
+            "text_en": "What does it mean? That when we are importing that module, we can use a lot of functions that have been already written, you know, and included in that module. So math and random are very common, and we will see those today.",
+            "text_it": "Cosa significa? Che quando importiamo quel modulo, possiamo usare molte funzioni che sono già state scritte e incluse in quel modulo. Quindi math e random sono molto comuni, e le vedremo oggi.",
+            "partIndex": 0
+          },
+          {
+            "start": 723,
+            "end": 810,
+            "speaker": "Professor",
+            "text_en": "So, how can we import a module? Oh, there are three ways to import a module. So we can just, you know, type in our code import math, and then we can use all the functions inside math, but we need to remember to specify math point the function with point notation.",
+            "text_it": "Quindi, come possiamo importare un modulo? Oh, ci sono tre modi per importare un modulo. Quindi possiamo semplicemente, sai, digitare nel nostro codice import math, e poi possiamo usare tutte le funzioni all'interno di math, ma dobbiamo ricordarci di specificare math punto la funzione con la notazione puntata.",
+            "partIndex": 0
+          },
+          {
+            "start": 810,
+            "end": 851,
+            "speaker": "Professor",
+            "text_en": "This is the first way. Or we can import directly from math just the operation, let's say, the functions that we need. Did you get the difference?",
+            "text_it": "Questo è il primo modo. O possiamo importare direttamente da math solo l'operazione, diciamo, le funzioni di cui abbiamo bisogno. Avete capito la differenza?",
+            "partIndex": 0
+          },
+          {
+            "start": 851,
+            "end": 890,
+            "speaker": "Professor",
+            "text_en": "Here is import math, we are importing everything, and we just need to for math full stop whatever the functions including that, or we can just import the specific, you know, operation and function that we need.",
+            "text_it": "Qui c'è import math, stiamo importando tutto, e dobbiamo solo fare math punto qualsiasi sia la funzione inclusa in esso, oppure possiamo semplicemente importare l'operazione e la funzione specifica di cui abbiamo bisogno.",
+            "partIndex": 0
+          },
+          {
+            "start": 890,
+            "end": 907,
+            "speaker": "Professor",
+            "text_en": "So from math import sqrt, but then in this way, we can use sqrt without prefixes.",
+            "text_it": "Quindi da math import sqrt, ma poi in questo modo, possiamo usare sqrt senza prefissi.",
+            "partIndex": 0
+          },
+          {
+            "start": 907,
+            "end": 960,
+            "speaker": "Professor",
+            "text_en": "The third one is, let's say, derived from the first one. We can say that we are importing, for example, in this case, random, and not math, and we are calling it R. So then, to call a function of random, we can use r.",
+            "text_it": "Il terzo è, diciamo, derivato dal primo. Possiamo dire che stiamo importando, ad esempio, in questo caso, random, e non math, e lo chiamiamo R. Quindi, per chiamare una funzione di random, possiamo usare r.",
+            "partIndex": 0
+          },
+          {
+            "start": 1015,
+            "end": 1050,
+            "speaker": "Professor",
+            "text_en": "Some of the math functions that you will also be using, I think a lot, you know, in the next few lessons, are, of course, math.sqrt.",
+            "text_it": "Alcune delle funzioni matematiche che userete anche, penso molto, sai, nelle prossime lezioni, sono, ovviamente, math.sqrt.",
+            "partIndex": 0
+          },
+          {
+            "start": 1051,
+            "end": 1115,
+            "speaker": "Professor",
+            "text_en": "Of course, it's like a square root of x. So if we are calling square t on the map module, we will get the square root of x. Then you can call math.floor.",
+            "text_it": "Ovviamente, è come una radice quadrata di x. Quindi se chiamiamo sqrt sul modulo math, otterremo la radice quadrata di x. Poi potete chiamare math.floor.",
+            "partIndex": 0
+          },
+          {
+            "start": 1116,
+            "end": 1177,
+            "speaker": "Professor",
+            "text_en": "Okay, floor rounds the number down to the nearest integer. Okay. Or we can say that returns the greatest integer less than or equal than.",
+            "text_it": "Ok, floor arrotonda il numero per difetto all'intero più vicino. Ok. Oppure possiamo dire che restituisce il più grande intero minore o uguale.",
+            "partIndex": 0
+          },
+          {
+            "start": 1177,
+            "end": 1235,
+            "speaker": "Professor",
+            "text_en": "Then we have ceil, that is, like I said for the previous one, rounds a number up to the nearest integer toward positive infinity.",
+            "text_it": "Poi abbiamo ceil, che è, come ho detto per il precedente, arrotonda un numero per eccesso all'intero più vicino verso l'infinito positivo.",
+            "partIndex": 0
+          },
+          {
+            "start": 1235,
+            "end": 1307,
+            "speaker": "Professor",
+            "text_en": "And then, as I mentioned before, you know, guys, we can use pi. The dimension before, pi is between x and y. Yes. That is why we are getting this one.",
+            "text_it": "E poi, come ho menzionato prima, sai, ragazzi, possiamo usare pi. La dimensione prima, pi è tra x e y. Sì. Ecco perché otteniamo questo.",
+            "partIndex": 0
+          },
+          {
+            "start": 1307,
+            "end": 1346,
+            "speaker": "Professor",
+            "text_en": "So math pi, that's why I mentioned it before, is 3.1414159, and when we are using, for example, round math pi, it helps you to, you know, consider just two digits.",
+            "text_it": "Quindi math pi, ecco perché l'ho menzionato prima, è 3.1414159, e quando usiamo, ad esempio, round math pi, vi aiuta a, sai, considerare solo due cifre.",
+            "partIndex": 0
+          },
+          {
+            "start": 1351,
+            "end": 1420,
+            "speaker": "Professor",
+            "text_en": "And finally, math.gcd, guys. Can you guess? Returns the greatest common divisor of a and b.",
+            "text_it": "E infine, math.gcd, ragazzi. Potete indovinare? Restituisce il massimo comun divisore di a e b.",
+            "partIndex": 0
+          },
+          {
+            "start": 1431,
+            "end": 1515,
+            "speaker": "Professor",
+            "text_en": "So, we can go with import random, and then we can call random.random, and the result is, you know, a float included between 0.0 and 1.0.",
+            "text_it": "Quindi, possiamo procedere con import random, e poi possiamo chiamare random.random, e il risultato è, sai, un float incluso tra 0.0 e 1.0.",
+            "partIndex": 0
+          },
+          {
+            "start": 1515,
+            "end": 1580,
+            "speaker": "Professor",
+            "text_en": "Or you can, you know, use randint, as the name says, you will get, you know, a number between a and b, like, you know, rounding 1, 6.",
+            "text_it": "O potete, sai, usare randint, come dice il nome, otterrete, sai, un numero tra a e b, tipo, sai, arrotondando 1, 6.",
+            "partIndex": 0
+          },
+          {
+            "start": 1637,
+            "end": 1698,
+            "speaker": "Professor",
+            "text_en": "Okay, the last thing is about, you know, using function composition. So we can feed one function's output into another.",
+            "text_it": "Ok, l'ultima cosa riguarda, sai, l'uso della composizione di funzioni. Quindi possiamo dare in pasto l'output di una funzione a un'altra.",
+            "partIndex": 0
+          },
+          {
+            "start": 1698,
+            "end": 1740,
+            "speaker": "Professor",
+            "text_en": "So we can, you know, compose different functions, and Python remember that evaluates from the inside out, it's just like using message parentheses.",
+            "text_it": "Quindi possiamo, sai, comporre diverse funzioni, e Python ricordate che valuta dall'interno verso l'esterno, è proprio come usare le parentesi.",
+            "partIndex": 0
+          },
+          {
+            "start": 1740,
+            "end": 1821,
+            "speaker": "Professor",
+            "text_en": "So, if you have something like round math.square root of 50, then you have comma two, what do you think is doing as a first thing?",
+            "text_it": "Quindi, se avete qualcosa come round math.square root of 50, poi avete virgola due, cosa pensiate che stia facendo come prima cosa?",
+            "partIndex": 0
+          },
+          {
+            "start": 1821,
+            "end": 1878,
+            "speaker": "Professor",
+            "text_en": "Of course, it's computing the math square root of 50, and the result is rounded in the digits.",
+            "text_it": "Naturalmente, sta calcolando la radice quadrata di 50 di math, e il risultato viene arrotondato nelle cifre.",
+            "partIndex": 0
+          }
+        ],
+        "study_guide_it": "\\documentclass[11pt,a4paper]{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[italian]{babel}\n\\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}\n\\geometry{margin=2.5cm}\n\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}\n\\title{Guida allo Studio: Funzioni e Moduli in Python}\n\\author{OmniLecture Studio}\n\\date{\\today}\n\\begin{document}\n\\maketitle\n\n\\section{Introduzione alle Funzioni e Moduli}\nIn questa lezione introduciamo l'utilizzo delle funzioni integrate (\\textit{built-in functions}) e l'importazione di moduli in Python \\ts{0}{0}.\n\nUna funzione viene descritta concettualmente come una mini-macchina che prende in ingresso degli argomenti (input), esegue un'operazione e restituisce un valore di ritorno (output) \\ts{0}{212}.\n\n\\section{Funzioni Integrate Principali}\nTra le funzioni integrate più importanti menzionate dal docente troviamo:\n\\begin{itemize}\n    \\item \\texttt{round(number, digits)}: arrotonda un numero decimale al numero specificato di cifre \\ts{0}{279}.\n    \\item \\texttt{max(a, b, ...)}: restituisce il valore massimo tra gli argomenti passati \\ts{0}{431}.\n    \\item \\texttt{min(a, b, ...)}: restituisce il valore minimo tra gli argomenti passati \\ts{0}{465}.\n    \\item \\texttt{sum(list)}: calcola la somma degli elementi di una lista o iterabile \\ts{0}{465}.\n    \\item \\texttt{abs(x)}: restituisce il valore assoluto del numero $x$ \\ts{0}{515}.\n    \\item \\texttt{sorted(list)}: restituisce una nuova lista ordinata \\ts{0}{537}.\n    \\item \\texttt{pow(x, y)}: calcola la potenza $x^y$ \\ts{0}{601}.\n\\end{itemize}\n\n\\section{Il Modulo Math e le Modalità di Importazione}\nPer estendere le funzionalità di base, Python mette a disposizione moduli standard. Esistono tre modi principali per importarli \\ts{0}{723}:\n\\begin{enumerate}\n    \\item \\texttt{import math}: importa l'intero modulo; per accedere alle funzioni si utilizza la notazione puntata (es. \\texttt{math.sqrt(9)}) \\ts{0}{723}.\n    \\item \\texttt{from math import sqrt}: importa specificamente una funzione, permettendone l'uso diretto senza prefisso \\ts{0}{890}.\n    \\item \\texttt{import random as r}: importa un modulo assegnandogli un alias o un nickname abbreviato \\ts{0}{907}.\n\\end{enumerate}\n\nAlcune funzioni matematiche fondamentali incluse nel modulo \\texttt{math} sono:\n\\[ \\text{math.sqrt}(x) \\quad \\text{e} \\quad \\text{math.floor}(x) \\quad \\text{e} \\quad \\text{math.ceil}(x) \\quad \\text{e} \\quad \\text{math.gcd}(a,b) \\]\n\n\\section{Composizione di Funzioni}\nLa composizione di funzioni consiste nel passare l'output di una funzione direttamente come input a un'altra funzione. Python valuta le espressioni dall'interno verso l'esterno, esattamente come le parentesi annidate in matematica \\ts{0}{1698}:\n\\[ \\text{round}(\\text{math.sqrt}(50), 2) \\]\n\n\\end{document}",
+        "potential_exam_questions": [
+          {
+            "question": "Spiegare la differenza tra l'importazione tramite `import math` e `from math import sqrt` in Python.",
+            "answer_latex": "Utilizzando \\texttt{import math}, si importa l'intero modulo e le funzioni devono essere richiamate anteponendo il prefisso del modulo (es. \\texttt{math.sqrt(9)}). Utilizzando invece \\texttt{from math import sqrt}, si importa esclusivamente la funzione desiderata nello spazio dei nomi corrente, consentendone l'utilizzo diretto senza prefisso (es. \\texttt{sqrt(9)}).",
+            "importance_level": "High"
+          },
+          {
+            "question": "Come valuta Python la composizione di funzioni come `round(math.sqrt(50), 2)`?",
+            "answer_latex": "Python valuta le espressioni dall'interno verso l'esterno, proprio come le parentesi annidate in matematica. Per prima cosa viene eseguita la funzione interna \\texttt{math.sqrt(50)} (restituendo circa $7.0710678...$), e successivamente il risultato viene passato come input alla funzione esterna \\texttt{round(..., 2)} per ottenere il valore finale arrotondato.",
+            "importance_level": "High"
+          }
+        ],
+        "slides_alignment": [
+          {
+            "slide_number": 1,
+            "title": "Lesson 4: Functions I — Using Built-ins & Modules",
+            "part": 0,
+            "start_time_seconds": 0,
+            "end_time_seconds": 9,
+            "summary": "Introduction to lesson four covering built-in functions and modules."
+          },
+          {
+            "slide_number": 2,
+            "title": "What we'll cover in 30 minutes",
+            "part": 0,
+            "start_time_seconds": 9,
+            "end_time_seconds": 61,
+            "summary": "Roadmap including built-in functions, importing modules, math module, random module, and function composition."
+          },
+          {
+            "slide_number": 4,
+            "title": "A function is a mini-machine",
+            "part": 0,
+            "start_time_seconds": 211,
+            "end_time_seconds": 315,
+            "summary": "Explanation of functions as mini-machines taking arguments and returning a value, illustrated with round()."
+          },
+          {
+            "slide_number": 5,
+            "title": "A few more built-ins worth knowing",
+            "part": 0,
+            "start_time_seconds": 431,
+            "end_time_seconds": 628,
+            "summary": "Overview of built-in functions like max, min, sum, abs, sorted, and pow."
+          },
+          {
+            "slide_number": 6,
+            "title": "A module is a file full of ready-made functions",
+            "part": 0,
+            "start_time_seconds": 632,
+            "end_time_seconds": 722,
+            "summary": "Introduction to standard library modules: math, random, datetime, and os."
+          },
+          {
+            "slide_number": 7,
+            "title": "Three ways to import",
+            "part": 0,
+            "start_time_seconds": 723,
+            "end_time_seconds": 960,
+            "summary": "Demonstration of import statements: import math, from math import sqrt, and import random as r."
+          },
+          {
+            "slide_number": 8,
+            "title": "A few math functions you'll use often",
+            "part": 0,
+            "start_time_seconds": 1015,
+            "end_time_seconds": 1420,
+            "summary": "Math module functions: sqrt, floor, ceil, pow, pi, and gcd."
+          },
+          {
+            "slide_number": 9,
+            "title": "Randomness, on demand",
+            "part": 0,
+            "start_time_seconds": 1431,
+            "end_time_seconds": 1636,
+            "summary": "Random module functions: random, randint, choice, and shuffle."
+          },
+          {
+            "slide_number": 10,
+            "title": "Feed one function's output into another",
+            "part": 0,
+            "start_time_seconds": 1637,
+            "end_time_seconds": 1878,
+            "summary": "Function composition explained via inside-out evaluation of nested function calls."
+          }
+        ],
+        "has_slides": true,
+        "slides_filename": "Lesson4_Theory_Slides.pdf"
+      }
+    },
+    {
+      "id": "2e5a50d5-97f6-475c-8841-8f167c8c17f3_chunk_0",
+      "lectureId": "2e5a50d5-97f6-475c-8841-8f167c8c17f3",
+      "index": 0,
+      "partIndex": 0,
+      "startSeconds": 0,
+      "endSeconds": 429,
+      "duration": 429,
+      "status": "done",
+      "retryCount": 0,
+      "updatedAt": "2026-10-02T09:56:58.289Z",
+      "data": {
+        "glossary": [
+          {
+            "term_en": "Maxwell equations",
+            "translation_it": "equazioni di Maxwell",
+            "academic_definition": "Fundamental set of partial differential equations that describe how electric and magnetic fields are generated and altered by each other and by charges and currents."
+          },
+          {
+            "term_en": "electromagnetic field",
+            "translation_it": "campo elettromagnetico",
+            "academic_definition": "A physical field produced by electrically charged objects, affecting the behavior of charged objects in the vicinity of the field."
+          },
+          {
+            "term_en": "source",
+            "translation_it": "sorgente",
+            "academic_definition": "Electric charges and currents that give rise to electromagnetic fields."
+          },
+          {
+            "term_en": "divergence",
+            "translation_it": "divergenza",
+            "academic_definition": "A vector operator that measures the magnitude of a vector field's source or sink at a given point."
+          },
+          {
+            "term_en": "curl",
+            "translation_it": "rotore",
+            "academic_definition": "A vector operator that describes the infinitesimal rotation of a 3D vector field."
+          }
+        ],
+        "timestamped_transcript": [
+          {
+            "start": 0,
+            "end": 34,
+            "speaker": "Professor",
+            "text_en": "So, we start, uh, this Friday we're going to, we'll see the introduction to the course and, uh, particularly we will deal with Maxwell equations, okay? So, a fundamental part of this course are the Maxwell equations and, uh, we saw in different Maxwell equations in the literature, okay?",
+            "text_it": "Quindi iniziamo, eh, questo venerdì vedremo l'introduzione al corso e, eh, in particolare tratteremo le equazioni di Maxwell, ok? Quindi una parte fondamentale di questo corso sono le equazioni di Maxwell e, eh, abbiamo visto diverse equazioni di Maxwell in letteratura, ok?",
+            "partIndex": 0
+          },
+          {
+            "start": 34,
+            "end": 88,
+            "speaker": "Professor",
+            "text_en": "One important thing on the, on the Maxwell equation differential forms, which is these are the first two Maxwell equations, so the Faraday and the Gauss, and then generalized and parallel rows. The important things of the differential form that you have to keep in mind is that they are defined locally.",
+            "text_it": "Una cosa importante sulle, sulle forme differenziali delle equazioni di Maxwell, che sono le prime due equazioni di Maxwell, ovvero Faraday e Gauss, e poi le forme generalizzate e parallele. La cosa importante della forma differenziale che dovete tenere a mente è che sono definite localmente.",
+            "partIndex": 0
+          },
+          {
+            "start": 88,
+            "end": 128,
+            "speaker": "Professor",
+            "text_en": "Okay? So, again, this is a, let's say, animation, a representation. So you can apply the differential equations of Maxwell on a cell in R2, R3, R1. You cannot apply Maxwell equations in R4, R5, okay? Because they are not cool.",
+            "text_it": "Ok? Quindi, di nuovo, questa è una, diciamo, animazione, una rappresentazione. Quindi potete applicare le equazioni differenziali di Maxwell su una cella in R2, R3, R1. Non potete applicare le equazioni di Maxwell in R4, R5, ok? Perché non hanno senso.",
+            "partIndex": 0
+          },
+          {
+            "start": 128,
+            "end": 180,
+            "speaker": "Professor",
+            "text_en": "We will see, what we will see today is that we need to somehow formulate in a different way Maxwell equations in order to find a way to compute the, to let me work on also non-local components.",
+            "text_it": "Vedremo, quello che vedremo oggi è che dobbiamo in qualche modo formulare in un modo diverso le equazioni di Maxwell per trovare un modo di calcolare, di farmi lavorare anche su componenti non locali.",
+            "partIndex": 0
+          },
+          {
+            "start": 180,
+            "end": 220,
+            "speaker": "Professor",
+            "text_en": "Because you can imagine that, I mean, they are powerful if we, if we if we can compute them on the points, but we still need to post-compute the non-local points.",
+            "text_it": "Perché potete immaginare che, voglio dire, sono potenti se possiamo, se possiamo calcolarli sui punti, ma abbiamo ancora bisogno di post-calcolare i punti non locali.",
+            "partIndex": 0
+          },
+          {
+            "start": 220,
+            "end": 312,
+            "speaker": "Professor",
+            "text_en": "I would say that, I will show you together and it's quite interesting that actually knowing only the point for us are the most interesting, okay? Because it means that there is an interface of between for example the fields.",
+            "text_it": "Direi che, vi mostrerò insieme ed è piuttosto interessante che in realtà conoscere solo il punto per noi è la cosa più interessante, ok? Perché significa che c'è un'interfaccia tra ad esempio i campi.",
+            "partIndex": 0
+          },
+          {
+            "start": 312,
+            "end": 395,
+            "speaker": "Professor",
+            "text_en": "So, again, these are the definitions of the electromagnetic fields, and what I just want you to recall is the fact that they are the gold underlined for the fields, so the depends, they are vector fields, so they are a vector, which the definition depends on the position.",
+            "text_it": "Quindi, di nuovo, queste sono le definizioni dei campi elettromagnetici, e quello che voglio solo che ricordiate è il fatto che sono sottolineati in oro per i campi, quindi dipendono, sono campi vettoriali, quindi sono un vettore, la cui definizione dipende dalla posizione.",
+            "partIndex": 0
+          },
+          {
+            "start": 395,
+            "end": 506,
+            "speaker": "Professor",
+            "text_en": "And the other things that are not of course to be specified is that in order to define a quantity, you have to answer to these three or let's say these three, these three supports. So, which kind of quantity is this? So, is it a scalar, is it a vector field, which is the unit of the danger?",
+            "text_it": "E l'altra cosa che non è ovviamente da specificare è che per definire una grandezza, bisogna rispondere a queste tre o diciamo queste tre, questi tre supporti. Quindi, che tipo di grandezza è questa? Quindi, è uno scalare, è un campo vettoriale, qual è l'unità di misura?",
+            "partIndex": 0
+          },
+          {
+            "start": 506,
+            "end": 600,
+            "speaker": "Professor",
+            "text_en": "So, again, in the last lecture we started from these definitions, okay? Which are, let's say, the basic Maxwell equations. We went into the definitions of some sources, so like magnetic sources or the electric sources, as I was saying before, let's say a battery.",
+            "text_it": "Quindi, di nuovo, nella scorsa lezione siamo partiti da queste definizioni, ok? Che sono, diciamo, le equazioni di Maxwell di base. Siamo entrati nelle definizioni di alcune sorgenti, come le sorgenti magnetiche o le sorgenti elettriche, come dicevo prima, diciamo una batteria.",
+            "partIndex": 0
+          },
+          {
+            "start": 600,
+            "end": 709,
+            "speaker": "Professor",
+            "text_en": "Induced sources, that are, for example, let's say the current, because, of course, the current is the, uh, the flux of this surface and that, and the definition which is important is this. So, the, we reach this definition, which are the fundamental equations, so the 2 Maxwell equations plus the charge conservation and the integration in the differential form.",
+            "text_it": "Sorgenti indotte, che sono, per esempio, diciamo la corrente, perché, naturalmente, la corrente è il, eh, il flusso di questa superficie e che, e la definizione che è importante è questa. Quindi, abbiamo raggiunto questa definizione, che sono le equazioni fondamentali, cioè le 2 equazioni di Maxwell più la conservazione della carica e l'integrazione nella forma differenziale.",
+            "partIndex": 0
+          }
+        ],
+        "study_guide_it": "\\documentclass[11pt,a4paper]{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[italian]{babel}\n\\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}\n\\geometry{margin=2.5cm}\n\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}\n\n\\title{Electromagnetic Propagation: Lezione Introduttiva}\n\\author{OmniLecture Studio}\n\\date{\\today}\n\n\\begin{document}\n\\maketitle\n\n\\section{Introduzione alle Equazioni di Maxwell}\n\\ts{0}{0}\nIl corso di \\textit{Electromagnetic Propagation} prende le mosse dall'analisi rigorosa delle equazioni di Maxwell \\ts{0}{21}. Durante la trattazione iniziale, il docente introduce la formulazione differenziale delle equazioni fondamentali, ponendo particolare enfasi su come queste descrivano i campi elettromagnetici nello spazio a tre dimensioni $\\mathbb{R}^3$.\n\n\\subsection{Campi Vettoriali e Località}\n\\ts{0}{88} Le equazioni differenziali di Maxwell sono definite localmente in domini spaziali come $\\mathbb{R}^2$ o $\\mathbb{R}^3$. Non possono essere applicate direttamente in spazi di dimensione superiore come $\\mathbb{R}^4$ o $\\mathbb{R}^5$ in quanto perdono significato fisico in tale contesto.\n\nUna delle problematiche principali affrontate riguarda la necessità di formulare le equazioni in modo da poter gestire anche componenti non locali, sebbene la conoscenza puntuale dei campi rimanga di fondamentale interesse per descrivere le interfacce tra diversi mezzi \\ts{0}{207}.\n\n\\section{Definizioni Fondamentali e Sorgenti}\n\\ts{0}{516} Vengono richiamate le definizioni dei campi elettromagnetici e delle relative sorgenti:\n\\begin{itemize}\n    \\item \\textbf{Sorgenti elettriche e magnetiche}: ad esempio batterie o distribuzioni di carica \\ts{0}{580}.\n    \\item \\textbf{Correnti indotte}: definite come il flusso attraverso una superficie \\ts{0}{556}.\n\\end{itemize}\n\nL'analisi culmina nella combinazione delle equazioni di Maxwell con l'equazione di conservazione della carica, fornendo il quadro teorico completo per ricavare le leggi di propagazione e le relative condizioni al contorno \\ts{0}{600}.\n\n\\end{document}",
+        "potential_exam_questions": [
+          {
+            "question": "Spiegare la natura locale delle equazioni differenziali di Maxwell e perché non possono essere definite in spazi di dimensione superiore a tre.",
+            "answer_latex": "Le equazioni differenziali di Maxwell descrono variazioni spaziali e temporali dei campi vettoriali in domini fisici tridimensionali ($\\mathbb{R}^3$). La formulazione differenziale si basa su operatori come il rotore e la divergenza, definiti rigorosamente nello spazio euclideo ordinario. In spazi a $n$ dimensioni con $n > 3$, tali operatori non mantengono la stessa interpretazione geometrica e fisica, rendendo inapplicabile il modello standard.",
+            "importance_level": "High"
+          },
+          {
+            "question": "Discutere il ruolo delle sorgenti e della conservazione della carica nella formulazione delle equazioni elettromagnetiche.",
+            "answer_latex": "Le sorgenti del campo elettromagnetico includono cariche libere, correnti e sorgenti indotte. L'equazione di continuità per la conservazione della carica si esprime come:\n\\[ \\nabla \\cdot \\mathbf{J} + \\frac{\\partial \\rho}{\\partial t} = 0 \\]\nQuesta relazione lega strettamente la divergenza della densità di corrente alla variazione temporale della densità di carica, garantendo la consistenza matematica delle equazioni di Maxwell.",
+            "importance_level": "Crucial"
+          }
+        ],
+        "slides_alignment": []
+      }
+    },
+    {
+      "id": "2e5a50d5-97f6-475c-8841-8f167c8c17f3_chunk_1",
+      "lectureId": "2e5a50d5-97f6-475c-8841-8f167c8c17f3",
+      "index": 1,
+      "partIndex": 1,
+      "startSeconds": 0,
+      "endSeconds": 2268,
+      "duration": 2268,
+      "status": "done",
+      "retryCount": 0,
+      "updatedAt": "2026-10-02T09:57:58.028Z",
+      "data": {
+        "glossary": [
+          {
+            "term_en": "Maxwell equations",
+            "translation_it": "equazioni di Maxwell",
+            "academic_definition": "Fundamental set of partial differential equations that, with the Lorentz force law, form the foundation of classical electromagnetism."
+          },
+          {
+            "term_en": "divergence",
+            "translation_it": "divergenza",
+            "academic_definition": "A vector operator that operates on a vector field, producing a signed scalar field giving the quantity of a vector field's source per unit volume."
+          },
+          {
+            "term_en": "curl",
+            "translation_it": "rotore",
+            "academic_definition": "A vector operator that describes the infinitesimal rotation of a 3D vector field."
+          },
+          {
+            "term_en": "Divergence Theorem",
+            "translation_it": "Teorema della divergenza",
+            "academic_definition": "Theorem that relates the flux of a vector field through a closed surface to the volume integral of the divergence over the region inside."
+          },
+          {
+            "term_en": "Stokes' Theorem",
+            "translation_it": "Teorema di Stokes",
+            "academic_definition": "Theorem that relates the surface integral of the curl of a vector field over a surface to the line integral of the vector field over its boundary curve."
+          },
+          {
+            "term_en": "simple curve",
+            "translation_it": "curva semplice",
+            "academic_definition": "A curve that does not intersect itself anywhere, except possibly at its endpoints."
+          },
+          {
+            "term_en": "open surface",
+            "translation_it": "superficie aperta",
+            "academic_definition": "A surface that has a boundary, i.e., it is not closed."
+          },
+          {
+            "term_en": "scalar product",
+            "translation_it": "prodotto scalare",
+            "academic_definition": "An algebraic operation that takes two equal-length sequences of numbers and returns a single number."
+          }
+        ],
+        "timestamped_transcript": [
+          {
+            "start": 0,
+            "end": 60,
+            "speaker": "Professor",
+            "text_en": "And we can apply Gauss law for the electric field, which is the divergence of D is equal to rho.",
+            "text_it": "E possiamo applicare la legge di Gauss per il campo elettrico, ovvero la divergenza di D è uguale a rho.",
+            "partIndex": 1
+          },
+          {
+            "start": 60,
+            "end": 120,
+            "speaker": "Professor",
+            "text_en": "Now I will go to only this Gauss law, because the other one is the same, just one star more.",
+            "text_it": "Ora passerò solo a questa legge di Gauss, poiché l'altra è la stessa, solo con un asterisco in più.",
+            "partIndex": 1
+          },
+          {
+            "start": 120,
+            "end": 180,
+            "speaker": "Professor",
+            "text_en": "So, how we compute the Gauss law for the electric field? To compute this equation, you start from two equations.",
+            "text_it": "Quindi, come calcoliamo la legge di Gauss per il campo elettrico? Per calcolare questa equazione, si parte da due equazioni.",
+            "partIndex": 1
+          },
+          {
+            "start": 180,
+            "end": 240,
+            "speaker": "Professor",
+            "text_en": "The first one is the Maxwell equation, which is the curl of the electric field minus the time derivative.",
+            "text_it": "La prima è l'equazione di Maxwell, che è il rotore del campo elettrico meno la derivata temporale.",
+            "partIndex": 1
+          },
+          {
+            "start": 240,
+            "end": 300,
+            "speaker": "Professor",
+            "text_en": "And you apply the divergence. So, the idea here is that we have an equation.",
+            "text_it": "E si applica la divergenza. Quindi, l'idea qui è che abbiamo un'equazione.",
+            "partIndex": 1
+          },
+          {
+            "start": 300,
+            "end": 360,
+            "speaker": "Professor",
+            "text_en": "And that's why we are here. So, we have the divergence of the curl of the electric field.",
+            "text_it": "Ed è per questo che siamo qui. Quindi, abbiamo la divergenza del rotore del campo elettrico.",
+            "partIndex": 1
+          },
+          {
+            "start": 360,
+            "end": 420,
+            "speaker": "Professor",
+            "text_en": "In order to apply this formulation, you must say, between these quantities, the fact that the scalar field is continuous.",
+            "text_it": "Per applicare questa formulazione, bisogna dire, tra queste grandezze, il fatto che il campo scalare è continuo.",
+            "partIndex": 1
+          },
+          {
+            "start": 420,
+            "end": 480,
+            "speaker": "Professor",
+            "text_en": "So, it means that, for example, if you have a certain field, it's two in one point.",
+            "text_it": "Quindi significa che, ad esempio, se hai un certo campo, è due in un punto.",
+            "partIndex": 1
+          },
+          {
+            "start": 480,
+            "end": 540,
+            "speaker": "Professor",
+            "text_en": "And this is true for both the respective time, so it can be compact.",
+            "text_it": "E questo vale per entrambi i rispettivi tempi, quindi può essere compatto.",
+            "partIndex": 1
+          },
+          {
+            "start": 540,
+            "end": 600,
+            "speaker": "Professor",
+            "text_en": "And then we have the second term, so we have the divergence of the partial derivative.",
+            "text_it": "E poi abbiamo il secondo termine, quindi abbiamo la divergenza della derivata parziale.",
+            "partIndex": 1
+          },
+          {
+            "start": 600,
+            "end": 660,
+            "speaker": "Professor",
+            "text_en": "So, actually, since let's say the divergence is something related to the spatial properties of our field.",
+            "text_it": "Quindi, in realtà, poiché diciamo che la divergenza è qualcosa legato alle proprietà spaziali del nostro campo.",
+            "partIndex": 1
+          },
+          {
+            "start": 660,
+            "end": 720,
+            "speaker": "Professor",
+            "text_en": "And here you can apply the second equation, right? The charge conservation equation.",
+            "text_it": "E qui puoi applicare la seconda equazione, giusto? L'equazione di conservazione della carica.",
+            "partIndex": 1
+          },
+          {
+            "start": 720,
+            "end": 780,
+            "speaker": "Professor",
+            "text_en": "This means that this term is equal to a given function of position.",
+            "text_it": "Questo significa che questo termine è uguale a una data funzione della posizione.",
+            "partIndex": 1
+          },
+          {
+            "start": 780,
+            "end": 840,
+            "speaker": "Professor",
+            "text_en": "So, we know that there must have been some somewhere in time.",
+            "text_it": "Quindi, sappiamo che ci deve essere stato qualcosa da qualche parte nel tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 840,
+            "end": 900,
+            "speaker": "Professor",
+            "text_en": "We know that in term sources, so it means that both is equal to zero, and also J is equal to zero.",
+            "text_it": "Sappiamo che in termini di sorgenti, quindi significa che entrambi sono uguali a zero, e anche J è uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 900,
+            "end": 960,
+            "speaker": "Professor",
+            "text_en": "We know that at certain point in time, this equation, the divergence of B minus rho, was equal to zero.",
+            "text_it": "Sappiamo che a un certo punto nel tempo, questa equazione, la divergenza di B meno rho, era uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 960,
+            "end": 1020,
+            "speaker": "Professor",
+            "text_en": "It's very obvious for both the respective time, so we can say we can compute this further.",
+            "text_it": "È molto ovvio per entrambi i rispettivi tempi, quindi possiamo dire che possiamo calcolarlo ulteriormente.",
+            "partIndex": 1
+          },
+          {
+            "start": 1020,
+            "end": 1080,
+            "speaker": "Professor",
+            "text_en": "And so, again, we have the time derivative of the partial derivative with respect to time of the divergence of B, minus rho, is equal to zero.",
+            "text_it": "E quindi, di nuovo, abbiamo la derivata temporale della derivata parziale rispetto al tempo della divergenza di B, meno rho, è uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 1080,
+            "end": 1140,
+            "speaker": "Professor",
+            "text_en": "So what does it mean? What does this mean?",
+            "text_it": "Quindi cosa significa? Cosa significa questo?",
+            "partIndex": 1
+          },
+          {
+            "start": 1140,
+            "end": 1200,
+            "speaker": "Professor",
+            "text_en": "This means that if this, if the time derivative with respect to time is equal to zero, it means that this term is equal to a constant with respect to time.",
+            "text_it": "Questo significa che se questo, se la derivata temporale rispetto al tempo è uguale a zero, significa che questo termine è uguale a una costante rispetto al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 1200,
+            "end": 1260,
+            "speaker": "Professor",
+            "text_en": "So it means that this term is equal to a given function of position.",
+            "text_it": "Quindi significa che questo termine è uguale a una data funzione della posizione.",
+            "partIndex": 1
+          },
+          {
+            "start": 1260,
+            "end": 1320,
+            "speaker": "Professor",
+            "text_en": "So, we know that at certain point, we have that there are no charges, right? Divergence of C is zero.",
+            "text_it": "Quindi, sappiamo che a un certo punto, abbiamo che non ci sono cariche, giusto? La divergenza di C è zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 1320,
+            "end": 1380,
+            "speaker": "Professor",
+            "text_en": "One important point that we need to remember, which is a is a relation here, is that in order to apply this formulation, you must uh let's say uh between these uh quantities.",
+            "text_it": "Un punto importante che dobbiamo ricordare, che è una relazione qui, è che per applicare questa formulazione, bisogna eh diciamo eh tra queste eh grandezze.",
+            "partIndex": 1
+          },
+          {
+            "start": 1380,
+            "end": 1440,
+            "speaker": "Professor",
+            "text_en": "So, the fact that the scalar fields, so we have the magnetic field and the surface currents solution are continuous, with continuous first order.",
+            "text_it": "Quindi, il fatto che i campi scalari, quindi abbiamo il campo magnetico e la soluzione delle correnti superficiali siano continui, con derivate prime continue.",
+            "partIndex": 1
+          },
+          {
+            "start": 1440,
+            "end": 1500,
+            "speaker": "Professor",
+            "text_en": "Okay? Uh derivatives, because it has to be continuous with respect to all of the pressure derivative.",
+            "text_it": "Ok? Uh derivate, perché deve essere continuo rispetto a tutte le derivate di pressione.",
+            "partIndex": 1
+          },
+          {
+            "start": 1500,
+            "end": 1560,
+            "speaker": "Professor",
+            "text_en": "So, it means that uh for example, you assume that if you have a certain field, let's say, I will do just a scalar field.",
+            "text_it": "Quindi significa che uh ad esempio, si suppone che se hai un certo campo, diciamo, farò solo un campo scalare.",
+            "partIndex": 1
+          },
+          {
+            "start": 1560,
+            "end": 1620,
+            "speaker": "Professor",
+            "text_en": "If it's uh to in one point, it moves to the immediate next point, for example, game number two.",
+            "text_it": "Se è uh due in un punto, si sposta al punto immediatamente successivo, ad esempio, il gioco numero due.",
+            "partIndex": 1
+          },
+          {
+            "start": 1620,
+            "end": 1680,
+            "speaker": "Professor",
+            "text_en": "Okay? That must be continuously changing.",
+            "text_it": "Ok? Quello deve cambiare continuamente.",
+            "partIndex": 1
+          },
+          {
+            "start": 1680,
+            "end": 1740,
+            "speaker": "Professor",
+            "text_en": "Okay? There are no steps, there are no jumps, okay? And this is true uh for uh the the function itself and also for the derivative.",
+            "text_it": "Ok? Non ci sono gradini, non ci sono salti, ok? E questo è vero uh per uh la funzione stessa e anche per la derivata.",
+            "partIndex": 1
+          },
+          {
+            "start": 1740,
+            "end": 1800,
+            "speaker": "Professor",
+            "text_en": "This is an important point for this, okay? We will see that in our case, most of the time we can uh let's say we can uh we can fulfill these hypotheses.",
+            "text_it": "Questo è un punto importante per questo, ok? Vedremo che nel nostro caso, la maggior parte delle volte possiamo uh diciamo possiamo uh possiamo soddisfare queste ipotesi.",
+            "partIndex": 1
+          },
+          {
+            "start": 1800,
+            "end": 1860,
+            "speaker": "Professor",
+            "text_en": "But you have to keep in mind that if it's not, you cannot apply this uh solution.",
+            "text_it": "Ma bisogna tenere presente che se non lo è, non si può applicare questa uh soluzione.",
+            "partIndex": 1
+          },
+          {
+            "start": 1860,
+            "end": 1920,
+            "speaker": "Professor",
+            "text_en": "Okay, so we say that this term is equal to zero, so let me check.",
+            "text_it": "Ok, quindi diciamo che questo termine è uguale a zero, quindi fatemi controllare.",
+            "partIndex": 1
+          },
+          {
+            "start": 1920,
+            "end": 1980,
+            "speaker": "Professor",
+            "text_en": "Then we have let's say the second term, so we have the divergence of the partial derivative with time.",
+            "text_it": "Poi abbiamo diciamo il secondo termine, quindi abbiamo la divergenza della derivata parziale rispetto al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 1980,
+            "end": 2040,
+            "speaker": "Professor",
+            "text_en": "So, actually, since let's say the divergence is something related to let's say the the spatial properties of our field.",
+            "text_it": "Quindi, in realtà, poiché diciamo che la divergenza è qualcosa legato diciamo alle proprietà spaziali del nostro campo.",
+            "partIndex": 1
+          },
+          {
+            "start": 2040,
+            "end": 2100,
+            "speaker": "Professor",
+            "text_en": "So, it's not related to the time.",
+            "text_it": "Quindi, non è legato al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 2100,
+            "end": 2160,
+            "speaker": "Professor",
+            "text_en": "It means that actually this, you can say, it's uh somehow constant with respect to time.",
+            "text_it": "Significa che in realtà questo, si può dire, è uh in qualche modo costante rispetto al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 2160,
+            "end": 2220,
+            "speaker": "Professor",
+            "text_en": "So it means that actually we can take this divergence operator and we can put it inside the uh the partial derivative thing.",
+            "text_it": "Quindi significa che in realtà possiamo prendere questo operatore di divergenza e possiamo metterlo dentro la uh cosa della derivata parziale.",
+            "partIndex": 1
+          },
+          {
+            "start": 2220,
+            "end": 2280,
+            "speaker": "Professor",
+            "text_en": "So, again, we have that the partial derivative with respect to time of the divergence of the electric field displacement is equal to the divergence of the J, okay? The surface current distribution.",
+            "text_it": "Quindi, di nuovo, abbiamo che la derivata parziale rispetto al tempo della divergenza dello spostamento del campo elettrico è uguale alla divergenza del J, ok? La distribuzione della corrente superficiale.",
+            "partIndex": 1
+          },
+          {
+            "start": 2280,
+            "end": 2340,
+            "speaker": "Professor",
+            "text_en": "And here you can apply the second equation, right? The charge current continuity equation.",
+            "text_it": "E qui si può applicare la seconda equazione, giusto? L'equazione di continuità della carica-corrente.",
+            "partIndex": 1
+          },
+          {
+            "start": 2340,
+            "end": 2400,
+            "speaker": "Professor",
+            "text_en": "Okay, which is this? So, we can replace this term by the second term, the charge current continuity equation.",
+            "text_it": "Ok, cos'è questo? Quindi, possiamo sostituire questo termine con il secondo termine, l'equazione di continuità della carica-corrente.",
+            "partIndex": 1
+          },
+          {
+            "start": 2400,
+            "end": 2460,
+            "speaker": "Professor",
+            "text_en": "So, again, we have the time derivative of the partial derivative with respect to time of the divergence of B is equal to minus the partial derivative with respect to time of what? Of the charge.",
+            "text_it": "Quindi, di nuovo, abbiamo la derivata temporale della derivata parziale rispetto al tempo della divergenza di B è uguale a meno la derivata parziale rispetto al tempo di cosa? Della carica.",
+            "partIndex": 1
+          },
+          {
+            "start": 2460,
+            "end": 2520,
+            "speaker": "Professor",
+            "text_en": "Okay, it's a very little proof for both with respect to time, so we can say we can compact these two terms.",
+            "text_it": "Ok, è una piccolissima dimostrazione per entrambi rispetto al tempo, quindi possiamo dire che possiamo compattare questi due termini.",
+            "partIndex": 1
+          },
+          {
+            "start": 2520,
+            "end": 2580,
+            "speaker": "Professor",
+            "text_en": "And so, again, we have that the derivative with respect to time of this equation, so the divergence of D minus rho is equal to zero.",
+            "text_it": "E quindi, di nuovo, abbiamo che la derivata rispetto al tempo di questa equazione, quindi la divergenza di D meno rho è uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 2580,
+            "end": 2640,
+            "speaker": "Professor",
+            "text_en": "Okay, which is this? So what does it mean? What does this mean?",
+            "text_it": "Ok, cos'è questo? Quindi cosa significa? Cosa significa questo?",
+            "partIndex": 1
+          },
+          {
+            "start": 2640,
+            "end": 2700,
+            "speaker": "Professor",
+            "text_en": "This means that if this, if the time derivative with respect to time is equal to zero, it means that this term has to be equal to a constant with respect to time.",
+            "text_it": "Questo significa che se questo, se la derivata temporale rispetto al tempo è uguale a zero, significa che questo termine deve essere uguale a una costante rispetto al tempo.",
+            "partIndex": 1
+          },
+          {
+            "start": 2700,
+            "end": 2760,
+            "speaker": "Professor",
+            "text_en": "So it means that this term is equal to a given function of position.",
+            "text_it": "Quindi significa che questo termine è uguale a una data funzione della posizione.",
+            "partIndex": 1
+          },
+          {
+            "start": 2760,
+            "end": 2820,
+            "speaker": "Professor",
+            "text_en": "So we know that that this is constant, but we do not which which which is the the value of this constant.",
+            "text_it": "Quindi sappiamo che questo è costante, ma non sappiamo quale sia il valore di questa costante.",
+            "partIndex": 1
+          },
+          {
+            "start": 2820,
+            "end": 2880,
+            "speaker": "Professor",
+            "text_en": "In order to compute the value of this constant, we need to apply let's say the causality here.",
+            "text_it": "Per calcolare il valore di questa costante, dobbiamo applicare diciamo la causalità qui.",
+            "partIndex": 1
+          },
+          {
+            "start": 2880,
+            "end": 2940,
+            "speaker": "Professor",
+            "text_en": "So, we know that there must have been, okay? Some somewhere, okay? In in time, a moment where there were no charges, okay? Divergence of C is six.",
+            "text_it": "Quindi, sappiamo che ci deve essere stato, ok? Da qualche parte, ok? Nel nel tempo, un momento in cui non c'erano cariche, ok? La divergenza di C è sei.",
+            "partIndex": 1
+          },
+          {
+            "start": 2940,
+            "end": 3000,
+            "speaker": "Professor",
+            "text_en": "We know that in terms sources, so it means that both is equal to zero, and also J is equal to zero.",
+            "text_it": "Sappiamo che in termini di sorgenti, quindi significa che entrambi sono uguali a zero, e anche J è uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 3000,
+            "end": 3060,
+            "speaker": "Professor",
+            "text_en": "We know that if these the sources are equal to zero, also the uh the electromagnetic fields are equal to zero, okay?",
+            "text_it": "Sappiamo che se queste sorgenti sono uguali a zero, anche i uh campi elettromagnetici sono uguali a zero, ok?",
+            "partIndex": 1
+          },
+          {
+            "start": 3060,
+            "end": 3120,
+            "speaker": "Professor",
+            "text_en": "So, we know that at certain point, time instant, this equation, the divergence of E minus rho was equal to zero.",
+            "text_it": "Quindi, sappiamo che a un certo punto, istante di tempo, questa equazione, la divergenza di E meno rho era uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 3120,
+            "end": 3180,
+            "speaker": "Professor",
+            "text_en": "Okay? And this we can say we can take it for let's say for granted.",
+            "text_it": "Ok? E questo possiamo dire che possiamo prenderlo per diciamo per scontato.",
+            "partIndex": 1
+          },
+          {
+            "start": 3180,
+            "end": 3240,
+            "speaker": "Professor",
+            "text_en": "But again, for the causality theorem, if this there was a time in which this quantity was zero, and this has to be constant, so it cannot change, it means that for whatever position uh or whatever time, okay? This quantity has to be equal to zero.",
+            "text_it": "Ma di nuovo, per il teorema di causalità, se c'è stato un tempo in cui questa quantità era zero, e questa deve essere costante, quindi non può cambiare, significa che per qualsiasi posizione uh o qualsiasi tempo, ok? Questa quantità deve essere uguale a zero.",
+            "partIndex": 1
+          },
+          {
+            "start": 3240,
+            "end": 3300,
+            "speaker": "Professor",
+            "text_en": "Okay? So you can write the uh these equations, so the divergence of P minus rho is equal to zero, which is exactly the Gauss law for the.",
+            "text_it": "Ok? Quindi si possono scrivere le uh queste equazioni, quindi la divergenza di P meno rho è uguale a zero, che è esattamente la legge di Gauss per il.",
+            "partIndex": 1
+          }
+        ],
+        "study_guide_it": "\\documentclass[11pt,a4paper]{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[italian]{babel}\n\\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}\n\\geometry{margin=2.5cm}\n\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}\n\\title{Propagazione Elettromagnetica - Lezione 2}\n\\author{OmniLecture Studio}\n\\date{\\today}\n\\begin{document}\n\\maketitle\n\n\\section{Le equazioni di Maxwell e la Legge di Gauss}\n\nLa trattazione parte dall'applicazione della legge di Gauss per il campo elettrico \\ts{1}{0}:\n\n\\begin{equation}\n\\nabla \\cdot \\mathbf{D} = \\rho\n\\end{equation}\n\nUtilizzando le equazioni di Maxwell, in particolare il rotore del campo elettrico e la conservazione della carica, si dimostra la consistenza temporale e spaziale delle formulazioni.\n\n\\subsection{Teoremi integrali e differenziali}\n\nVengono richiamati i teoremi fondamentali dell'analisi vettoriale applicati ai campi elettromagnetici:\n\n\\begin{itemize}\n    \\item \\textbf{Teorema della divergenza (Teorema di Gauss):}\n    \\[\n    \\int_{V} \\nabla \\cdot \\mathbf{F} \\, dv = \\oint_{\\partial V} \\mathbf{F} \\cdot \\hat{n} \\, ds\n    \\]\n    \\item \\textbf{Teorema di Stokes (Teorema del rotore):}\n    \\[\n    \\int_{S} (\\nabla \\times \\mathbf{F}) \\cdot \\hat{n} \\, ds = \\oint_{\\partial S} \\mathbf{F} \\cdot d\\mathbf{r}\n    \\]\n\\end{itemize}\n\nQuesti teoremi consentono di passare dalla forma differenziale alla forma integrale delle equazioni di Maxwell, stabilendo rigorosamente le condizioni al contorno e le ipotesi di continuità per i campi e le sorgenti $\\rho$ e $\\mathbf{J}$.\n\n\\end{document}",
+        "potential_exam_questions": [
+          {
+            "question": "Enunciare e dimostrare la consistenza della legge di Gauss partendo dalle equazioni di Maxwell e dall'equazione di continuità.",
+            "answer_latex": "Partendo dall'equazione di Maxwell $\\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t}$ e applicando l'operatore divergenza, combinato con l'equazione di continuità $\\nabla \\cdot \\mathbf{J} + \\frac{\\partial \\rho}{\\partial t} = 0$, si dimostra che la quantità $\\nabla \\cdot \\mathbf{D} - \\rho$ si mantiene costante nel tempo. Sfruttando il principio di causalità e assumendo che in un istante passato le sorgenti e i campi fossero nulli, si conclude che $\\nabla \\cdot \\mathbf{D} = \\rho$ ovunque.",
+            "importance_level": "High"
+          },
+          {
+            "question": "Spiegare il ruolo del Teorema della divergenza e del Teorema di Stokes nell'elettromagnetismo.",
+            "answer_latex": "Il Teorema della divergenza (o di Gauss) collega il flusso di un campo vettoriale attraverso una superficie chiusa all'integrale della sua divergenza nel volume racchiuso. Il Teorema di Stokes collega la circolazione di un campo lungo una curva chiusa al flusso del suo rotore attraverso la superficie delimitata. Entrambi sono essenziali per convertire le equazioni di Maxwell dalla forma differenziale a quella integrale.",
+            "importance_level": "Medium"
+          }
+        ]
+      }
+    },
+    {
+      "id": "2e5a50d5-97f6-475c-8841-8f167c8c17f3_chunk_2",
+      "lectureId": "2e5a50d5-97f6-475c-8841-8f167c8c17f3",
+      "index": 2,
+      "partIndex": 2,
+      "startSeconds": 0,
+      "endSeconds": 2026,
+      "duration": 2026,
+      "status": "done",
+      "retryCount": 0,
+      "updatedAt": "2026-10-02T09:58:32.234Z",
+      "data": {
+        "glossary": [
+          {
+            "term_en": "Green's theorem",
+            "translation_it": "Teorema di Green",
+            "academic_definition": "A mathematical theorem relating a line integral around a simple closed curve C to a double integral over the plane region D bounded by C."
+          },
+          {
+            "term_en": "Stokes' theorem",
+            "translation_it": "Teorema di Stokes",
+            "academic_definition": "A theorem in calculus that relates a surface integral of the curl of a vector field over a surface to a line integral of the vector field over the boundary curve."
+          },
+          {
+            "term_en": "Flux",
+            "translation_it": "Flusso",
+            "academic_definition": "The integral of a vector field over a given surface, representing the amount of field passing through that surface."
+          },
+          {
+            "term_en": "Circulation",
+            "translation_it": "Circolazione",
+            "academic_definition": "The line integral of a vector field around a closed curve."
+          },
+          {
+            "term_en": "Scalar product",
+            "translation_it": "Prodotto scalare",
+            "academic_definition": "An algebraic operation that takes two equal-length sequences of numbers (usually coordinate vectors) and returns a single number."
+          },
+          {
+            "term_en": "Vector field",
+            "translation_it": "Campo vettoriale",
+            "academic_definition": "An assignment of a vector to each point in a subset of space."
+          },
+          {
+            "term_en": "Differential form",
+            "translation_it": "Forma differenziale",
+            "academic_definition": "An expression of the form that can be integrated over a region of appropriate dimension."
+          },
+          {
+            "term_en": "Stationary condition",
+            "translation_it": "Condizione stazionaria",
+            "academic_definition": "A condition in which quantities do not change with respect to time."
+          }
+        ],
+        "timestamped_transcript": [
+          {
+            "start": 0,
+            "end": 6,
+            "speaker": "Professor",
+            "text_en": "These two theorems, okay? The Gauss theorem and Stokes theorem.",
+            "text_it": "Questi due teoremi, ok? Il teorema di Gauss e il teorema di Stokes.",
+            "partIndex": 2
+          },
+          {
+            "start": 6,
+            "end": 22,
+            "speaker": "Professor",
+            "text_en": "I told you that these two theorems is what we need in order to go from the differential equations or Maxwell's equations to the integral Maxwell's equations.",
+            "text_it": "Vi ho detto che questi due teoremi sono ciò di cui abbiamo bisogno per passare dalle equazioni differenziali o equazioni di Maxwell alle equazioni di Maxwell integrali.",
+            "partIndex": 2
+          },
+          {
+            "start": 22,
+            "end": 32,
+            "speaker": "Professor",
+            "text_en": "So this is just the definition we write for, let's say, convenience.",
+            "text_it": "Quindi questa è solo la definizione che scriviamo per, diciamo, comodità.",
+            "partIndex": 2
+          },
+          {
+            "start": 32,
+            "end": 43,
+            "speaker": "Professor",
+            "text_en": "At first we want to compute the, sorry, first of all, the one equation in integral form is already known, okay?",
+            "text_it": "Innanzitutto vogliamo calcolare la, scusate, prima di tutto, un'equazione in forma integrale è già nota, ok?",
+            "partIndex": 2
+          },
+          {
+            "start": 43,
+            "end": 58,
+            "speaker": "Professor",
+            "text_en": "Because if you remember, okay, this is something that we already solved in the last lecture, right? As electrostatic, okay?",
+            "text_it": "Perché se ricordate, ok, questo è qualcosa che abbiamo già risolto nella scorsa lezione, giusto? Come elettrostatica, ok?",
+            "partIndex": 2
+          },
+          {
+            "start": 58,
+            "end": 70,
+            "speaker": "Professor",
+            "text_en": "And I told you that we can go from this to the differential, to the differential, differential form, solving those two systems.",
+            "text_it": "E vi ho detto che possiamo passare da questo al differenziale, alla forma differenziale, risolvendo questi due sistemi.",
+            "partIndex": 2
+          },
+          {
+            "start": 70,
+            "end": 80,
+            "speaker": "Professor",
+            "text_en": "But actually this is already an equation in integral form, okay?",
+            "text_it": "Ma in realtà questa è già un'equazione in forma integrale, ok?",
+            "partIndex": 2
+          },
+          {
+            "start": 80,
+            "end": 90,
+            "speaker": "Professor",
+            "text_en": "So this is the charge problem in integral form. So we already know one of the equations.",
+            "text_it": "Quindi questo è il problema delle cariche in forma integrale. Quindi conosciamo già una delle equazioni.",
+            "partIndex": 2
+          },
+          {
+            "start": 90,
+            "end": 95,
+            "speaker": "Professor",
+            "text_en": "We need to compute the other two.",
+            "text_it": "Dobbiamo calcolare le altre due.",
+            "partIndex": 2
+          },
+          {
+            "start": 95,
+            "end": 133,
+            "speaker": "Professor",
+            "text_en": "So, let's start from the Faraday-Lenz law, okay? How we pass from the differential form of the Faraday integral form, which is this? Let's go step by step in order to show us, okay, how we reach this.",
+            "text_it": "Quindi, partiamo dalla legge di Faraday-Lenz, ok? Come passiamo dalla forma differenziale della forma integrale di Faraday, che è questa? Andiamo passo dopo passo per mostrarvi, ok, come arriviamo a questo.",
+            "partIndex": 2
+          },
+          {
+            "start": 133,
+            "end": 170,
+            "speaker": "Professor",
+            "text_en": "So we have the differential form. We compute the flux through a surface S bounded by a simple closed curve C.",
+            "text_it": "Quindi abbiamo la forma differenziale. Calcoliamo il flusso attraverso una superficie S delimitata da una curva chiusa semplice C.",
+            "partIndex": 2
+          },
+          {
+            "start": 170,
+            "end": 190,
+            "speaker": "Professor",
+            "text_en": "Again, the important part here is something that I want to focus on. First of all, we already know, okay?",
+            "text_it": "Di nuovo, la parte importante qui è qualcosa su cui voglio concentrarmi. Prima di tutto, lo sappiamo già, ok?",
+            "partIndex": 2
+          },
+          {
+            "start": 190,
+            "end": 210,
+            "speaker": "Professor",
+            "text_en": "Because we want to define a surface S bounded by a simple curve C.",
+            "text_it": "Perché vogliamo definire una superficie S delimitata da una curva semplice C.",
+            "partIndex": 2
+          },
+          {
+            "start": 210,
+            "end": 224,
+            "speaker": "Professor",
+            "text_en": "So probably we want to apply the statistics.",
+            "text_it": "Quindi probabilmente vogliamo applicare la statistica.",
+            "partIndex": 2
+          },
+          {
+            "start": 224,
+            "end": 250,
+            "speaker": "Professor",
+            "text_en": "The other things, the other thing is that, and is something that I want to focus on, here I'm not saying that the surface S should be a square, should be a circle, should be, I don't know, a cup.",
+            "text_it": "Le altre cose, l'altra cosa è che, ed è qualcosa su cui voglio concentrarmi, qui non sto dicendo che la superficie S debba essere un quadrato, debba essere un cerchio, debba essere, non so, una tazza.",
+            "partIndex": 2
+          },
+          {
+            "start": 250,
+            "end": 330,
+            "speaker": "Professor",
+            "text_en": "This is for whatever surface S that I want to define until this fulfills this desire. So it's up to me to define the surface. So it's up to me to define a surface which is compliant with this. So, let's say, this surface I define so that it is compliant, is...",
+            "text_it": "Questo vale per qualsiasi superficie S che voglio definire finché questa soddisfa questo desiderio. Quindi sta a me definire la superficie. Quindi sta a me definire una superficie che sia conforme a questo. Quindi, diciamo, questa superficie la definisco in modo che sia conforme, è...",
+            "partIndex": 2
+          }
+        ],
+        "study_guide_it": "\\documentclass[11pt,a4paper]{article}\n\\usepackage[utf8]{inputenc}\n\\usepackage[italian]{babel}\n\\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}\n\\geometry{margin=2.5cm}\n\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}\n\\title{Electromagnetic Propagation - Lecture Notes}\n\\author{OmniLecture Studio}\n\\date{\\today}\n\\begin{document}\n\\maketitle\n\n\\section{Introduzione ai Teoremi Integrali e Differenziali}\nIn questa lezione analizziamo il passaggio dalle equazioni di Maxwell in forma differenziale alla loro forma integrale mediante l'uso dei teoremi fondamentali del calcolo vettoriale: il teorema di Gauss (della divergenza) e il teorema di Stokes \\ts{2}{0}.\n\nRicordiamo che il problema delle cariche in forma integrale è già noto dall'elettrostatica \\ts{2}{38}, e l'obiettivo è ricavare le restanti equazioni integrali per il campo elettromagnetico.\n\n\\section{Legge di Faraday-Lenz in Forma Integrale}\nPartendo dalla forma differenziale della legge di Faraday-Lenz \\ts{2}{132}:\n\\begin{equation}\n\\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t}\n\\end{equation}\nvogliamo calcolare il flusso attraverso una superficie $S$ delimitata da una curva chiusa semplice $C$ \\ts{2}{170}.\n\nApplicando il teorema di Stokes, la circuitazione del campo elettrico lungo il contorno $C$ è correlata al flusso del rotore del campo attraverso la superficie $S$ \\ts{2}{825}:\n\\begin{equation}\n\\oint_C \\mathbf{E} \\cdot d\\mathbf{l} = \\int_S (\\nabla \\times \\mathbf{E}) \\cdot d\\mathbf{S}\n\\end{equation}\n\nSostituendo l'espressione differenziale all'interno dell'integrale di superficie, otteniamo la forma integrale della legge di Faraday-Lenz \\ts{2}{1210}:\n\\begin{equation}\n\\oint_C \\mathbf{E} \\cdot d\\mathbf{l} = - \\frac{d}{dt} \\int_S \\mathbf{B} \\cdot d\\mathbf{S}\n\\end{equation}\n\n\\section{Legge di Ampère-Maxwell in Forma Integrale}\nAnalogamente, partendo dalla legge di Ampère-Maxwell in forma differenziale con il termine di corrente di spostamento \\ts{2}{1500}:\n\\begin{equation}\n\\nabla \\times \\mathbf{H} = \\mathbf{J} + \\frac{\\partial \\mathbf{D}}{\\partial t}\n\\end{equation}\nintegrando su una superficie $S$ e applicando il teorema di Stokes, otteniamo la forma integrale \\ts{2}{2820}:\n\\begin{equation}\n\\oint_C \\mathbf{H} \\cdot d\\mathbf{l} = \\int_S \\mathbf{J} \\cdot d\\mathbf{S} + \\frac{d}{dt} \\int_S \\mathbf{D} \\cdot d\\mathbf{S}\n\\end{equation}\n\n\\section{Teorema di Gauss per il Campo Magnetico}\nPer il campo magnetico $\\mathbf{B}$, essendo un campo solenoidale (privo di divergenza), vale la condizione \\ts{2}{2910}:\n\\begin{equation}\n\\nabla \\cdot \\mathbf{B} = 0\n\\end{equation}\nIntegrando su un volume $V$ delimitato da una superficie chiusa $S$, tramite il teorema della divergenza si ottiene \\ts{2}{2890}:\n\\begin{equation}\n\\oint_S \\mathbf{B} \\cdot d\\mathbf{S} = 0\n\\end{equation}\n\n\\end{document}",
+        "potential_exam_questions": [
+          {
+            "question": "Mostrare il passaggio dalla forma differenziale della legge di Faraday-Lenz alla sua forma integrale utilizzando il teorema di Stokes.",
+            "answer_latex": "Partendo dall'equazione differenziale:\\begin{equation}\\nabla \\times \\mathbf{E} = -\\frac{\\partial \\mathbf{B}}{\\partial t}\\end{equation}Si integra ambo i membri su una superficie aperta $S$ delimitata da una curva chiusa $C$:\\begin{equation}\\int_S (\\nabla \\times \\mathbf{E}) \\cdot d\\mathbf{S} = -\\int_S \\frac{\\partial \\mathbf{B}}{\\partial t} \\cdot d\\mathbf{S}\\end{equation}Applicando il teorema di Stokes al primo membro:\\begin{equation}\\oint_C \\mathbf{E} \\cdot d\\mathbf{l} = -\\frac{d}{dt}\\int_S \\mathbf{B} \\cdot d\\mathbf{S}\\end{equation}",
+            "importance_level": "High"
+          },
+          {
+            "question": "Scrivere e spiegare la forma integrale della legge di Ampère-Maxwell derivandola dalla forma differenziale.",
+            "answer_latex": "Partendo dalla forma differenziale di Ampère-Maxwell:\\begin{equation}\\nabla \\times \\mathbf{H} = \\mathbf{J} + \\frac{\\partial \\mathbf{D}}{\\partial t}\\end{equation}integrando sulla superficie $S$ e applicando il teorema di Stokes si ottiene:\\begin{equation}\\oint_C \\mathbf{H} \\cdot d\\mathbf{l} = \\int_S \\mathbf{J} \\cdot d\\mathbf{S} + \\frac{d}{dt}\\int_S \\mathbf{D} \\cdot d\\mathbf{S}\\end{equation}",
+            "importance_level": "Crucial"
+          }
+        ]
+      }
+    }
+  ]
+}

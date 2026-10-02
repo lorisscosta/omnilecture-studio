@@ -22,6 +22,7 @@ import { Lecture, AudioPart } from '@/lib/types';
 import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
 import { shouldOptimizeAudio, optimizeAudioFile } from '@/lib/audio-compressor';
 import { clampAndNormalizeSlideTimestamps } from '@/lib/slides-sync';
+import { synchronizeLectureSlidesState, validateLectureOutput } from '@/lib/lecture-validator';
 import {
   GeminiModelInfo,
   STATIC_FALLBACK_MODELS,
@@ -60,10 +61,19 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [autoOptimizeAudio, setAutoOptimizeAudio] = useState(true);
 
-  const hasHeavyFiles = useMemo(
-    () => audioFiles.some((f) => shouldOptimizeAudio(f)),
-    [audioFiles]
-  );
+  const [hasHeavyFiles, setHasHeavyFiles] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all(audioFiles.map((f) => shouldOptimizeAudio(f))).then((results) => {
+      if (active) {
+        setHasHeavyFiles(results.some(Boolean));
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [audioFiles]);
 
   useEffect(() => {
     const key = typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') : null;
@@ -199,7 +209,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         const optimizedList: File[] = [];
         for (let i = 0; i < audioFiles.length; i++) {
           const file = audioFiles[i];
-          if (shouldOptimizeAudio(file)) {
+          if (await shouldOptimizeAudio(file)) {
             setProcessingStage(`Ottimizzazione audio vocale (16kHz): ${file.name}...`);
             try {
               const optResult = await optimizeAudioFile(file, 16000, (stg, pct) => {
@@ -255,6 +265,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       let lectureData: any = null;
       let calculatedTotalDuration = 0;
       let finalAudioParts: AudioPart[] = [];
+      let directWarnings: string[] = [];
 
       try {
         const result = await processAudioDirectly(
@@ -277,6 +288,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         lectureData = result.data;
         calculatedTotalDuration = result.totalDuration || 0;
         finalAudioParts = result.audioParts || [];
+        directWarnings = result.processingWarnings || [];
       } catch (directErr: any) {
         console.error('Direct upload failed:', directErr);
 
@@ -315,6 +327,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
 
       // 3. Optional: If PDF was provided, also extract markdown preview for Slides tab
       let slidesMarkdown = lectureData.slides_markdown || '';
+      const collectedWarnings: string[] = [...(typeof directWarnings !== 'undefined' ? directWarnings : [])];
+
       if (selectedPdf && !slidesMarkdown) {
         setProcessingStage('Generazione anteprima Markdown delle slide...');
         try {
@@ -323,10 +337,11 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           });
         } catch (pdfErr) {
           console.warn('Estrazione markdown opzionale fallita:', pdfErr);
+          collectedWarnings.push('Estrazione del testo Markdown dalle slide non riuscita. Le slide sono visualizzabili in formato PDF.');
         }
       }
 
-      setProcessingStage('Salvataggio dei risultati e generazione appunti...');
+      setProcessingStage('Salvataggio dei risultati e validazione appunti...');
 
       // Ensure slide timestamps strictly respect the calculated total audio duration
       if (Array.isArray(lectureData.slides_alignment) && calculatedTotalDuration > 0) {
@@ -335,6 +350,38 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           calculatedTotalDuration
         );
       }
+
+      // Synchronize slide presence state across top-level and data
+      const lectureStateSync: Partial<Lecture> = {
+        hasSlides: Boolean(selectedPdf),
+        slidesFileName: selectedPdf ? selectedPdf.name : undefined,
+        slidesMarkdown: slidesMarkdown || undefined,
+        slidesAlignment: lectureData.slides_alignment,
+        data: lectureData,
+      };
+      synchronizeLectureSlidesState(lectureStateSync);
+
+      // Validate entire lecture output
+      const validation = validateLectureOutput(
+        {
+          duration: calculatedTotalDuration,
+          audioParts: finalAudioParts,
+          hasSlides: lectureStateSync.hasSlides,
+          slidesFileName: lectureStateSync.slidesFileName,
+          slidesMarkdown: lectureStateSync.slidesMarkdown,
+          slidesAlignment: lectureStateSync.slidesAlignment,
+          data: lectureData,
+        },
+        {
+          totalDuration: calculatedTotalDuration,
+          audioParts: finalAudioParts,
+          slidesMarkdown,
+        }
+      );
+
+      const allWarnings = Array.from(new Set([...collectedWarnings, ...validation.warnings]));
+      const finalStatus: 'completed' | 'completed_with_warnings' =
+        validation.isValid && allWarnings.length === 0 ? 'completed' : 'completed_with_warnings';
 
       // 4. Update Lecture in Dexie.js
       if (selectedPdf) {
@@ -350,11 +397,16 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         await updateLectureData(lectureId, lectureData);
       }
 
-      // Update duration, audio parts and guarantee completed status
+      // Update duration, audio parts and final validation status
       await db.lectures.update(lectureId, {
         duration: calculatedTotalDuration,
         audioParts: finalAudioParts.length > 0 ? finalAudioParts : undefined,
-        status: 'completed',
+        hasSlides: lectureStateSync.hasSlides,
+        slidesFileName: lectureStateSync.slidesFileName,
+        slidesMarkdown: lectureStateSync.slidesMarkdown,
+        slidesAlignment: lectureStateSync.slidesAlignment,
+        status: finalStatus,
+        processingWarnings: allWarnings.length > 0 ? allWarnings : undefined,
         processingProgress: undefined,
         processingPercentage: 100,
         errorMessage: undefined,

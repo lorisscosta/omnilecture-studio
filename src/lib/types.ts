@@ -35,6 +35,8 @@ export interface SlideAlignment {
   start_time_seconds: number;
   end_time_seconds: number;
   summary: string;
+  needs_review?: boolean;
+  status?: 'valid' | 'needs_review' | 'not_discussed';
 }
 
 export interface LectureBookmark {
@@ -98,10 +100,11 @@ export interface Lecture {
   slidesMarkdown?: string;
   slidesAlignment?: SlideAlignment[];
   hasSlides?: boolean;
-  status: 'ready' | 'processing' | 'completed' | 'error';
+  status: 'ready' | 'processing' | 'completed' | 'completed_with_warnings' | 'error';
   errorMessage?: string;
   processingProgress?: string;
   processingPercentage?: number;
+  processingWarnings?: string[];
   processingChunks?: LectureProcessingChunk[];
   data?: LectureData;
   bookmarks?: LectureBookmark[];

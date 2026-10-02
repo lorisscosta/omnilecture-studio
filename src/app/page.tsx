@@ -23,6 +23,7 @@ import {
   Bookmark,
   Cloud,
   CloudUpload,
+  CloudOff,
   User as UserIcon,
   Check,
   Loader2,
@@ -36,6 +37,7 @@ import {
   syncLectureToSupabase,
   fetchCloudLectures,
   deleteCloudLecture,
+  removeLectureFromCloud,
   isSupabaseConfigured,
 } from '@/lib/supabase';
 import { WaveSurferPlayer, WaveSurferPlayerHandle } from '@/components/audio/WaveSurferPlayer';
@@ -138,6 +140,18 @@ export default function HomePage() {
           });
         }
       }
+      // Sync any local records that were removed from cloud
+      const cloudIds = new Set(cloudLectures.map((c) => c.id));
+      const localLectures = await getAllLectures();
+      for (const loc of localLectures) {
+        if (loc.isCloudSynced && loc.userId === currentUser.id && !cloudIds.has(loc.id)) {
+          await db.lectures.update(loc.id, {
+            isCloudSynced: false,
+            cloudSyncedAt: undefined,
+          });
+        }
+      }
+
       setSyncSuccessToast('Sincronizzazione Cloud completata!');
       setTimeout(() => setSyncSuccessToast(null), 3000);
     } catch (err: any) {
@@ -190,6 +204,41 @@ export default function HomePage() {
       setTimeout(() => setSyncSuccessToast(null), 3000);
     } catch (err: any) {
       alert('Errore durante la sincronizzazione: ' + err.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Remove a synced lecture from Supabase Cloud (keeps local copy intact)
+  const handleRemoveFromCloud = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    if (
+      !confirm(
+        'Vuoi rimuovere questa registrazione dal Cloud Supabase?\n\nLa lezione rimarrà salvata su questo dispositivo, ma verrà cancellata dal cloud e non sarà più accessibile da altri dispositivi finché non la risincronizzerai.'
+      )
+    ) {
+      return;
+    }
+
+    setIsSyncing(true);
+    setSyncSuccessToast(null);
+
+    try {
+      const res = await removeLectureFromCloud(id, currentUser.id);
+      if (!res.success) {
+        alert('Errore rimozione dal cloud: ' + (res.error || 'Errore sconosciuto'));
+        return;
+      }
+
+      setSyncSuccessToast('Rimossa dal Cloud Supabase (mantenuta in locale)');
+      setTimeout(() => setSyncSuccessToast(null), 3500);
+    } catch (err: any) {
+      alert('Errore durante la rimozione dal cloud: ' + err.message);
     } finally {
       setIsSyncing(false);
     }
@@ -580,23 +629,41 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 }`}
               >
                 <div className="flex items-start justify-between gap-1 mb-1">
-                  <div className="flex items-center gap-1.5 truncate max-w-[170px]">
+                  <div className="flex items-center gap-1.5 truncate max-w-[155px]">
                     <span className="text-[10px] font-bold text-purple-400 uppercase truncate">
                       {lec.course}
                     </span>
                     {lec.isCloudSynced && (
-                      <span title="Sincronizzato su Supabase (Solo Testo)">
-                        <Cloud className="w-3 h-3 text-emerald-400 shrink-0" />
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemoveFromCloud(lec.id, e)}
+                        className="text-emerald-400 hover:text-rose-400 transition"
+                        title="Sincronizzato su Supabase. Clicca per rimuovere dal cloud (mantiene la copia locale)"
+                      >
+                        <Cloud className="w-3 h-3 shrink-0" />
+                      </button>
                     )}
                   </div>
-                  <button
-                    onClick={(e) => handleDeleteLecture(lec.id, e)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 transition"
-                    title="Elimina lezione"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {lec.isCloudSynced && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemoveFromCloud(lec.id, e)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-amber-400 transition rounded"
+                        title="Rimuovi dal Cloud Supabase (mantieni locale)"
+                      >
+                        <CloudOff className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteLecture(lec.id, e)}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 transition rounded"
+                      title="Elimina lezione"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 <h4 className="text-xs font-semibold text-zinc-100 line-clamp-1 mb-1">
@@ -616,6 +683,14 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                   {lec.status === 'processing' && (
                     <span className="text-amber-400 font-semibold animate-pulse">
                       • In analisi...
+                    </span>
+                  )}
+                  {lec.status === 'completed_with_warnings' && (
+                    <span
+                      className="text-amber-400 font-semibold"
+                      title={lec.processingWarnings?.join('\n') || 'Completata con avvisi'}
+                    >
+                      • Avvisi
                     </span>
                   )}
                   {lec.status === 'error' && (
@@ -716,31 +791,45 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
 
             {/* Sync to Cloud Button (Text-Only to Supabase) */}
             {currentLecture && !isCreatingNew && currentLecture.data && (
-              <button
-                onClick={() => handleSyncToCloud(currentLecture)}
-                disabled={isSyncing}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
-                  currentLecture.isCloudSynced
-                    ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800 hover:bg-emerald-900/80'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950/40'
-                }`}
-                title="Sincronizza testi, formule Overleaf e trascrizioni su Supabase (audio escluso)"
-              >
-                {isSyncing ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : currentLecture.isCloudSynced ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <CloudUpload className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleSyncToCloud(currentLecture)}
+                  disabled={isSyncing}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-md transition ${
+                    currentLecture.isCloudSynced
+                      ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800 hover:bg-emerald-900/80'
+                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950/40'
+                  }`}
+                  title="Sincronizza testi, formule Overleaf e trascrizioni su Supabase (audio escluso)"
+                >
+                  {isSyncing ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : currentLecture.isCloudSynced ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <CloudUpload className="w-3.5 h-3.5" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {isSyncing
+                      ? 'Sync...'
+                      : currentLecture.isCloudSynced
+                      ? 'Nel Cloud'
+                      : 'Sync Cloud'}
+                  </span>
+                </button>
+
+                {currentLecture.isCloudSynced && (
+                  <button
+                    onClick={() => handleRemoveFromCloud(currentLecture.id)}
+                    disabled={isSyncing}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-zinc-900/90 hover:bg-rose-950/50 text-zinc-400 hover:text-rose-300 border border-zinc-700/80 hover:border-rose-800/70 transition"
+                    title="Rimuovi dal Cloud Supabase (la registrazione locale sul dispositivo viene conservata)"
+                  >
+                    <CloudOff className="w-3.5 h-3.5 text-zinc-400 hover:text-rose-300" />
+                    <span className="hidden md:inline">Rimuovi dal Cloud</span>
+                  </button>
                 )}
-                <span className="hidden sm:inline">
-                  {isSyncing
-                    ? 'Sync...'
-                    : currentLecture.isCloudSynced
-                    ? 'Nel Cloud'
-                    : 'Sync Cloud'}
-                </span>
-              </button>
+              </div>
             )}
 
             {/* Supabase Account Button */}

@@ -73,6 +73,24 @@ describe('chunk-processing: retryWithBackoff', () => {
     expect(callCount).toBe(3);
   });
 
+  it('does NOT retry on non-retryable client errors (e.g. 401 Unauthorized or 400)', async () => {
+    const fn = vi.fn().mockRejectedValue({ status: 401, message: 'API key not valid' });
+    await expect(retryWithBackoff(fn, 3, 5)).rejects.toMatchObject({ status: 401 });
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('aborts immediately when AbortSignal is cancelled', async () => {
+    const controller = new AbortController();
+    const fn = vi.fn().mockImplementation(async () => {
+      controller.abort();
+      throw new Error('Transient 503 error');
+    });
+
+    await expect(
+      retryWithBackoff(fn, { maxRetries: 3, baseDelayMs: 50, signal: controller.signal })
+    ).rejects.toThrow('aborted');
+  });
+
   it('throws final error after exhausting all retries', async () => {
     const fn = vi.fn().mockRejectedValue(new Error('Fatal API crash'));
     await expect(retryWithBackoff(fn, 2, 5)).rejects.toThrow('Fatal API crash');
@@ -81,7 +99,7 @@ describe('chunk-processing: retryWithBackoff', () => {
 });
 
 describe('chunk-processing: mergeTranscriptSegments', () => {
-  it('merges segments preserving sequential ordering and offset adjustment', () => {
+  it('merges segments preserving sequential ordering, cumulativePartOffset and chunkStartSeconds', () => {
     const chunkData1 = {
       partIndex: 0,
       chunkStartSeconds: 0,
@@ -90,21 +108,34 @@ describe('chunk-processing: mergeTranscriptSegments', () => {
         { start: 0, end: 15, text_en: 'Introduction', text_it: 'Introduzione', speaker: 'Docente' },
       ],
     };
+    // Sliced chunk from Part 0 starting at second 2400
     const chunkData2 = {
+      partIndex: 0,
+      chunkStartSeconds: 2400,
+      cumulativePartOffset: 0,
+      segments: [
+        { start: 10, end: 30, text_en: 'Part 1 slice 2', text_it: 'Seconda fetta parte 1', speaker: 'Docente' },
+      ],
+    };
+    // Second audio file (Part 1) starting after 5000s
+    const chunkData3 = {
       partIndex: 1,
       chunkStartSeconds: 0,
-      cumulativePartOffset: 100,
+      cumulativePartOffset: 5000,
       segments: [
-        { start: 10, end: 25, text_en: 'Main definition', text_it: 'Definizione principale', speaker: 'Docente' },
+        { start: 5, end: 20, text_en: 'Part 2 intro', text_it: 'Intro parte 2', speaker: 'Docente' },
       ],
     };
 
-    const merged = mergeTranscriptSegments([chunkData1, chunkData2]);
-    expect(merged.length).toBe(2);
-    expect(merged[0].text_it).toBe('Introduzione');
+    const merged = mergeTranscriptSegments([chunkData1, chunkData2, chunkData3]);
+    expect(merged.length).toBe(3);
     expect(merged[0].start).toBe(0);
-    expect(merged[1].text_it).toBe('Definizione principale');
-    expect(merged[1].start).toBe(110); // 100 + 10
+    // 0 cumulative + 2400 chunkStart + 10 = 2410
+    expect(merged[1].start).toBe(2410);
+    expect(merged[1].end).toBe(2430);
+    // 5000 cumulative + 0 chunkStart + 5 = 5005
+    expect(merged[2].start).toBe(5005);
+    expect(merged[2].end).toBe(5020);
   });
 });
 

@@ -44,9 +44,26 @@ export async function syncLectureToSupabase(
         : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
 
       try {
-        await db.lectures.delete(lecture.id);
+        const oldId = lecture.id;
+        await db.transaction('rw', [db.lectures, db.processingChunks], async () => {
+          const clonedLecture = { ...lecture, id: newUuid };
+          // Write new record FIRST
+          await db.lectures.put(clonedLecture);
+          // Migrate any associated processing chunks
+          const chunks = await db.processingChunks.where('lectureId').equals(oldId).toArray();
+          if (chunks.length > 0) {
+            const updatedChunks = chunks.map((c) => ({
+              ...c,
+              lectureId: newUuid,
+              id: c.id.replace(oldId, newUuid),
+            }));
+            await db.processingChunks.bulkPut(updatedChunks);
+            await db.processingChunks.where('lectureId').equals(oldId).delete();
+          }
+          // Delete old record only after new record is safely saved
+          await db.lectures.delete(oldId);
+        });
         lecture.id = newUuid;
-        await db.lectures.put(lecture);
         targetId = newUuid;
       } catch (migrationErr) {
         console.warn('Could not migrate legacy lecture ID in Dexie:', migrationErr);
@@ -171,11 +188,15 @@ export async function fetchCloudLectures(userId: string): Promise<Lecture[]> {
 /**
  * Deletes a lecture from Supabase PostgreSQL table.
  */
-export async function deleteCloudLecture(lectureId: string): Promise<boolean> {
+export async function deleteCloudLecture(lectureId: string, userId?: string): Promise<boolean> {
   if (!supabase) return false;
 
   try {
-    const { error } = await supabase.from('lectures').delete().eq('id', lectureId);
+    let query = supabase.from('lectures').delete().eq('id', lectureId);
+    if (userId) {
+      query = query.eq('user_id', userId);
+    }
+    const { error } = await query;
     if (error) {
       console.error('Error deleting lecture from Supabase:', error);
       return false;
@@ -184,5 +205,36 @@ export async function deleteCloudLecture(lectureId: string): Promise<boolean> {
   } catch (err) {
     console.error('Exception deleting from Supabase:', err);
     return false;
+  }
+}
+
+/**
+ * Removes a lecture from Supabase Cloud while preserving it locally in Dexie IndexedDB.
+ * Updates local record state: isCloudSynced = false, cloudSyncedAt = undefined.
+ */
+export async function removeLectureFromCloud(
+  lectureId: string,
+  userId?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) {
+    return { success: false, error: 'Configurazione Supabase non attiva.' };
+  }
+
+  try {
+    const deleted = await deleteCloudLecture(lectureId, userId);
+    if (!deleted) {
+      return { success: false, error: 'Impossibile eliminare la registrazione dal cloud Supabase.' };
+    }
+
+    // Update local Dexie record to reflect it is no longer in the cloud
+    await db.lectures.update(lectureId, {
+      isCloudSynced: false,
+      cloudSyncedAt: undefined,
+    });
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('Exception removing lecture from cloud:', err);
+    return { success: false, error: err.message || 'Errore durante la rimozione dal cloud.' };
   }
 }
