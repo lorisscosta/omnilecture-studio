@@ -35,7 +35,29 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-# recordings
+# recordings & media
 *.wav
 *.mp3
 *.m4a
+*.aac
+*.ogg
+*.flac
+*.webm
+*.wma
+*.mp4
+*.m4v
+
+# personal uploads & lecture documents (slides, notes)
+*.pdf
+*.pptx
+*.ppt
+*.docx
+*.doc
+*.key
+
+# personal debug dumps, exports & local benchmarks
+omnilecture-*.json
+*debug*.json
+*.dump.json
+202*.wav
+Lesson*.*

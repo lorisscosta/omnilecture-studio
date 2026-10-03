@@ -23,6 +23,54 @@ describe('OmniLecture Studio — Real Case Regression & Audit Suite', () => {
   if (fs.existsSync(debugJsonPath)) {
     rawDebugJson = JSON.parse(fs.readFileSync(debugJsonPath, 'utf8'));
     rawLecture = rawDebugJson.lectures[0];
+  } else {
+    // Resilient fallback fixture reflecting the uncorrected real case
+    rawLecture = {
+      id: '0a04452c-e7ca-499c-b129-188f4338332d',
+      title: '20261001112643',
+      course: 'python',
+      date: '2026-10-01',
+      duration: 1158,
+      fileSize: 37049004,
+      fileName: '20261001112643_optimized.wav',
+      slidesFileName: 'Lesson4_Theory_Slides.pdf',
+      hasSlides: true,
+      status: 'completed',
+      chatMessages: [],
+      createdAt: '2026-10-01T10:31:35.174Z',
+      updatedAt: '2026-10-01T12:48:33.011Z',
+      processingPercentage: 100,
+      slidesMarkdown: '',
+      slidesAlignment: [
+        { slide_number: 1, title: 'Lesson 4: Functions I — Using Built-ins & Modules', part: 0, start_time_seconds: 0, end_time_seconds: 6, summary: '' },
+        { slide_number: 2, title: "What we'll cover in 30 minutes", part: 0, start_time_seconds: 6, end_time_seconds: 38, summary: '' },
+        { slide_number: 4, title: 'A function is a mini-machine', part: 0, start_time_seconds: 130, end_time_seconds: 194, summary: '' },
+        { slide_number: 5, title: 'A few more built-ins worth knowing', part: 0, start_time_seconds: 266, end_time_seconds: 387, summary: '' },
+        { slide_number: 6, title: 'A module is a file full of ready-made functions', part: 0, start_time_seconds: 390, end_time_seconds: 445, summary: '' },
+        { slide_number: 7, title: 'Three ways to import', part: 0, start_time_seconds: 446, end_time_seconds: 592, summary: '' },
+        { slide_number: 8, title: "A few math functions you'll use often", part: 0, start_time_seconds: 626, end_time_seconds: 876, summary: '' },
+        { slide_number: 9, title: 'Randomness, on demand', part: 0, start_time_seconds: 882, end_time_seconds: 1009, summary: '' },
+        { slide_number: 10, title: "Feed one function's output into another", part: 0, start_time_seconds: 1009, end_time_seconds: 1158, summary: '' },
+      ],
+      data: {
+        has_slides: false,
+        slides_filename: 'Lesson4_Theory_Slides.pdf',
+        glossary: [
+          { term_en: 'function', translation_it: 'funzione', academic_definition: 'A mini-machine.' },
+          { term_en: 'module', translation_it: 'modulo', academic_definition: 'A file containing functions.' },
+          { term_en: 'import', translation_it: 'importazione', academic_definition: 'A statement.' },
+          { term_en: 'function composition', translation_it: 'composizione di funzioni', academic_definition: 'Chaining functions.' },
+        ],
+        timestamped_transcript: [
+          { start: 0, end: 6, speaker: 'Professor', text_en: 'Welcome to lesson four on built-in functions and modules.', text_it: 'Benvenuti alla lezione quattro.' },
+          { start: 6, end: 38, speaker: 'Professor', text_en: 'Quick recap covering strings, indexing, slicing, input, f-strings and syntax errors.', text_it: 'Breve riepilogo con stringhe, indicizzazione, slicing ed errori.' },
+          { start: 38, end: 1158, speaker: 'Professor', text_en: 'Now we discuss built-in functions and math modules and function composition.', text_it: 'Ora discutiamo di funzioni built-in, moduli matematici e composizione di funzioni.' },
+          { start: 1158, end: 1878, speaker: 'Professor', text_en: 'Invalid tail section beyond real audio duration.', text_it: 'Coda oltre la durata effettiva.' },
+        ],
+        study_guide_it: '\\documentclass{article}\n\\begin{document}\n\\section{Funzioni Built-in e Moduli}\nSpiegazione dettagliata.\n\\section{Composizione di Funzioni}\nTimestamp errato \\ts{0}{1698}.\n\\end{document}',
+        potential_exam_questions: [],
+      },
+    };
   }
 
   // =========================================================================
@@ -185,10 +233,39 @@ describe('OmniLecture Studio — Real Case Regression & Audit Suite', () => {
   // BUG REALE #7: AUDIO OPTIMIZATION BYPASS FOR 16kHz MONO PCM16
   // =========================================================================
   it('bypasses optimizeAudioFile conversion for already-compliant 16kHz mono PCM16 WAV', async () => {
-    expect(fs.existsSync(audioFilePath)).toBe(true);
-    const buffer = fs.readFileSync(audioFilePath);
-    const audioBlob = new Blob([buffer], { type: 'audio/wav' });
-    const file = new File([audioBlob], '20261001112643.wav', { type: 'audio/wav' });
+    let file: File;
+    if (fs.existsSync(audioFilePath)) {
+      const buffer = fs.readFileSync(audioFilePath);
+      const audioBlob = new Blob([buffer], { type: 'audio/wav' });
+      file = new File([audioBlob], '20261001112643.wav', { type: 'audio/wav' });
+    } else {
+      // Create a valid 16kHz mono 16-bit PCM WAV in memory
+      const sampleRate = 16000;
+      const numChannels = 1;
+      const bitsPerSample = 16;
+      const blockAlign = (numChannels * bitsPerSample) / 8;
+      const byteRate = sampleRate * blockAlign;
+      const durationSec = 1158;
+      const dataSize = Math.floor(durationSec * byteRate);
+      const headerBuffer = new ArrayBuffer(44);
+      const view = new DataView(headerBuffer);
+      view.setUint8(0, 0x52); view.setUint8(1, 0x49); view.setUint8(2, 0x46); view.setUint8(3, 0x46); // RIFF
+      view.setUint32(4, 36 + dataSize, true);
+      view.setUint8(8, 0x57); view.setUint8(9, 0x41); view.setUint8(10, 0x56); view.setUint8(11, 0x45); // WAVE
+      view.setUint8(12, 0x66); view.setUint8(13, 0x6d); view.setUint8(14, 0x74); view.setUint8(15, 0x20); // fmt 
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true); // PCM
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, byteRate, true);
+      view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitsPerSample, true);
+      view.setUint8(36, 0x64); view.setUint8(37, 0x61); view.setUint8(38, 0x74); view.setUint8(39, 0x61); // data
+      view.setUint32(40, dataSize, true);
+      const blob = new Blob([headerBuffer], { type: 'audio/wav' });
+      file = new File([blob], '20261001112643.wav', { type: 'audio/wav' });
+      Object.defineProperty(file, 'size', { value: 44 + dataSize, configurable: true });
+    }
 
     const header = await checkWavHeader(file);
     expect(header.isWav).toBe(true);

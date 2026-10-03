@@ -63,7 +63,7 @@ flowchart TD
 ### 📐 1. Documento LaTeX (.tex) per Overleaf, Anteprima KaTeX & Linter
 - Genera un **documento accademico LaTeX completo** pronto per essere copiato e compilato con un solo click su [Overleaf](https://www.overleaf.com/).
 - Include il preambolo accademico standard (`\documentclass{article}`, `\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}`, `babel` italiano, impostazioni margini).
-- Include la macro compatibile Overleaf `\newcommand{\ts}[2]{\marginpar{\scriptsize\texttt{[P#1 #2s]}}}` per annotare i timestamp audio a margine.
+- Formattazione accademica pulita e rigorosa (definizioni, teoremi, dimostrazioni, blocchi codice ed elenchi strutturati).
 - **Anteprima KaTeX Interattiva**: visualizzazione immediata delle formule matematiche con supporto "click-to-seek" che porta il player audio esattamente al timestamp della spiegazione.
 - **Linter Sintattico LaTeX Integrato**: pannello diagnostico che analizza in tempo reale il codice `.tex` evidenziando ambienti non chiusi (`\begin{...}` senza `\end{...}`) o parentesi sbilanciate prima dell'esportazione.
 - Pulsanti rapidi **"Copia per Overleaf"** e download del file sorgente `.tex`.
@@ -191,7 +191,7 @@ Nella schermata di configurazione del progetto su Vercel, espandi la sezione **E
 
 | Nome Variabile | Descrizione | Esempio |
 | :--- | :--- | :--- |
-| `NEXT_PUBLIC_SUPABASE_URL` | URL del tuo progetto Supabase | `https://ffjvkuawnwelvoctjgkl.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_URL` | URL del tuo progetto Supabase | `https://tuo-progetto.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Chiave anon pubblica di Supabase | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
 | `GEMINI_API_KEY` | *(Opzionale)* Fallback per proxy server | `AIzaSy...` |
 
@@ -238,7 +238,7 @@ Apri [http://localhost:3000](http://localhost:3000) nel tuo browser.
 
 Per verificare la suite di test e la build di produzione in locale:
 ```bash
-npm run test     # Esegue 43 test unitari con Vitest
+npm run test     # Esegue 85 test automatizzati con Vitest
 npm run build    # Verifica il build di produzione Next.js 15
 npm run start    # Avvia la build in locale
 ```
