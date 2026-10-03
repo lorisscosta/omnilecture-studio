@@ -348,8 +348,8 @@ export function consolidateStudyGuides(
     urlcolor=purple!70!black
 }
 
-% Macro citazione temporale (sicura per Overleaf / pdflatex)
-\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}
+% Macro citazione temporale (neutra: nessun riferimento temporale a destra)
+\\providecommand{\\ts}[2]{}
 
 \\newtheorem{theorem}{Teorema}[section]
 \\newtheorem{definition}{Definizione}[section]

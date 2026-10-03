@@ -53,6 +53,13 @@ describe('LaTeX Linter & Timestamp Macro Suite', () => {
       const matches = result.match(/\\providecommand\{\\ts\}/g);
       expect(matches?.length).toBe(1);
     });
+
+    it('neutralizes legacy marginpar in \\ts so time references are not placed on the right', () => {
+      const legacyCode = `\\documentclass{article}\n\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}\n\\begin{document}\nContenuto \\ts{0}{10}\n\\end{document}`;
+      const result = injectTimestampPreambleMacro(legacyCode);
+      expect(result).not.toContain('marginpar');
+      expect(result).toContain('\\providecommand{\\ts}[2]{}');
+    });
   });
 
   describe('lintLatex', () => {

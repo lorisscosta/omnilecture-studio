@@ -56,20 +56,26 @@ export function extractTimestampCitations(latexContent: string): TimestampCitati
 export function injectTimestampPreambleMacro(latexCode: string): string {
   if (!latexCode) return '';
 
-  const macroDefinition = `\\providecommand{\\ts}[2]{\\ifmmode\\text{\\scriptsize\\texttt{[P#1:#2s]}}\\else\\marginpar{\\scriptsize\\texttt{P#1:#2s}}\\fi}`;
+  // Remove or neutralize any existing \marginpar in \ts definition so time references are not placed on the right
+  let cleaned = latexCode.replace(
+    /\\(providecommand|newcommand)\{\\ts\}\[2\]\{[\s\S]*?\\marginpar[\s\S]*?\}/g,
+    '\\providecommand{\\ts}[2]{}'
+  );
 
-  if (latexCode.includes('\\providecommand{\\ts}') || latexCode.includes('\\newcommand{\\ts}')) {
-    return latexCode;
+  const macroDefinition = `\\providecommand{\\ts}[2]{}`;
+
+  if (cleaned.includes('\\providecommand{\\ts}') || cleaned.includes('\\newcommand{\\ts}')) {
+    return cleaned;
   }
 
-  if (latexCode.includes('\\begin{document}')) {
-    return latexCode.replace(
+  if (cleaned.includes('\\begin{document}')) {
+    return cleaned.replace(
       '\\begin{document}',
-      `% Macro citazione temporale (sicura per Overleaf / pdflatex)\n${macroDefinition}\n\n\\begin{document}`
+      `% Macro citazione temporale (neutra: nessun riferimento temporale a destra)\n${macroDefinition}\n\n\\begin{document}`
     );
   }
 
-  return `${macroDefinition}\n\n${latexCode}`;
+  return `${macroDefinition}\n\n${cleaned}`;
 }
 
 /**
