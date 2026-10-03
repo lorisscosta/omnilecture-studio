@@ -51,7 +51,24 @@ export function extractTimestampCitations(latexContent: string): TimestampCitati
 }
 
 /**
- * Ensures standard compile-safe timestamp macro is defined in the preamble.
+ * Completely strips all timestamp citations and references (\ts{p}{s}) from LaTeX text,
+ * producing a clean, publication-ready academic document without temporal markers.
+ */
+export function stripTimestampCitations(latexCode: string): string {
+  if (!latexCode) return '';
+  return latexCode
+    // Remove \ts{p}{s} occurrences, including leading space before punctuation or inside text
+    .replace(/\s*\\ts\{\d+\}\{\d+\}/g, '')
+    // Remove legacy macro definitions
+    .replace(/%?\s*\\(providecommand|newcommand)\{\\ts\}\[[^\]]*\]\{[^}]*\}\s*/g, '')
+    // Remove comments about timestamp macro
+    .replace(/%?\s*Macro citazione temporale[^\n]*\n?/gi, '')
+    // Remove bookmark bracketed timestamps like [P1 - 12m34s]
+    .replace(/\[P\d+\s*-\s*\d+m\d+s\]\s*/g, '');
+}
+
+/**
+ * Ensures standard compile-safe timestamp macro is defined in the preamble if \ts is used.
  */
 export function injectTimestampPreambleMacro(latexCode: string): string {
   if (!latexCode) return '';

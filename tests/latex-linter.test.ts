@@ -3,6 +3,7 @@ import {
   lintLatex,
   extractTimestampCitations,
   injectTimestampPreambleMacro,
+  stripTimestampCitations,
 } from '../src/lib/latex-linter';
 
 describe('LaTeX Linter & Timestamp Macro Suite', () => {
@@ -59,6 +60,30 @@ describe('LaTeX Linter & Timestamp Macro Suite', () => {
       const result = injectTimestampPreambleMacro(legacyCode);
       expect(result).not.toContain('marginpar');
       expect(result).toContain('\\providecommand{\\ts}[2]{}');
+    });
+  });
+
+  describe('stripTimestampCitations', () => {
+    it('completely removes \\ts citations and bookmark timestamps from LaTeX code', () => {
+      const raw = `
+        \\documentclass{article}
+        \\providecommand{\\ts}[2]{}
+        \\begin{document}
+        \\section{Teorema di Stokes}
+        In questa lezione analizziamo il passaggio alle equazioni di Maxwell \\ts{2}{0}.
+        Come visto prima \\ts{2}{38}, calcoliamo il flusso \\ts{2}{170}.
+        \\begin{itemize}
+          \\item \\textbf{[P1 - 5m30s] Nota importante}: approfondire dimostrazione.
+        \\end{itemize}
+        \\end{document}
+      `;
+      const cleaned = stripTimestampCitations(raw);
+      expect(cleaned).not.toContain('\\ts{2}{0}');
+      expect(cleaned).not.toContain('\\ts{2}{38}');
+      expect(cleaned).not.toContain('\\ts{2}{170}');
+      expect(cleaned).not.toContain('[P1 - 5m30s]');
+      expect(cleaned).toContain('In questa lezione analizziamo il passaggio alle equazioni di Maxwell.');
+      expect(cleaned).toContain('Come visto prima, calcoliamo il flusso.');
     });
   });
 

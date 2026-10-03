@@ -83,6 +83,7 @@ function parseLatexTokens(rawLatex: string): LatexToken[][] {
     .replace(/\\vspace\{[^}]+\}/g, '')
     .replace(/\\hrule/g, '---')
     .replace(/\\noindent/g, '')
+    .replace(/\s*\\ts\{\d+\}\{\d+\}/g, '')
     .trim();
 
   // 2. Convert LaTeX environments to KaTeX-ready Markdown blocks
@@ -200,7 +201,7 @@ export const LatexPreview: React.FC<LatexPreviewProps> = React.memo(({ latexCont
       <div className="flex items-center gap-2 p-2.5 rounded-lg bg-purple-950/30 border border-purple-800/40 text-xs text-purple-300">
         <BookOpen className="w-4 h-4 text-purple-400 shrink-0" />
         <span>
-          Anteprima accademica con formule matematiche KaTeX e rendering progressivo. Clicca sui badge temporali per riprodurre l&apos;audio corrispondente.
+          Anteprima accademica con formule matematiche KaTeX e rendering progressivo.
         </span>
       </div>
       <div className="prose prose-invert max-w-none space-y-4">

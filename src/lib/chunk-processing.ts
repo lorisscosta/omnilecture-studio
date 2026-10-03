@@ -322,6 +322,7 @@ export function consolidateStudyGuides(
       .replace(/\\tableofcontents/g, '')
       .replace(/\\vspace\{[^}]+\}/g, '')
       .replace(/\\hrule/g, '')
+      .replace(/\s*\\ts\{\d+\}\{\d+\}/g, '')
       .trim();
 
     if (body) {

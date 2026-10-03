@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { LatexPreview } from './LatexPreview';
-import { lintLatex, injectTimestampPreambleMacro, LatexLintResult } from '@/lib/latex-linter';
+import { lintLatex, injectTimestampPreambleMacro, stripTimestampCitations, LatexLintResult } from '@/lib/latex-linter';
 import { ExamQuestion, LectureBookmark } from '@/lib/types';
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
 import {
@@ -32,7 +32,7 @@ interface StudyGuideTabProps {
   onSeek?: (seconds: number, partIndex?: number) => void;
 }
 
-// Helper to format student bookmarks for LaTeX
+// Helper to format student bookmarks for LaTeX (without temporal markers)
 function formatBookmarksLatex(bookmarks?: LectureBookmark[]): string {
   if (!bookmarks || bookmarks.length === 0) return '';
   return `
@@ -41,7 +41,7 @@ function formatBookmarksLatex(bookmarks?: LectureBookmark[]): string {
 ${bookmarks
   .map(
     (b) =>
-      `  \\item \\textbf{[P${b.partIndex + 1} - ${Math.floor(b.timestampSeconds / 60)}m${(b.timestampSeconds % 60).toString().padStart(2, '0')}s] ${b.label.replace(/[_#%$&]/g, '\\$&')}}${b.note ? `: ${b.note.replace(/[_#%$&]/g, '\\$&')}` : ''}`
+      `  \\item \\textbf{${b.label.replace(/[_#%$&]/g, '\\$&')}}${b.note ? `: ${b.note.replace(/[_#%$&]/g, '\\$&')}` : ''}`
   )
   .join('\n')}
 \\end{itemize}
@@ -67,9 +67,12 @@ function formatToOverleafLatex(
     cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
   }
 
-  // If already contains documentclass, inject timestamp macro and bookmarks
+  // Strip all timestamp citations completely from LaTeX
+  cleaned = stripTimestampCitations(cleaned);
+
+  // If already contains documentclass, inject bookmarks and return clean LaTeX
   if (cleaned.includes('\\documentclass')) {
-    let result = injectTimestampPreambleMacro(cleaned);
+    let result = cleaned;
     if (bookmarks && bookmarks.length > 0) {
       const bmSection = formatBookmarksLatex(bookmarks);
       if (result.includes('\\end{document}')) {
@@ -78,7 +81,7 @@ function formatToOverleafLatex(
         result += '\n' + bmSection;
       }
     }
-    return result;
+    return stripTimestampCitations(result);
   }
 
   // Otherwise convert Markdown notes to valid LaTeX article
@@ -113,9 +116,6 @@ function formatToOverleafLatex(
     citecolor=green!50!black,
     urlcolor=purple!70!black
 }
-
-% Macro citazione temporale (neutra: nessun riferimento temporale a destra)
-\\providecommand{\\ts}[2]{}
 
 \\newtheorem{theorem}{Teorema}[section]
 \\newtheorem{definition}{Definizione}[section]

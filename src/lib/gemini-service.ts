@@ -59,7 +59,7 @@ export const responseSchema = {
     },
     study_guide_it: {
       type: 'STRING',
-      description: 'Documento completo LaTeX (.tex) pronto per essere incollato ed eseguito direttamente su Overleaf. Deve contenere la trascrizione integrale e trattazione accademica completa dell\'audio formattata in LaTeX standard (inclusi \\documentclass[11pt,a4paper]{article}, \\usepackage[utf8]{inputenc}, \\usepackage[italian]{babel}, \\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}, \\geometry{margin=2.5cm}, \\providecommand{\\ts}[2]{}, \\title{...}, \\author{OmniLecture Studio}, \\date{\\today}, \\begin{document}, \\maketitle, sezioni con \\section e \\subsection, equazioni matematiche \\begin{equation} o \\[ ... \\], citazioni temporali \\ts{parteIndex}{secondi} ad ogni dimostrazione o passaggio chiave, ambienti definition e theorem, e trattazione integrale discorsiva di tutto l\'audio senza sintesi eccessive, \\end{document}).',
+      description: 'Documento completo LaTeX (.tex) pronto per essere incollato ed eseguito direttamente su Overleaf. Deve contenere la trascrizione integrale e trattazione accademica completa dell\'audio formattata in LaTeX standard (inclusi \\documentclass[11pt,a4paper]{article}, \\usepackage[utf8]{inputenc}, \\usepackage[italian]{babel}, \\usepackage{amsmath,amssymb,amsthm,geometry,hyperref}, \\geometry{margin=2.5cm}, \\title{...}, \\author{OmniLecture Studio}, \\date{\\today}, \\begin{document}, \\maketitle, sezioni con \\section e \\subsection, equazioni matematiche \\begin{equation} o \\[ ... \\], ambienti definition e theorem, e trattazione integrale discorsiva di tutto l\'audio senza sintesi eccessive e SENZA riferimenti o citazioni temporali, \\end{document}).',
     },
     potential_exam_questions: {
       type: 'ARRAY',
@@ -467,7 +467,7 @@ ${
   isMultiPart
     ? `\nISTRUZIONI SPECIFICHE PER LEZIONE IN PIÙ REGISTRAZIONI (${uploadedFilesMeta.length} PARTI ORDINATE):
 La lezione è stata registrata a spezzoni. Ciascuna parte viene analizzata singolarmente:
-1. "study_guide_it": Documento LaTeX (.tex) completo con citazioni temporali \\ts{parteIndex}{secondi} coerenti con la traccia corrente.
+1. "study_guide_it": Documento LaTeX (.tex) accademico completo senza citazioni o riferimenti temporali.
 2. "timestamped_transcript": Trascrizione cronologica coerente della traccia corrente. Tutti i timestamp (start, end) DEVONO essere rigorosamente relativi all'inizio di questa traccia audio (da 0 alla durata del file). NON sommare offset cumulativi esterni.
 3. "glossary": Glossario accademico dei termini spiegati in questa registrazione.
 4. "potential_exam_questions": Domande d'esame complete sui concetti affrontati in questa traccia.`
@@ -477,7 +477,7 @@ La lezione è stata registrata a spezzoni. Ciascuna parte viene analizzata singo
 Struttura dei campi JSON richiesta:
 1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi relativi all'audio fornito), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Includi partIndex indicando l'indice (0-based) della registrazione di riferimento.
 2. "glossary": Estrai SOLO i termini tecnici realmente pronunciati o spiegati nell'audio con traduzione e definizione accademica. Se nell'audio non sono stati pronunciati termini tecnici (es. registrazioni di prova, test microfono, audio non didattico), restituisci un array VUOTO [].
-3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), la macro di citazione \\providecommand{\\ts}[2]{}, impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, inserendo citazioni temporali \\ts{parteIndex}{secondi} ad ogni snodo teorico o passaggio matematico, terminando con \\end{document}. Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
+3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, terminando con \\end{document}. NON inserire citazioni o riferimenti temporali (NON inserire \\ts, timestamp o minuti nel documento LaTeX: deve essere una trattazione accademica formale e pulita pronta per la pubblicazione o studio). Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
 4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].
 5. "slides_alignment": Se sono allegate slide PDF, compila con MASSIMA PRECISIONE TEMPORALE l'intervallo [start_time_seconds, end_time_seconds] di ciascuna slide spiegata:
    - "slide_number": Numero della slide da 1 in avanti
@@ -592,7 +592,7 @@ Struttura dei campi JSON richiesta:
         const partDuration = Math.round(uf.duration);
         const partPromptText = `Trascrivi ed elabora questa registrazione audio (Parte ${partNumber} di ${uploadedFilesMeta.length}: "${uf.fileName}") per il corso di "${course}" (lezione: "${title}").
 DURATA ESATTA DELLA TRACCIA: ${partDuration} secondi (~${Math.floor(partDuration / 60)}m ${partDuration % 60}s).
-CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript, start_time_seconds, end_time_seconds in slides_alignment, e le citazioni \\ts{${partIdx}}{secondi} nella study guide LaTeX) DEVONO ESSERE RIGOROSAMENTE RELATIVI A QUESTA TRACCIA E COMPRESI TRA 0 E ${partDuration} SECONDI. NESSUN TIMESTAMP PUÒ SUPERARE ${partDuration} SECONDI.${
+CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript, start_time_seconds, end_time_seconds in slides_alignment) DEVONO ESSERE RIGOROSAMENTE RELATIVI A QUESTA TRACCIA E COMPRESI TRA 0 E ${partDuration} SECONDI. NESSUN TIMESTAMP PUÒ SUPERARE ${partDuration} SECONDI.${
           uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment per tutte le slide discusse (da 1 a N). Non omettere alcuna slide trattata.' : ''
         } Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
@@ -754,7 +754,7 @@ CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript
       const fileDuration = Math.round(uf.duration);
       const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}").
 DURATA ESATTA AUDIO: ${fileDuration} secondi (~${Math.floor(fileDuration / 60)}m ${fileDuration % 60}s).
-CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in timestamped_transcript, "start_time_seconds", "end_time_seconds" in slides_alignment, e le citazioni \\ts{0}{secondi} nella study guide LaTeX) DEVONO essere RIGOROSAMENTE compresi nell'intervallo [0, ${fileDuration}]. È severamente vietato produrre timestamp superiori a ${fileDuration} secondi.${
+CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in timestamped_transcript, "start_time_seconds", "end_time_seconds" in slides_alignment) DEVONO essere RIGOROSAMENTE compresi nell'intervallo [0, ${fileDuration}]. È severamente vietato produrre timestamp superiori a ${fileDuration} secondi.${
         uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment con la massima precisione cronologica (da 1 a N). Nel documento LaTeX, copri tutti gli argomenti principali presenti nelle slide e discussi nell\'audio.' : ''
       } Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
