@@ -1,4 +1,4 @@
-import { Lecture, LectureData, TranscriptSegment, SlideAlignment, AudioPart } from './types';
+import { Lecture, LectureData, TranscriptSegment, SlideAlignment, AudioPart, ProcessingIssue } from './types';
 
 export interface LectureValidationResult {
   isValid: boolean;
@@ -6,6 +6,7 @@ export interface LectureValidationResult {
   status: 'completed' | 'completed_with_warnings' | 'error';
   errors: string[];
   warnings: string[];
+  issues: ProcessingIssue[];
   details: {
     transcriptValid: boolean;
     slidesAlignmentValid: boolean;
@@ -87,6 +88,21 @@ export function validateLectureOutput(
 ): LectureValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const issues: ProcessingIssue[] = [];
+
+  const addIssue = (
+    severity: 'error' | 'warning' | 'info',
+    code: string,
+    message: string,
+    stage: 'audio' | 'transcript' | 'slides' | 'latex' | 'storage' | 'sync'
+  ) => {
+    issues.push({ severity, code, message, stage });
+    if (severity === 'error') {
+      errors.push(message);
+    } else if (severity === 'warning') {
+      warnings.push(message);
+    }
+  };
 
   const tolerance = typeof options.toleranceSeconds === 'number' ? options.toleranceSeconds : 5;
   const audioParts = options.audioParts || lecture.audioParts || [];
@@ -103,7 +119,7 @@ export function validateLectureOutput(
   // 1. Validate Transcript Timestamps
   let transcriptValid = true;
   if (transcript.length === 0) {
-    errors.push('Trascrizione vuota: nessun segmento timestamped_transcript presente.');
+    addIssue('error', 'TRANSCRIPT_EMPTY', 'Trascrizione vuota: nessun segmento timestamped_transcript presente.', 'transcript');
     transcriptValid = false;
   } else {
     let lastStart = -1;
@@ -114,32 +130,35 @@ export function validateLectureOutput(
 
       // 1. Check bounds
       if (seg.start < 0) {
-        errors.push(`Segmento transcript ${i}: start negativo (${seg.start}s).`);
+        addIssue('error', 'TRANSCRIPT_NEGATIVE_START', `Segmento transcript ${i}: start negativo (${seg.start}s).`, 'transcript');
         transcriptValid = false;
       }
       if (totalDuration > 0 && seg.end > totalDuration + tolerance) {
-        errors.push(
-          `Segmento transcript ${i}: timestamp fuori durata (${seg.end}s > durata audio ${totalDuration}s).`
+        addIssue(
+          'error',
+          'TRANSCRIPT_TIMESTAMP_OUT_OF_BOUNDS',
+          `Segmento transcript ${i}: timestamp fuori durata (${seg.end}s > durata audio ${totalDuration}s).`,
+          'transcript'
         );
         transcriptValid = false;
       }
 
       // 2. start < end
       if (seg.start >= seg.end) {
-        errors.push(`Segmento transcript ${i}: start >= end (${seg.start}s >= ${seg.end}s).`);
+        addIssue('error', 'TRANSCRIPT_INVERTED_TIMESTAMPS', `Segmento transcript ${i}: start >= end (${seg.start}s >= ${seg.end}s).`, 'transcript');
         transcriptValid = false;
       }
 
       // 3. Chronological ordering
       if (seg.start < lastStart) {
-        errors.push(`Segmento transcript ${i}: ordine cronologico violato (${seg.start}s < ${lastStart}s).`);
+        addIssue('error', 'TRANSCRIPT_CHRONOLOGY_VIOLATION', `Segmento transcript ${i}: ordine cronologico violato (${seg.start}s < ${lastStart}s).`, 'transcript');
         transcriptValid = false;
       }
       lastStart = seg.start;
 
       // 4. partIndex valid
       if (audioParts.length > 0 && (partIdx < 0 || partIdx >= audioParts.length)) {
-        errors.push(`Segmento transcript ${i}: partIndex non valido (${partIdx}, atteso 0..${audioParts.length - 1}).`);
+        addIssue('error', 'TRANSCRIPT_INVALID_PART_INDEX', `Segmento transcript ${i}: partIndex non valido (${partIdx}, atteso 0..${audioParts.length - 1}).`, 'audio');
         transcriptValid = false;
       }
     }
@@ -150,32 +169,38 @@ export function validateLectureOutput(
   for (let i = 0; i < slides.length; i++) {
     const s = slides[i];
     if (s.slide_number < 1) {
-      errors.push(`Slide ${i}: numero slide non valido (${s.slide_number}).`);
+      addIssue('error', 'SLIDE_NUMBER_INVALID', `Slide ${i}: numero slide non valido (${s.slide_number}).`, 'slides');
       slidesAlignmentValid = false;
     }
     if (options.expectedSlideCount && s.slide_number > options.expectedSlideCount) {
-      warnings.push(`Slide ${s.slide_number}: supera il numero totale di slide atteso (${options.expectedSlideCount}).`);
+      addIssue('warning', 'SLIDE_COUNT_EXCEEDED', `Slide ${s.slide_number}: supera il numero totale di slide atteso (${options.expectedSlideCount}).`, 'slides');
     }
 
     if (s.status !== 'not_discussed') {
       if (s.start_time_seconds < 0) {
-        errors.push(`Slide ${s.slide_number}: start_time_seconds negativo (${s.start_time_seconds}s).`);
+        addIssue('error', 'SLIDE_NEGATIVE_START', `Slide ${s.slide_number}: start_time_seconds negativo (${s.start_time_seconds}s).`, 'slides');
         slidesAlignmentValid = false;
       }
       if (s.start_time_seconds > s.end_time_seconds) {
-        errors.push(
-          `Slide ${s.slide_number}: start_time_seconds > end_time_seconds (${s.start_time_seconds}s > ${s.end_time_seconds}s).`
+        addIssue(
+          'error',
+          'SLIDE_INVERTED_TIMESTAMPS',
+          `Slide ${s.slide_number}: start_time_seconds > end_time_seconds (${s.start_time_seconds}s > ${s.end_time_seconds}s).`,
+          'slides'
         );
         slidesAlignmentValid = false;
       }
       if (totalDuration > 0 && s.end_time_seconds > totalDuration + tolerance) {
-        errors.push(
-          `Slide ${s.slide_number}: end_time_seconds fuori durata (${s.end_time_seconds}s > durata audio ${totalDuration}s).`
+        addIssue(
+          'error',
+          'SLIDE_TIMESTAMP_OUT_OF_BOUNDS',
+          `Slide ${s.slide_number}: end_time_seconds fuori durata (${s.end_time_seconds}s > durata audio ${totalDuration}s).`,
+          'slides'
         );
         slidesAlignmentValid = false;
       }
       if (s.needs_review || s.status === 'needs_review') {
-        warnings.push(`Slide ${s.slide_number}: allineamento contrassegnato per revisione manuale (outlier temporale).`);
+        addIssue('warning', 'SLIDE_NEEDS_REVIEW', `Slide ${s.slide_number}: allineamento contrassegnato per revisione manuale (outlier temporale).`, 'slides');
       }
     }
   }
@@ -207,11 +232,14 @@ export function validateLectureOutput(
 
         if (isDiscussedInTranscript) {
           missingDiscussedSlideNumbers.push(num);
-          errors.push(
-            `Copertura Slide: La slide ${num} (${heading?.title || 'Slide ' + num}) è discussa nell'audio/transcript ma manca in slides_alignment.`
+          addIssue(
+            'error',
+            'SLIDE_MISSING_DISCUSSED',
+            `Copertura Slide: La slide ${num} (${heading?.title || 'Slide ' + num}) è discussa nell'audio/transcript ma manca in slides_alignment.`,
+            'slides'
           );
         } else {
-          warnings.push(`Slide ${num}: non presente in slides_alignment (non discussa o saltata).`);
+          addIssue('warning', 'SLIDE_NOT_DISCUSSED', `Slide ${num}: non presente in slides_alignment (non discussa o saltata).`, 'slides');
         }
       }
     }
@@ -220,7 +248,7 @@ export function validateLectureOutput(
   // 8. Validate Study Guide Topic Coverage
   let studyGuideValid = Boolean(studyGuide && studyGuide.includes('\\documentclass'));
   if (!studyGuideValid) {
-    errors.push('Study Guide LaTeX non valida o incompleta (manca \\documentclass).');
+    addIssue('error', 'LATEX_DOCUMENTCLASS_MISSING', 'Study Guide LaTeX non valida o incompleta (manca \\documentclass).', 'latex');
   }
 
   const expectedTopics = options.expectedTopics || [
@@ -256,8 +284,11 @@ export function validateLectureOutput(
         coveredTopics.push(topic);
       } else {
         missingTopics.push(topic);
-        warnings.push(
-          `Copertura Argomenti: L'argomento "${topic}" è trattato nel transcript ma manca nella study guide LaTeX (manca sezione o funzioni chiave).`
+        addIssue(
+          'warning',
+          'LATEX_TOPIC_MISSING',
+          `Copertura Argomenti: L'argomento "${topic}" è trattato nel transcript ma manca nella study guide LaTeX (manca sezione o funzioni chiave).`,
+          'latex'
         );
       }
     }
@@ -273,12 +304,15 @@ export function validateLectureOutput(
 
     const partDuration = audioParts[pIdx]?.duration || totalDuration;
     if (audioParts.length > 0 && pIdx >= audioParts.length) {
-      errors.push(`LaTeX timestamp: \\ts{${pIdx}}{${sec}} cita un indice parte inesistente (${pIdx}).`);
+      addIssue('error', 'LATEX_TIMESTAMP_INVALID_PART', `LaTeX timestamp: \\ts{${pIdx}}{${sec}} cita un indice parte inesistente (${pIdx}).`, 'latex');
       latexTimestampsValid = false;
     }
     if (partDuration > 0 && sec > partDuration + tolerance) {
-      errors.push(
-        `LaTeX timestamp fuori durata: \\ts{${pIdx}}{${sec}} supera la durata (${sec}s > ${partDuration}s).`
+      addIssue(
+        'error',
+        'LATEX_TIMESTAMP_OUT_OF_BOUNDS',
+        `LaTeX timestamp fuori durata: \\ts{${pIdx}}{${sec}} supera la durata (${sec}s > ${partDuration}s).`,
+        'latex'
       );
       latexTimestampsValid = false;
     }
@@ -288,8 +322,11 @@ export function validateLectureOutput(
   let metadataConsistent = true;
   if (lecture.hasSlides !== undefined && data?.has_slides !== undefined) {
     if (lecture.hasSlides !== data.has_slides) {
-      errors.push(
-        `Incoerenza metadati: lecture.hasSlides (${lecture.hasSlides}) !== data.has_slides (${data.has_slides}).`
+      addIssue(
+        'error',
+        'METADATA_INCONSISTENCY',
+        `Incoerenza metadati: lecture.hasSlides (${lecture.hasSlides}) !== data.has_slides (${data.has_slides}).`,
+        'storage'
       );
       metadataConsistent = false;
     }
@@ -309,6 +346,7 @@ export function validateLectureOutput(
     status,
     errors,
     warnings,
+    issues,
     details: {
       transcriptValid,
       slidesAlignmentValid,

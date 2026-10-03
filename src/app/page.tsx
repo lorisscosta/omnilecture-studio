@@ -64,6 +64,7 @@ export default function HomePage() {
   const [syncSuccessToast, setSyncSuccessToast] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [activePartIndex, setActivePartIndex] = useState(0);
+  const [expandedIssues, setExpandedIssues] = useState(false);
 
   const waveSurferRef = useRef<WaveSurferPlayerHandle>(null);
   const hasInitializedRef = useRef(false);
@@ -685,14 +686,40 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                       • In analisi...
                     </span>
                   )}
-                  {lec.status === 'completed_with_warnings' && (
-                    <span
-                      className="text-amber-400 font-semibold"
-                      title={lec.processingWarnings?.join('\n') || 'Completata con avvisi'}
-                    >
-                      • Avvisi
-                    </span>
-                  )}
+                  {lec.status === 'completed_with_warnings' && (() => {
+                    const errorCount = lec.processingIssues?.filter((i) => i.severity === 'error').length || 0;
+                    const warningCount =
+                      lec.processingIssues?.filter((i) => i.severity === 'warning').length ||
+                      lec.processingWarnings?.length ||
+                      0;
+
+                    const titleText =
+                      lec.processingIssues && lec.processingIssues.length > 0
+                        ? lec.processingIssues.map((i) => `[${i.severity.toUpperCase()} - ${i.stage}] ${i.message}`).join('\n')
+                        : lec.processingWarnings?.join('\n') || 'Completata con avvisi';
+
+                    if (errorCount > 0) {
+                      return (
+                        <span
+                          className="text-rose-400 font-semibold flex items-center gap-1"
+                          title={titleText}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                          • {errorCount} {errorCount === 1 ? 'errore' : 'errori'}
+                          {warningCount > 0 && `, ${warningCount} ${warningCount === 1 ? 'avviso' : 'avvisi'}`}
+                        </span>
+                      );
+                    }
+                    return (
+                      <span
+                        className="text-amber-400 font-semibold flex items-center gap-1"
+                        title={titleText}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        • {warningCount} {warningCount === 1 ? 'avviso' : 'avvisi'}
+                      </span>
+                    );
+                  })()}
                   {lec.status === 'error' && (
                     <span className="text-rose-400 font-semibold">• Errore</span>
                   )}
@@ -1023,6 +1050,77 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                       Text-Only Sync
                     </span>
                   </div>
+                </div>
+              )}
+
+              {/* Validation Issues Diagnostic Alert */}
+              {((currentLecture.processingIssues && currentLecture.processingIssues.length > 0) ||
+                (currentLecture.processingWarnings && currentLecture.processingWarnings.length > 0)) && (
+                <div className="mb-3 rounded-xl border border-rose-900/60 bg-rose-950/20 p-3 text-xs shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-rose-200">
+                          Diagnostica Validazione:
+                        </span>
+                        <span className="text-zinc-300">
+                          {currentLecture.processingIssues
+                            ? `${currentLecture.processingIssues.filter((i) => i.severity === 'error').length} errori, ${
+                                currentLecture.processingIssues.filter((i) => i.severity === 'warning').length
+                              } avvisi`
+                            : `${currentLecture.processingWarnings?.length || 0} avvisi`}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setExpandedIssues((prev) => !prev)}
+                      className="text-[11px] font-mono text-rose-300 hover:text-rose-100 underline underline-offset-2 transition"
+                    >
+                      {expandedIssues ? 'Nascondi dettagli ▲' : 'Mostra dettagli ▼'}
+                    </button>
+                  </div>
+
+                  {expandedIssues && (
+                    <div className="mt-2.5 pt-2.5 border-t border-rose-900/40 space-y-1.5 max-h-48 overflow-y-auto no-scrollbar font-mono text-[11px]">
+                      {currentLecture.processingIssues && currentLecture.processingIssues.length > 0
+                        ? currentLecture.processingIssues.map((issue, idx) => (
+                            <div
+                              key={idx}
+                              className={`flex items-start gap-1.5 p-1.5 rounded ${
+                                issue.severity === 'error'
+                                  ? 'bg-rose-950/50 text-rose-300 border border-rose-900/40'
+                                  : 'bg-amber-950/40 text-amber-300 border border-amber-900/40'
+                              }`}
+                            >
+                              <span
+                                className={`px-1 py-0.2 rounded text-[9px] uppercase font-bold shrink-0 ${
+                                  issue.severity === 'error'
+                                    ? 'bg-rose-900 text-rose-100'
+                                    : 'bg-amber-900 text-amber-100'
+                                }`}
+                              >
+                                {issue.severity}
+                              </span>
+                              <span className="px-1 py-0.2 rounded text-[9px] bg-zinc-900 text-zinc-400 border border-zinc-800 shrink-0">
+                                {issue.stage}
+                              </span>
+                              <span className="text-zinc-200">{issue.message}</span>
+                            </div>
+                          ))
+                        : currentLecture.processingWarnings?.map((warn, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-start gap-1.5 p-1.5 rounded bg-amber-950/40 text-amber-300 border border-amber-900/40"
+                            >
+                              <span className="px-1 py-0.2 rounded text-[9px] uppercase font-bold shrink-0 bg-amber-900 text-amber-100">
+                                WARNING
+                              </span>
+                              <span className="text-zinc-200">{warn}</span>
+                            </div>
+                          ))}
+                    </div>
+                  )}
                 </div>
               )}
 

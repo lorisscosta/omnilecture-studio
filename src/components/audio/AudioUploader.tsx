@@ -18,7 +18,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { db, saveLecture, updateLectureStatus, updateLectureProgress, updateLectureData, updateLectureSlides } from '@/lib/db';
-import { Lecture, AudioPart } from '@/lib/types';
+import { Lecture, AudioPart, ProcessingIssue } from '@/lib/types';
 import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
 import { shouldOptimizeAudio, optimizeAudioFile } from '@/lib/audio-compressor';
 import { clampAndNormalizeSlideTimestamps } from '@/lib/slides-sync';
@@ -266,6 +266,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       let calculatedTotalDuration = 0;
       let finalAudioParts: AudioPart[] = [];
       let directWarnings: string[] = [];
+      let directIssues: ProcessingIssue[] = [];
 
       try {
         const result = await processAudioDirectly(
@@ -289,6 +290,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         calculatedTotalDuration = result.totalDuration || 0;
         finalAudioParts = result.audioParts || [];
         directWarnings = result.processingWarnings || [];
+        directIssues = result.processingIssues || [];
       } catch (directErr: any) {
         console.error('Direct upload failed:', directErr);
 
@@ -328,6 +330,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
       // 3. Optional: If PDF was provided, also extract markdown preview for Slides tab
       let slidesMarkdown = lectureData.slides_markdown || '';
       const collectedWarnings: string[] = [...(typeof directWarnings !== 'undefined' ? directWarnings : [])];
+      const collectedIssues: ProcessingIssue[] = [...(typeof directIssues !== 'undefined' ? directIssues : [])];
 
       if (selectedPdf && !slidesMarkdown) {
         setProcessingStage('Generazione anteprima Markdown delle slide...');
@@ -338,6 +341,12 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         } catch (pdfErr) {
           console.warn('Estrazione markdown opzionale fallita:', pdfErr);
           collectedWarnings.push('Estrazione del testo Markdown dalle slide non riuscita. Le slide sono visualizzabili in formato PDF.');
+          collectedIssues.push({
+            severity: 'warning',
+            code: 'SLIDES_MARKDOWN_EXTRACTION_FAILED',
+            message: 'Estrazione del testo Markdown dalle slide non riuscita. Le slide sono visualizzabili in formato PDF.',
+            stage: 'slides',
+          });
         }
       }
 
@@ -379,9 +388,21 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         }
       );
 
-      const allWarnings = Array.from(new Set([...collectedWarnings, ...validation.warnings]));
+      const allIssues: ProcessingIssue[] = [...collectedIssues, ...validation.issues];
+      const uniqueIssues = allIssues.filter((issue, idx, self) =>
+        idx === self.findIndex((i) => i.code === issue.code && i.message === issue.message)
+      );
+
+      const errorCount = uniqueIssues.filter((i) => i.severity === 'error').length;
+      const warningCount = uniqueIssues.filter((i) => i.severity === 'warning').length;
+
+      const allWarnings = Array.from(new Set([
+        ...collectedWarnings,
+        ...validation.errors.map((e) => `[ERRORE] ${e}`),
+        ...validation.warnings,
+      ]));
       const finalStatus: 'completed' | 'completed_with_warnings' =
-        validation.isValid && allWarnings.length === 0 ? 'completed' : 'completed_with_warnings';
+        validation.isValid && errorCount === 0 && warningCount === 0 ? 'completed' : 'completed_with_warnings';
 
       // 4. Update Lecture in Dexie.js
       if (selectedPdf) {
@@ -407,6 +428,7 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         slidesAlignment: lectureStateSync.slidesAlignment,
         status: finalStatus,
         processingWarnings: allWarnings.length > 0 ? allWarnings : undefined,
+        processingIssues: uniqueIssues.length > 0 ? uniqueIssues : undefined,
         processingProgress: undefined,
         processingPercentage: 100,
         errorMessage: undefined,

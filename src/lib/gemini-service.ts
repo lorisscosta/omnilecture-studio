@@ -1,4 +1,4 @@
-import { LectureData, AudioPart, LectureProcessingChunk, TranscriptSegment, GlossaryTerm, ExamQuestion, SlideAlignment } from './types';
+import { LectureData, AudioPart, LectureProcessingChunk, TranscriptSegment, GlossaryTerm, ExamQuestion, SlideAlignment, ProcessingIssue } from './types';
 import { fetchAvailableModels, getModelFallbackChain, normalizeModelName } from './gemini-config';
 import {
   createLectureChunksPlan,
@@ -199,6 +199,7 @@ export async function processAudioDirectly(
   audioParts: AudioPart[];
   status?: 'completed' | 'completed_with_warnings' | 'error';
   processingWarnings?: string[];
+  processingIssues?: ProcessingIssue[];
 }> {
   const rawFiles = Array.isArray(audioInput) ? audioInput : [audioInput];
   if (rawFiles.length === 0) {
@@ -923,7 +924,20 @@ CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in t
       }
     );
 
-    const warnings: string[] = [...validation.warnings];
+    const issues: ProcessingIssue[] = [...(validation.issues || [])];
+    if (uploadedPdfMeta && !extractedPdfMarkdown) {
+      issues.push({
+        severity: 'warning',
+        code: 'SLIDES_MARKDOWN_EXTRACTION_FAILED',
+        message: 'Estrazione testo Markdown dalle slide non riuscita. Le slide sono visualizzabili in formato PDF.',
+        stage: 'slides',
+      });
+    }
+
+    const warnings: string[] = [
+      ...validation.errors.map((e) => `[ERRORE] ${e}`),
+      ...validation.warnings,
+    ];
     if (uploadedPdfMeta && !extractedPdfMarkdown) {
       warnings.push('Estrazione testo Markdown dalle slide non riuscita. Le slide sono visualizzabili in formato PDF.');
     }
@@ -934,8 +948,9 @@ CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in t
       modelUsed: successfulModel,
       totalDuration: totalCalculatedDuration,
       audioParts,
-      status: validation.isValid ? (warnings.length > 0 ? 'completed_with_warnings' : 'completed') : 'completed_with_warnings',
+      status: validation.isValid && validation.warnings.length === 0 ? 'completed' : 'completed_with_warnings',
       processingWarnings: warnings.length > 0 ? warnings : undefined,
+      processingIssues: issues.length > 0 ? issues : undefined,
     };
   } finally {
     // Step 5: Clean up all uploaded temp files on Google AI Studio

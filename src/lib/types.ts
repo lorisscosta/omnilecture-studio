@@ -85,6 +85,13 @@ export interface LectureProcessingChunk {
   updatedAt: string;
 }
 
+export interface ProcessingIssue {
+  severity: 'error' | 'warning' | 'info';
+  code: string;
+  message: string;
+  stage: 'audio' | 'transcript' | 'slides' | 'latex' | 'storage' | 'sync';
+}
+
 export interface Lecture {
   id: string;
   title: string;
@@ -105,6 +112,7 @@ export interface Lecture {
   processingProgress?: string;
   processingPercentage?: number;
   processingWarnings?: string[];
+  processingIssues?: ProcessingIssue[];
   processingChunks?: LectureProcessingChunk[];
   data?: LectureData;
   bookmarks?: LectureBookmark[];
