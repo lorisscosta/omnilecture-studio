@@ -8,7 +8,7 @@ import {
   normalizeTechnicalTerminology,
   enrichStudyGuideWithMissingSection,
 } from '../src/lib/lecture-validator';
-import { clampAndNormalizeSlideTimestamps, getSlideTimes, findActiveSlideIndex } from '../src/lib/slides-sync';
+import { clampAndNormalizeSlideTimestamps, getSlideTimes, findActiveSlideIndex, resolveSeekTarget } from '../src/lib/slides-sync';
 import { mergeTranscriptSegments } from '../src/lib/chunk-processing';
 import { optimizeAudioFile, checkWavHeader } from '../src/lib/audio-compressor';
 import { AudioPart, Lecture, SlideAlignment, TranscriptSegment } from '../src/lib/types';
@@ -291,4 +291,70 @@ describe('OmniLecture Studio — Real Case Regression & Audit Suite', () => {
     const activeIdx = findActiveSlideIndex([slideInPart1], 730, 1, audioParts);
     expect(activeIdx).toBe(0);
   });
+
+  // =========================================================================
+  // MULTI-PART AUDIO SEEKING REGRESSION: SEGMENT AT 20:09 DOES NOT JUMP TO 27:xx
+  // =========================================================================
+  it('correctly resolves seek for segment at 20:09 in multi-part lecture without jumping to 27:xx', () => {
+    // Real lecture from omnilecture-debug.json: 20261002093842
+    const multiParts: AudioPart[] = [
+      {
+        id: 'part-0',
+        fileName: '20261002093842.wav',
+        fileSize: 13721644,
+        duration: 429, // 0:00 - 7:09
+        startOffset: 0,
+      },
+      {
+        id: 'part-1',
+        fileName: '20261002100233_optimized.wav',
+        fileSize: 72582444,
+        duration: 2268, // 7:09 - 44:57 (offset: 429)
+        startOffset: 429,
+      },
+      {
+        id: 'part-2',
+        fileName: '20261002110910_optimized.wav',
+        fileSize: 64818604,
+        duration: 2026, // 44:57 - 1:18:43 (offset: 2697)
+        startOffset: 2697,
+      },
+    ];
+
+    const totalDuration = 4723; // 429 + 2268 + 2026
+
+    // Segment 23: start = 1209s (20m09s), partIndex = 1
+    const segmentStartSeconds = 1209; // 20:09
+
+    // 1. Seeking with continuous timestamp (as passed by TranscriptTab when clicking the 20:09 pill)
+    const continuousSeek = resolveSeekTarget(segmentStartSeconds, undefined, multiParts, totalDuration);
+
+    expect(continuousSeek.targetPartIndex).toBe(1);
+    // Part 1 offset is 429. 1209 - 429 = 780s into Part 1
+    expect(continuousSeek.relativeSeconds).toBe(780);
+    expect(continuousSeek.continuousSeconds).toBe(1209);
+    // CRITICAL: Must NOT be 1638 (which was 429 + 1209 = 27m18s)
+    expect(continuousSeek.continuousSeconds).not.toBe(1638);
+
+    // 2. Seeking defensively even if a caller passes (1209, 1) where seconds is continuous
+    // If seconds is 780 relative, continuous is 1209
+    const relativeSeek = resolveSeekTarget(780, 1, multiParts, totalDuration);
+    expect(relativeSeek.targetPartIndex).toBe(1);
+    expect(relativeSeek.relativeSeconds).toBe(780);
+    expect(relativeSeek.continuousSeconds).toBe(1209);
+
+    // 3. Seeking across boundary into Part 0 (e.g. at 2:30 = 150s)
+    const part0Seek = resolveSeekTarget(150, undefined, multiParts, totalDuration);
+    expect(part0Seek.targetPartIndex).toBe(0);
+    expect(part0Seek.relativeSeconds).toBe(150);
+    expect(part0Seek.continuousSeconds).toBe(150);
+
+    // 4. Seeking across boundary into Part 2 (e.g. at 50:00 = 3000s)
+    const part2Seek = resolveSeekTarget(3000, undefined, multiParts, totalDuration);
+    expect(part2Seek.targetPartIndex).toBe(2);
+    // Part 2 offset is 2697. 3000 - 2697 = 303s into Part 2
+    expect(part2Seek.relativeSeconds).toBe(303);
+    expect(part2Seek.continuousSeconds).toBe(3000);
+  });
 });
+

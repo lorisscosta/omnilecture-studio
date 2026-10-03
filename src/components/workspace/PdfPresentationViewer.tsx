@@ -328,7 +328,7 @@ export const PdfPresentationViewer: React.FC<PdfPresentationViewerProps> = ({
         } else if (totalDuration > 0 && totalPages > 0) {
           // Fallback estimation if this specific slide has no AI alignment record
           const estimatedSec = Math.round(((targetPage - 1) / totalPages) * totalDuration);
-          onSeek(estimatedSec, currentPartIndex);
+          onSeek(estimatedSec);
           showToast(`Audio stimato: Slide ${targetPage} (${formatTime(estimatedSec)})`);
         }
       }

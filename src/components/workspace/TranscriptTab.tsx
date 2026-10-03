@@ -243,7 +243,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = React.memo(({ segment
                 <div
                   key={idx}
                   ref={isActive ? activeItemRef : null}
-                  onClick={() => onSeek(seg.start, seg.partIndex)}
+                  onClick={() => onSeek(seg.start)}
                   className={`group cursor-pointer rounded-xl p-3.5 sm:p-4 transition border ${
                     isActive
                       ? 'bg-purple-950/40 border-purple-500/70 shadow-lg shadow-purple-950/50'
@@ -256,7 +256,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = React.memo(({ segment
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSeek(seg.start, seg.partIndex);
+                          onSeek(seg.start);
                         }}
                         className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono font-medium transition ${
                           isActive

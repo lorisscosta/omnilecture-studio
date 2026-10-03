@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, f
 import WaveSurfer from 'wavesurfer.js';
 import { Play, Pause, RotateCcw, RotateCw, Volume2, VolumeX, Layers, BookmarkPlus, Bookmark, X, Check } from 'lucide-react';
 import { AudioPart, LectureBookmark } from '@/lib/types';
+import { resolveSeekTarget } from '@/lib/slides-sync';
 
 export interface WaveSurferPlayerHandle {
   seekTo: (seconds: number, partIndex?: number) => void;
@@ -115,54 +116,19 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
     // Handle Seeking across single or multiple parts
     const handleSeekTo = useCallback(
       (seconds: number, partIndex?: number) => {
-        if (typeof partIndex === 'number' && audioParts && audioParts[partIndex]) {
-          const targetPart = audioParts[partIndex];
-          if (partIndex !== activePartIndex) {
-            pendingSeekRef.current = seconds;
-            setActivePartIndex(partIndex);
-          } else {
-            if (wavesurferRef.current && currentPartDuration > 0) {
-              const progress = Math.min(Math.max(seconds / currentPartDuration, 0), 1);
-              wavesurferRef.current.seekTo(progress);
-              if (!isPlaying) {
-                wavesurferRef.current.play();
-                setIsPlaying(true);
-              }
-            }
-          }
-          return;
-        }
-
-        if (!audioParts || audioParts.length <= 1) {
-          // Single audio behavior
-          if (wavesurferRef.current && currentPartDuration > 0) {
-            const progress = Math.min(Math.max(seconds / currentPartDuration, 0), 1);
-            wavesurferRef.current.seekTo(progress);
-            if (!isPlaying) {
-              wavesurferRef.current.play();
-              setIsPlaying(true);
-            }
-          }
-          return;
-        }
-
-        // Multi-part seeking: determine which part contains `seconds`
-        let targetIdx = audioParts.findIndex(
-          (p) => seconds >= p.startOffset && seconds < p.startOffset + p.duration
+        const { targetPartIndex, relativeSeconds } = resolveSeekTarget(
+          seconds,
+          partIndex,
+          audioParts,
+          totalDuration
         );
-        if (targetIdx === -1) {
-          targetIdx = seconds >= totalDuration ? audioParts.length - 1 : 0;
-        }
 
-        const targetPart = audioParts[targetIdx];
-        const relativeSec = Math.max(0, seconds - (targetPart?.startOffset || 0));
-
-        if (targetIdx !== activePartIndex) {
-          pendingSeekRef.current = relativeSec;
-          setActivePartIndex(targetIdx);
+        if (hasMultipleParts && targetPartIndex !== activePartIndex) {
+          pendingSeekRef.current = relativeSeconds;
+          setActivePartIndex(targetPartIndex);
         } else {
           if (wavesurferRef.current && currentPartDuration > 0) {
-            const progress = Math.min(Math.max(relativeSec / currentPartDuration, 0), 1);
+            const progress = Math.min(Math.max(relativeSeconds / currentPartDuration, 0), 1);
             wavesurferRef.current.seekTo(progress);
             if (!isPlaying) {
               wavesurferRef.current.play();
@@ -171,7 +137,7 @@ export const WaveSurferPlayer = forwardRef<WaveSurferPlayerHandle, WaveSurferPla
           }
         }
       },
-      [activePartIndex, audioParts, currentPartDuration, isPlaying, totalDuration]
+      [activePartIndex, audioParts, currentPartDuration, hasMultipleParts, isPlaying, totalDuration]
     );
 
     // Expose control methods via ref

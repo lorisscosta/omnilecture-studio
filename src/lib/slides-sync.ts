@@ -253,3 +253,84 @@ export function clampAndNormalizeSlideTimestamps(
     };
   });
 }
+
+export interface ResolvedSeekTarget {
+  targetPartIndex: number;
+  relativeSeconds: number;
+  continuousSeconds: number;
+}
+
+/**
+ * Resolves a seek request to the correct audio part and relative timestamp.
+ * If partIndex is omitted, `seconds` is treated as canonical continuous lecture time,
+ * automatically mapping to the correct audio part and computing the relative offset.
+ * If partIndex is provided, `seconds` is treated as relative to that part, with
+ * defensive safeguarding against values exceeding the part duration.
+ */
+export function resolveSeekTarget(
+  seconds: number,
+  partIndex?: number,
+  audioParts?: AudioPart[],
+  totalDuration?: number
+): ResolvedSeekTarget {
+  if (!audioParts || audioParts.length <= 1) {
+    const singleDur = totalDuration || (audioParts?.[0]?.duration ?? 0);
+    const clamped = Math.max(0, singleDur > 0 ? Math.min(seconds, singleDur) : seconds);
+    return {
+      targetPartIndex: 0,
+      relativeSeconds: clamped,
+      continuousSeconds: clamped,
+    };
+  }
+
+  // If partIndex is explicitly provided and valid
+  if (typeof partIndex === 'number' && audioParts[partIndex]) {
+    const targetPart = audioParts[partIndex];
+    const partOffset = targetPart.startOffset || 0;
+    const partDuration = targetPart.duration || 0;
+
+    let relativeSec = seconds;
+    // If seconds exceeds the part duration, it CANNOT be a relative time inside this part.
+    // In that case, check if it was passed as continuous time and normalize by startOffset.
+    if (partDuration > 0 && seconds > partDuration) {
+      if (partOffset > 0 && seconds >= partOffset) {
+        relativeSec = Math.max(0, seconds - partOffset);
+      } else {
+        relativeSec = Math.min(seconds, partDuration);
+      }
+    }
+    if (partDuration > 0) {
+      relativeSec = Math.max(0, Math.min(relativeSec, partDuration));
+    }
+
+    return {
+      targetPartIndex: partIndex,
+      relativeSeconds: relativeSec,
+      continuousSeconds: partOffset + relativeSec,
+    };
+  }
+
+  // Multi-part continuous seek: find which part contains continuous `seconds`
+  const totDur = totalDuration || audioParts.reduce((acc, p) => acc + (p.duration || 0), 0);
+  let targetIdx = audioParts.findIndex(
+    (p) => seconds >= p.startOffset && seconds < p.startOffset + p.duration
+  );
+  if (targetIdx === -1) {
+    targetIdx = seconds >= totDur ? audioParts.length - 1 : 0;
+  }
+
+  const targetPart = audioParts[targetIdx];
+  const partOffset = targetPart?.startOffset || 0;
+  const partDuration = targetPart?.duration || 0;
+  let relativeSec = Math.max(0, seconds - partOffset);
+  if (partDuration > 0) {
+    relativeSec = Math.min(relativeSec, partDuration);
+  }
+
+  return {
+    targetPartIndex: targetIdx,
+    relativeSeconds: relativeSec,
+    continuousSeconds: partOffset + relativeSec,
+  };
+}
+
