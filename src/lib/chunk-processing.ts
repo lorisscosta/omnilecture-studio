@@ -416,11 +416,24 @@ export function consolidateSlidesAlignment(
     if (!Array.isArray(list)) continue;
     for (const item of list) {
       if (!item || typeof item.slide_number !== 'number') continue;
-      const key = `${item.part ?? 0}_${item.slide_number}_${item.start_time_seconds ?? 0}`;
+      const key = `${item.part ?? 0}_${item.slide_number}_${item.start_time_seconds ?? 'null'}`;
       if (!seenKey.has(key)) {
         seenKey.add(key);
-        const startSec = Math.max(0, item.start_time_seconds || 0);
-        const endSec = Math.max(startSec, item.end_time_seconds || 0);
+        const isNotDiscussed = item.status === 'not_discussed';
+        const startSec =
+          item.start_time_seconds === null || (isNotDiscussed && item.start_time_seconds === undefined)
+            ? null
+            : typeof item.start_time_seconds === 'number'
+            ? Math.max(0, item.start_time_seconds)
+            : null;
+
+        const endSec =
+          item.end_time_seconds === null || (isNotDiscussed && item.end_time_seconds === undefined)
+            ? null
+            : typeof item.end_time_seconds === 'number'
+            ? Math.max(startSec ?? 0, item.end_time_seconds)
+            : null;
+
         all.push({
           slide_number: item.slide_number,
           title: item.title?.trim() || `Slide ${item.slide_number}`,
@@ -428,6 +441,8 @@ export function consolidateSlidesAlignment(
           start_time_seconds: startSec,
           end_time_seconds: endSec,
           summary: item.summary?.trim() || '',
+          needs_review: item.needs_review,
+          status: item.status,
         });
       }
     }
@@ -435,7 +450,9 @@ export function consolidateSlidesAlignment(
 
   return all.sort((a, b) => {
     if (a.part !== b.part) return a.part - b.part;
-    if (a.start_time_seconds !== b.start_time_seconds) return a.start_time_seconds - b.start_time_seconds;
+    const aStart = a.start_time_seconds ?? Infinity;
+    const bStart = b.start_time_seconds ?? Infinity;
+    if (aStart !== bStart) return aStart - bStart;
     return a.slide_number - b.slide_number;
   });
 }

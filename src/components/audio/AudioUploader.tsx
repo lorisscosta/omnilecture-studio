@@ -21,8 +21,8 @@ import { db, saveLecture, updateLectureStatus, updateLectureProgress, updateLect
 import { Lecture, AudioPart, ProcessingIssue } from '@/lib/types';
 import { processAudioDirectly, convertPdfToMarkdown, enrichLectureWithSlides } from '@/lib/gemini-service';
 import { shouldOptimizeAudio, optimizeAudioFile } from '@/lib/audio-compressor';
-import { clampAndNormalizeSlideTimestamps } from '@/lib/slides-sync';
-import { synchronizeLectureSlidesState, validateLectureOutput } from '@/lib/lecture-validator';
+import { clampAndNormalizeSlideTimestamps, parseSlideHeadings } from '@/lib/slides-sync';
+import { synchronizeLectureSlidesState, validateLectureOutput, resolveLectureFinalStatus } from '@/lib/lecture-validator';
 import {
   GeminiModelInfo,
   STATIC_FALLBACK_MODELS,
@@ -320,6 +320,10 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           } catch (e) {
             console.warn('Server fallback failed too:', e);
           }
+        } else if (audioFiles.length > 1) {
+          throw new Error(
+            `Elaborazione diretta fallita (${directErr.message || 'errore API'}). Il server proxy di fallback non supporta le registrazioni multi-part (${audioFiles.length} file). Verifica la chiave API di Gemini e la connessione internet.`
+          );
         }
 
         if (!lectureData) {
@@ -385,6 +389,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
           totalDuration: calculatedTotalDuration,
           audioParts: finalAudioParts,
           slidesMarkdown,
+          expectedSlideCount: slidesMarkdown ? parseSlideHeadings(slidesMarkdown).length || undefined : undefined,
+          slideHeadings: slidesMarkdown ? parseSlideHeadings(slidesMarkdown) : undefined,
         }
       );
 
@@ -401,8 +407,8 @@ export const AudioUploader: React.FC<AudioUploaderProps> = ({ onLectureCreated, 
         ...validation.errors.map((e) => `[ERRORE] ${e}`),
         ...validation.warnings,
       ]));
-      const finalStatus: 'completed' | 'completed_with_warnings' =
-        validation.isValid && errorCount === 0 && warningCount === 0 ? 'completed' : 'completed_with_warnings';
+      const finalStatus: 'completed' | 'completed_with_warnings' | 'error' =
+        resolveLectureFinalStatus(validation, errorCount, warningCount);
 
       // 4. Update Lecture in Dexie.js
       if (selectedPdf) {

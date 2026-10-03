@@ -32,11 +32,11 @@ export interface SlideAlignment {
   slide_number: number;
   title: string;
   part: number;
-  start_time_seconds: number;
-  end_time_seconds: number;
+  start_time_seconds: number | null;
+  end_time_seconds: number | null;
   summary: string;
   needs_review?: boolean;
-  status?: 'valid' | 'needs_review' | 'not_discussed';
+  status?: 'valid' | 'needs_review' | 'not_discussed' | 'approximate';
 }
 
 export interface LectureBookmark {

@@ -80,4 +80,12 @@ describe('Phase A1 — Processing Issues & Severity Preservation', () => {
       expect(issue.message.length).toBeGreaterThan(0);
     }
   });
+
+  it('maps validation.isValid === false to status error, NOT completed_with_warnings', () => {
+    const result = validateLectureOutput(uncorrectedLecture, {
+      totalDuration: 1158,
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.status).toBe('error');
+  });
 });

@@ -728,7 +728,7 @@ export const PdfPresentationViewer: React.FC<PdfPresentationViewerProps> = ({
                 </div>
                 {slide && (
                   <span className="text-[9px] opacity-80 truncate max-w-[60px]">
-                    {formatTime(slide.start_time_seconds)}
+                    {slide.start_time_seconds !== null && slide.start_time_seconds !== undefined ? formatTime(slide.start_time_seconds) : '--:--'}
                   </span>
                 )}
               </button>

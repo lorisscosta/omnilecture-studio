@@ -22,7 +22,9 @@ import {
   synchronizeLectureSlidesState,
   reconcileSlideCoverage,
   normalizeTechnicalTerminology,
+  resolveLectureFinalStatus,
 } from './lecture-validator';
+import { sliceAudioBlob, checkWavHeader } from './audio-compressor';
 
 // Strict JSON Schema for Gemini
 export const responseSchema = {
@@ -182,6 +184,93 @@ export async function getAudioDuration(blob: Blob): Promise<number> {
   });
 }
 
+/**
+ * Uploads an audio blob to Google AI Studio Files API and waits for ACTIVE state.
+ */
+async function uploadAudioBlobToGemini(
+  blob: Blob | File,
+  fileName: string,
+  apiKey: string,
+  onProgress?: (stage: string) => void,
+  progressMsg?: string
+): Promise<{ fileResourceName: string; fileUri: string; mimeType: string }> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const mimeType = detectAudioMimeType(arrayBuffer, fileName, blob.type);
+
+  if (progressMsg) {
+    onProgress?.(progressMsg);
+  }
+
+  const boundary = '----OmniLectureBoundary' + Math.random().toString(36).substring(2);
+  const metadataPart = JSON.stringify({
+    file: {
+      display_name: fileName,
+      mimeType: mimeType,
+    },
+  });
+
+  const prePart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadataPart}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
+  const postPart = `\r\n--${boundary}--`;
+
+  const multipartBlob = new Blob([prePart, arrayBuffer, postPart], {
+    type: `multipart/related; boundary=${boundary}`,
+  });
+
+  const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${apiKey}`;
+  const uploadResponse = await retryWithBackoff(async () => {
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body: multipartBlob,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      let parsedMsg = errText;
+      try {
+        const errObj = JSON.parse(errText);
+        parsedMsg = errObj.error?.message || errText;
+      } catch {}
+      throw new Error(`Upload ${fileName} fallito (${res.status}): ${parsedMsg}`);
+    }
+    return res;
+  }, 3, 1500);
+
+  const uploadResult = await uploadResponse.json();
+  const fileResourceName = uploadResult.file?.name;
+  const fileUri = uploadResult.file?.uri;
+
+  if (!fileResourceName || !fileUri) {
+    throw new Error(`Metadati del file audio ${fileName} non validi da Google AI Studio.`);
+  }
+
+  let state = uploadResult.file?.state;
+  let attempts = 0;
+  while (state === 'PROCESSING' && attempts < 30) {
+    onProgress?.('Elaborazione audio sui server Google in corso...');
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const checkResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`
+    );
+    if (checkResponse.ok) {
+      const checkResult = await checkResponse.json();
+      state = checkResult.state;
+      if (state === 'FAILED') {
+        throw new Error(`Elaborazione audio ${fileName} fallita sui server Google AI Studio.`);
+      }
+    }
+    attempts++;
+  }
+
+  if (state && state !== 'ACTIVE') {
+    throw new Error(`Timeout o stato non attivo per il file audio ${fileName} su Google AI Studio (${state}).`);
+  }
+
+  return { fileResourceName, fileUri, mimeType };
+}
+
 export async function processAudioDirectly(
   audioInput: File | Blob | Array<File | Blob>,
   course: string,
@@ -207,127 +296,44 @@ export async function processAudioDirectly(
   }
 
   const uploadedResourceNames: string[] = [];
-  const uploadedFilesMeta: Array<{
-    fileResourceName: string;
-    fileUri: string;
-    mimeType: string;
-    fileName: string;
-    size: number;
-    duration: number;
-    startOffset: number;
-    blob: Blob;
-  }> = [];
 
   try {
+    // Step 1: Pre-calculate durations and build audioParts
+    const audioParts: AudioPart[] = [];
     let currentCumulativeOffset = 0;
 
-    // Step 1: Upload all audio files to Google AI Studio Files API
     for (let i = 0; i < rawFiles.length; i++) {
       const currentFile = rawFiles[i];
       const partNumber = i + 1;
       const fileName = (currentFile as File).name || `audio_parte_${partNumber}.wav`;
 
-      // Measure duration
       onProgress?.(
         rawFiles.length > 1
           ? `Analisi durata traccia ${partNumber} di ${rawFiles.length} (${fileName})...`
           : 'Analisi durata audio...'
       );
-      const measuredDuration = await getAudioDuration(currentFile);
+      let measuredDuration = await getAudioDuration(currentFile);
+      if (measuredDuration <= 0) {
+        try {
+          const hdr = await checkWavHeader(currentFile);
+          if (hdr.isWav && hdr.byteRate && hdr.byteRate > 0) {
+            const dataSize =
+              typeof hdr.dataChunkSize === 'number' && hdr.dataChunkSize > 0
+                ? hdr.dataChunkSize
+                : Math.max(0, currentFile.size - (hdr.dataChunkOffset || 44));
+            measuredDuration = dataSize / hdr.byteRate;
+          }
+        } catch {}
+      }
       const durationSeconds = measuredDuration > 0 ? measuredDuration : 0;
 
-      const arrayBuffer = await currentFile.arrayBuffer();
-      const mimeType = detectAudioMimeType(arrayBuffer, fileName, currentFile.type);
-
-      onProgress?.(
-        rawFiles.length > 1
-          ? `Caricamento parte ${partNumber} di ${rawFiles.length} (${fileName}) su Google AI Studio...`
-          : `Caricamento audio (${mimeType}) su Google AI Studio Files API...`
-      );
-
-      const boundary = '----OmniLectureBoundary' + Math.random().toString(36).substring(2);
-      const metadataPart = JSON.stringify({
-        file: {
-          display_name: fileName,
-          mimeType: mimeType,
-        },
-      });
-
-      const prePart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadataPart}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`;
-      const postPart = `\r\n--${boundary}--`;
-
-      const multipartBlob = new Blob([prePart, arrayBuffer, postPart], {
-        type: `multipart/related; boundary=${boundary}`,
-      });
-
-      const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?uploadType=multipart&key=${apiKey}`;
-      const uploadResponse = await retryWithBackoff(async () => {
-        const res = await fetch(uploadUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': `multipart/related; boundary=${boundary}`,
-          },
-          body: multipartBlob,
-        });
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => '');
-          let parsedMsg = errText;
-          try {
-            const errObj = JSON.parse(errText);
-            parsedMsg = errObj.error?.message || errText;
-          } catch {}
-          throw new Error(`Upload ${fileName} fallito (${res.status}): ${parsedMsg}`);
-        }
-        return res;
-      }, 3, 1500);
-
-      const uploadResult = await uploadResponse.json();
-      const fileResourceName = uploadResult.file?.name;
-      const fileUri = uploadResult.file?.uri;
-
-      if (!fileResourceName || !fileUri) {
-        throw new Error(`Metadati del file audio ${fileName} non validi da Google AI Studio.`);
-      }
-
-      uploadedResourceNames.push(fileResourceName);
-
-      // Polling if file in PROCESSING
-      let state = uploadResult.file?.state;
-      let attempts = 0;
-      while (state === 'PROCESSING' && attempts < 30) {
-        onProgress?.(
-          rawFiles.length > 1
-            ? `Elaborazione server Google per parte ${partNumber}/${rawFiles.length}...`
-            : 'Elaborazione audio sui server Google in corso...'
-        );
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const checkResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/${fileResourceName}?key=${apiKey}`
-        );
-        if (checkResponse.ok) {
-          const checkResult = await checkResponse.json();
-          state = checkResult.state;
-          if (state === 'FAILED') {
-            throw new Error(`Elaborazione audio ${fileName} fallita sui server Google AI Studio.`);
-          }
-        }
-        attempts++;
-      }
-
-      if (state && state !== 'ACTIVE') {
-        throw new Error(`Timeout o stato non attivo per il file audio ${fileName} su Google AI Studio (${state}).`);
-      }
-
-      uploadedFilesMeta.push({
-        fileResourceName,
-        fileUri,
-        mimeType,
+      audioParts.push({
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${partNumber}-${Date.now()}`,
         fileName,
-        size: currentFile.size,
-        duration: durationSeconds,
-        startOffset: currentCumulativeOffset,
-        blob: currentFile,
+        fileSize: currentFile.size,
+        duration: Math.round(durationSeconds),
+        audioBlob: currentFile,
+        startOffset: Math.round(currentCumulativeOffset),
       });
 
       currentCumulativeOffset += durationSeconds;
@@ -335,174 +341,27 @@ export async function processAudioDirectly(
 
     const totalCalculatedDuration = Math.round(currentCumulativeOffset);
 
-    // Build audioParts array for persistence and player
-    const audioParts: AudioPart[] = uploadedFilesMeta.map((uf, idx) => ({
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${idx + 1}-${Date.now()}`,
-      fileName: uf.fileName,
-      fileSize: uf.size,
-      duration: Math.round(uf.duration),
-      audioBlob: uf.blob,
-      startOffset: Math.round(uf.startOffset),
-    }));
-
-    // Step 1b: Optional native PDF slides upload for multimodal alignment
-    let uploadedPdfMeta: { fileResourceName: string; fileUri: string; fileName: string } | null = null;
-    if (pdfFile) {
-      const pdfName = (pdfFile as File).name || 'slides.pdf';
-      const pdfMime = (pdfFile as File).type || 'application/pdf';
-      onProgress?.(`Caricamento e analisi nativa slide PDF (${pdfName}) su Google AI Studio...`);
-
-      const uploadPdfResponse = await retryWithBackoff(async () => {
-        const metadata = {
-          file: {
-            display_name: pdfName,
-          },
-        };
-        const boundary = '-------BOUNDARY' + Math.random().toString(36).substring(2);
-        const metadataPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
-        const fileHeaderPart = `--${boundary}\r\nContent-Type: ${pdfMime}\r\n\r\n`;
-        const closingPart = `\r\n--${boundary}--`;
-
-        const multipartBlob = new Blob([metadataPart, fileHeaderPart, pdfFile, closingPart]);
-        const res = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
-          method: 'POST',
-          headers: {
-            'X-Goog-Upload-Protocol': 'multipart',
-            'Content-Type': `multipart/related; boundary=${boundary}`,
-          },
-          body: multipartBlob,
-        });
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => '');
-          throw new Error(`Upload slide PDF ${pdfName} fallito: ${errText}`);
-        }
-        return res;
-      }, 3, 1500);
-
-      const pdfUploadResult = await uploadPdfResponse.json();
-      if (pdfUploadResult.file?.name && pdfUploadResult.file?.uri) {
-        uploadedResourceNames.push(pdfUploadResult.file.name);
-        uploadedPdfMeta = {
-          fileResourceName: pdfUploadResult.file.name,
-          fileUri: pdfUploadResult.file.uri,
-          fileName: pdfName,
-        };
-
-        // Poll PDF status until ACTIVE
-        let pdfState = pdfUploadResult.file?.state;
-        let pdfAttempts = 0;
-        while (pdfState === 'PROCESSING' && pdfAttempts < 30) {
-          onProgress?.(`Elaborazione slide PDF su Google AI Studio in corso...`);
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          const checkPdfRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/${pdfUploadResult.file.name}?key=${apiKey}`
-          );
-          if (checkPdfRes.ok) {
-            const checkData = await checkPdfRes.json();
-            pdfState = checkData.state;
-            if (pdfState === 'FAILED') {
-              throw new Error(`Elaborazione del PDF ${pdfName} fallita sui server Google AI Studio.`);
-            }
-          }
-          pdfAttempts++;
-        }
-
-        if (pdfState && pdfState !== 'ACTIVE') {
-          throw new Error(`Stato del file PDF ${pdfName} non attivo su Google AI Studio (${pdfState}).`);
-        }
-      }
-    }
-
-    // Step 2: Discover available models
-    onProgress?.('Rilevamento automatico dei modelli Gemini abilitati per la tua chiave...');
-    const normalizedUserSelected = normalizeModelName(userSelectedModel);
-    let modelsToTry: string[] = [];
-
-    try {
-      const availableModels = await fetchAvailableModels(apiKey);
-      const availableIds = availableModels.map((m) => m.id);
-
-      if (availableIds.includes(normalizedUserSelected)) {
-        modelsToTry.push(normalizedUserSelected);
-      }
-
-      for (const m of availableModels) {
-        if (!modelsToTry.includes(m.id)) {
-          modelsToTry.push(m.id);
-        }
-      }
-    } catch (err) {
-      console.warn('Errore durante la chiamata ListModels:', err);
-    }
-
-    if (modelsToTry.length === 0) {
-      modelsToTry = getModelFallbackChain(normalizedUserSelected);
-    }
-
-    const isMultiPart = uploadedFilesMeta.length > 1;
-
-    // Step 2b: Pre-extract slide markdown from already-uploaded active PDF to avoid duplicate uploads
-    let extractedPdfMarkdown = '';
-    if (uploadedPdfMeta) {
-      try {
-        onProgress?.('Estrazione automatica testo e anteprima Markdown delle slide...', 30);
-        extractedPdfMarkdown = await convertPdfUriToMarkdown(
-          uploadedPdfMeta.fileUri,
-          apiKey,
-          (stg) => onProgress?.(stg),
-          modelsToTry
-        );
-      } catch (pdfErr) {
-        console.warn('Estrazione automatica markdown slide non riuscita (continuo con audio):', pdfErr);
-      }
-    }
-
-    // Step 3: Define prompts
-    const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria.
-REGOLA FONDAMENTALE DI FEDELTÀ ALL'AUDIO (STRICT GROUNDING):
-Tutto ciò che generi deve basarsi RIGOROSAMENTE ed ESCLUSIVAMENTE sull'effettivo contenuto audio trascritto.
-NON inventare MAI concetti, argomenti, teoremi o formule che non siano stati trattati o accennati dal docente/oratore nell'audio. Il titolo della lezione e il nome del corso servono solo come contesto terminologico, NON come pretesto per allucinare spiegazioni non presenti nella registrazione.
-Il tuo compito è: prendere ciò che il docente ha realmente spiegato nella registrazione e strutturarlo accademicamente, migliorandone la chiarezza formale, la notazione LaTeX e l'esposizione.
-${
-  isMultiPart
-    ? `\nISTRUZIONI SPECIFICHE PER LEZIONE IN PIÙ REGISTRAZIONI (${uploadedFilesMeta.length} PARTI ORDINATE):
-La lezione è stata registrata a spezzoni. Ciascuna parte viene analizzata singolarmente:
-1. "study_guide_it": Documento LaTeX (.tex) accademico completo senza citazioni o riferimenti temporali.
-2. "timestamped_transcript": Trascrizione cronologica coerente della traccia corrente. Tutti i timestamp (start, end) DEVONO essere rigorosamente relativi all'inizio di questa traccia audio (da 0 alla durata del file). NON sommare offset cumulativi esterni.
-3. "glossary": Glossario accademico dei termini spiegati in questa registrazione.
-4. "potential_exam_questions": Domande d'esame complete sui concetti affrontati in questa traccia.`
-    : ''
-}
-
-Struttura dei campi JSON richiesta:
-1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi relativi all'audio fornito), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Includi partIndex indicando l'indice (0-based) della registrazione di riferimento.
-2. "glossary": Estrai SOLO i termini tecnici realmente pronunciati o spiegati nell'audio con traduzione e definizione accademica. Se nell'audio non sono stati pronunciati termini tecnici (es. registrazioni di prova, test microfono, audio non didattico), restituisci un array VUOTO [].
-3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, terminando con \\end{document}. NON inserire citazioni o riferimenti temporali (NON inserire \\ts, timestamp o minuti nel documento LaTeX: deve essere una trattazione accademica formale e pulita pronta per la pubblicazione o studio). Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
-4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].
-5. "slides_alignment": Se sono allegate slide PDF, compila con MASSIMA PRECISIONE TEMPORALE l'intervallo [start_time_seconds, end_time_seconds] di ciascuna slide spiegata:
-   - "slide_number": Numero della slide da 1 in avanti
-   - "title": Titolo della slide
-   - "part": Indice parte audio (0-based)
-   - "start_time_seconds": Il secondo ESATTO in cui il docente passa alla spiegazione di questa slide (relativo alla traccia audio attuale, >= 0)
-   - "end_time_seconds": Il secondo in cui termina la discussione della slide e si passa alla successiva (<= durata audio)
-   - "summary": Sintesi dei punti salienti e formule della slide spiegati oralmente.
-   REGOLA CRITICA: I timestamp di inizio e fine di ciascuna slide devono essere RIGOROSAMENTE compresi tra 0 e la durata reale dell'audio fornito.`;
-
-    // Create and persist chunks in Dexie for traceability and resilience
+    // Step 2: Create and persist chunks in Dexie for traceability and resilience
     let chunksPlan: LectureProcessingChunk[] = [];
-    if (lectureId) {
-      const existingChunks = await getProcessingChunks(lectureId).catch(() => []);
-      if (existingChunks && existingChunks.length > 0) {
-        chunksPlan = existingChunks;
-      } else {
-        chunksPlan = createLectureChunksPlan(lectureId, audioParts);
-        await saveProcessingChunks(chunksPlan).catch(console.warn);
-      }
+    const effectiveLectureId = lectureId || `lec_${Date.now()}`;
+    const existingChunks = await getProcessingChunks(effectiveLectureId).catch(() => []);
+    if (existingChunks && existingChunks.length > 0) {
+      chunksPlan = existingChunks;
+    } else {
+      chunksPlan = createLectureChunksPlan(effectiveLectureId, audioParts);
+      await saveProcessingChunks(chunksPlan).catch(console.warn);
     }
 
-    // Fast-path: Check if all chunks are already completed in Dexie
-    if (chunksPlan.length > 0 && chunksPlan.every((c) => c.status === 'done' && c.data)) {
+    const allChunksCompleted =
+      chunksPlan.length > 0 && chunksPlan.every((c) => c.status === 'done' && c.data);
+
+    let uploadedPdfMeta: { fileResourceName: string; fileUri: string; fileName: string } | null = null;
+    let extractedPdfMarkdown = '';
+    let parsedData: LectureData;
+    let successfulModel = '';
+
+    if (allChunksCompleted) {
+      // Fast-path: Check if all chunks are already completed in Dexie
       onProgress?.('Recupero risultati completati dalla memoria locale...', 95);
       const chunkTranscripts = chunksPlan.map((c) => ({
         partIndex: c.partIndex,
@@ -524,29 +383,180 @@ Struttura dei campi JSON richiesta:
         totalCalculatedDuration
       );
 
-      return {
-        success: true,
-        data: {
-          timestamped_transcript: consolidatedTranscript,
-          glossary: consolidatedGlossaryData,
-          potential_exam_questions: consolidatedExamData,
-          study_guide_it: consolidatedGuide,
-          slides_alignment: consolidatedSlides.length > 0 ? consolidatedSlides : undefined,
-          has_slides: uploadedPdfMeta ? true : undefined,
-          slides_filename: uploadedPdfMeta ? uploadedPdfMeta.fileName : undefined,
-          slides_markdown: extractedPdfMarkdown || undefined,
-        },
-        modelUsed: 'cached',
-        totalDuration: totalCalculatedDuration,
-        audioParts,
+      const firstCachedData = chunksPlan.find((c) => c.data)?.data as LectureData | undefined;
+      const cachedMd = firstCachedData?.slides_markdown;
+      const cachedFn = firstCachedData?.slides_filename || (pdfFile ? (pdfFile as File).name || 'slides.pdf' : undefined);
+      if (cachedMd) {
+        extractedPdfMarkdown = cachedMd;
+      }
+
+      parsedData = {
+        timestamped_transcript: consolidatedTranscript,
+        glossary: consolidatedGlossaryData,
+        potential_exam_questions: consolidatedExamData,
+        study_guide_it: consolidatedGuide,
+        slides_alignment: consolidatedSlides.length > 0 ? consolidatedSlides : undefined,
+        has_slides: Boolean(cachedFn || cachedMd),
+        slides_filename: cachedFn,
+        slides_markdown: cachedMd || undefined,
       };
-    }
 
-    let parsedData: LectureData;
-    let successfulModel = '';
+      if (extractedPdfMarkdown && parsedData.slides_alignment) {
+        const slideHeadings = parseSlideHeadings(extractedPdfMarkdown);
+        if (slideHeadings.length > 0) {
+          parsedData.slides_alignment = reconcileSlideCoverage(
+            parsedData.slides_alignment,
+            slideHeadings.length,
+            slideHeadings,
+            parsedData.timestamped_transcript || [],
+            totalCalculatedDuration
+          );
+        }
+      }
 
-    if (isMultiPart) {
-      // Chunked multi-part processing: processes each track sequentially, saving state and consolidating
+      successfulModel = 'cached';
+    } else {
+      // Step 3: Upload optional PDF slides for multimodal alignment
+      if (pdfFile) {
+        const pdfName = (pdfFile as File).name || 'slides.pdf';
+        const pdfMime = (pdfFile as File).type || 'application/pdf';
+        onProgress?.(`Caricamento e analisi nativa slide PDF (${pdfName}) su Google AI Studio...`);
+
+        const uploadPdfResponse = await retryWithBackoff(async () => {
+          const metadata = {
+            file: {
+              display_name: pdfName,
+            },
+          };
+          const boundary = '-------BOUNDARY' + Math.random().toString(36).substring(2);
+          const metadataPart = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`;
+          const fileHeaderPart = `--${boundary}\r\nContent-Type: ${pdfMime}\r\n\r\n`;
+          const closingPart = `\r\n--${boundary}--`;
+
+          const multipartBlob = new Blob([metadataPart, fileHeaderPart, pdfFile, closingPart]);
+          const res = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`, {
+            method: 'POST',
+            headers: {
+              'X-Goog-Upload-Protocol': 'multipart',
+              'Content-Type': `multipart/related; boundary=${boundary}`,
+            },
+            body: multipartBlob,
+          });
+
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            throw new Error(`Upload slide PDF ${pdfName} fallito: ${errText}`);
+          }
+          return res;
+        }, 3, 1500);
+
+        const pdfUploadResult = await uploadPdfResponse.json();
+        if (pdfUploadResult.file?.name && pdfUploadResult.file?.uri) {
+          uploadedResourceNames.push(pdfUploadResult.file.name);
+          uploadedPdfMeta = {
+            fileResourceName: pdfUploadResult.file.name,
+            fileUri: pdfUploadResult.file.uri,
+            fileName: pdfName,
+          };
+
+          // Poll PDF status until ACTIVE
+          let pdfState = pdfUploadResult.file?.state;
+          let pdfAttempts = 0;
+          while (pdfState === 'PROCESSING' && pdfAttempts < 30) {
+            onProgress?.(`Elaborazione slide PDF su Google AI Studio in corso...`);
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            const checkPdfRes = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/${pdfUploadResult.file.name}?key=${apiKey}`
+            );
+            if (checkPdfRes.ok) {
+              const checkData = await checkPdfRes.json();
+              pdfState = checkData.state;
+              if (pdfState === 'FAILED') {
+                throw new Error(`Elaborazione del PDF ${pdfName} fallita sui server Google AI Studio.`);
+              }
+            }
+            pdfAttempts++;
+          }
+
+          if (pdfState && pdfState !== 'ACTIVE') {
+            throw new Error(`Stato del file PDF ${pdfName} non attivo su Google AI Studio (${pdfState}).`);
+          }
+        }
+      }
+
+      // Step 4: Discover available models
+      onProgress?.('Rilevamento automatico dei modelli Gemini abilitati per la tua chiave...');
+      const normalizedUserSelected = normalizeModelName(userSelectedModel);
+      let modelsToTry: string[] = [];
+
+      try {
+        const availableModels = await fetchAvailableModels(apiKey);
+        const availableIds = availableModels.map((m) => m.id);
+
+        if (availableIds.includes(normalizedUserSelected)) {
+          modelsToTry.push(normalizedUserSelected);
+        }
+
+        for (const m of availableModels) {
+          if (!modelsToTry.includes(m.id)) {
+            modelsToTry.push(m.id);
+          }
+        }
+      } catch (err) {
+        console.warn('Errore durante la chiamata ListModels:', err);
+      }
+
+      if (modelsToTry.length === 0) {
+        modelsToTry = getModelFallbackChain(normalizedUserSelected);
+      }
+
+      // Step 5: Pre-extract slide markdown from already-uploaded active PDF
+      if (uploadedPdfMeta) {
+        try {
+          onProgress?.('Estrazione automatica testo e anteprima Markdown delle slide...', 30);
+          extractedPdfMarkdown = await convertPdfUriToMarkdown(
+            uploadedPdfMeta.fileUri,
+            apiKey,
+            (stg) => onProgress?.(stg),
+            modelsToTry
+          );
+        } catch (pdfErr) {
+          console.warn('Estrazione automatica markdown slide non riuscita (continuo con audio):', pdfErr);
+        }
+      }
+
+      const systemPrompt = `Sei un assistente accademico di altissimo livello per studenti magistrali di ingegneria.
+REGOLA FONDAMENTALE DI FEDELTÀ ALL'AUDIO (STRICT GROUNDING):
+Tutto ciò che generi deve basarsi RIGOROSAMENTE ed ESCLUSIVAMENTE sull'effettivo contenuto audio trascritto.
+NON inventare MAI concetti, argomenti, teoremi o formule che non siano stati trattati o accennati dal docente/oratore nell'audio. Il titolo della lezione e il nome del corso servono solo come contesto terminologico, NON come pretesto per allucinare spiegazioni non presenti nella registrazione.
+Il tuo compito è: prendere ciò che il docente ha realmente spiegato nella registrazione e strutturarlo accademicamente, migliorandone la chiarezza formale, la notazione LaTeX e l'esposizione.
+${
+  chunksPlan.length > 1
+    ? `\nISTRUZIONI SPECIFICHE PER LEZIONE IN PIÙ SEGMENTI/PARTI (${chunksPlan.length} CHUNK ORDINATI):
+La lezione è suddivisa in segmenti. Ciascun segmento viene analizzato singolarmente:
+1. "study_guide_it": Documento LaTeX (.tex) accademico completo senza citazioni o riferimenti temporali.
+2. "timestamped_transcript": Trascrizione cronologica coerente del segmento corrente. Tutti i timestamp (start, end) DEVONO essere rigorosamente relativi all'inizio di questo segmento audio (da 0 alla durata del segmento). NON sommare offset cumulativi esterni.
+3. "glossary": Glossario accademico dei termini spiegati in questo segmento.
+4. "potential_exam_questions": Domande d'esame complete sui concetti affrontati in questo segmento.`
+    : ''
+}
+
+Struttura dei campi JSON richiesta:
+1. "timestamped_transcript": Trascrizione cronologica fedele al 100% dell'audio suddivisa in segmenti temporali (start, end in secondi relativi all'audio fornito), con il testo parlato originale (text_en) e l'accurata traduzione/trascrizione italiana (text_it). Includi partIndex indicando l'indice (0-based) della registrazione di riferimento.
+2. "glossary": Estrai SOLO i termini tecnici realmente pronunciati o spiegati nell'audio con traduzione e definizione accademica. Se nell'audio non sono stati pronunciati termini tecnici (es. registrazioni di prova, test microfono, audio non didattico), restituisci un array VUOTO [].
+3. "study_guide_it": Trascrizione integrale e trattazione accademica completa dell'audio in formato codice LaTeX (.tex) completo e pronto da copiare direttamente su Overleaf. Deve iniziare con \\documentclass[11pt,a4paper]{article}, includere i pacchetti necessari (amsmath, amssymb, amsthm, geometry, hyperref, babel italiano), impostare \\title, \\author{OmniLecture Studio}, \\date, \\begin{document}, \\maketitle, e poi sviluppare con \\section, \\subsection, equazioni matematiche in ambiente equation o \\[ ... \\], e testo discorsivo TUTTO ciò che il docente ha spiegato nell'audio in modo rigoroso, terminando con \\end{document}. NON inserire citazioni o riferimenti temporali (NON inserire \\ts, timestamp o minuti nel documento LaTeX: deve essere una trattazione accademica formale e pulita pronta per la pubblicazione o studio). Se l'audio è solo un test breve (es. "prova prova"), il documento LaTeX spiegherà sinteticamente che si tratta di una registrazione di prova senza allucinare teoria fittizia.
+4. "potential_exam_questions": Genera domande d'esame SOLTANTO sui concetti accademici effettivamente trattati nell'audio. Se l'audio non contiene concetti didattici esaminabili (es. prova vocale breve), restituisci un array VUOTO [].
+5. "slides_alignment": Se sono allegate slide PDF, compila con MASSIMA PRECISIONE TEMPORALE l'intervallo [start_time_seconds, end_time_seconds] di ciascuna slide spiegata:
+   - "slide_number": Numero della slide da 1 in avanti
+   - "title": Titolo della slide
+   - "part": Indice parte audio (0-based)
+   - "start_time_seconds": Il secondo ESATTO in cui il docente passa alla spiegazione di questa slide (relativo alla traccia audio attuale, >= 0)
+   - "end_time_seconds": Il secondo in cui termina la discussione della slide e si passa alla successiva (<= durata audio)
+   - "summary": Sintesi dei punti salienti e formule della slide spiegati oralmente.
+   REGOLA CRITICA: I timestamp di inizio e fine di ciascuna slide devono essere RIGOROSAMENTE compresi tra 0 e la durata reale del segmento audio fornito.`;
+
+      // Step 6: Process chunks sequentially
+      const chunkAudioUploadCache = new Map<string, { fileResourceName: string; fileUri: string; mimeType: string }>();
       const chunkTranscripts: Array<{
         partIndex: number;
         chunkStartSeconds: number;
@@ -558,50 +568,98 @@ Struttura dei campi JSON richiesta:
       const chunkGuides: string[] = [];
       const chunkAlignments: SlideAlignment[][] = [];
 
-      for (let partIdx = 0; partIdx < uploadedFilesMeta.length; partIdx++) {
-        const uf = uploadedFilesMeta[partIdx];
-        const partNumber = partIdx + 1;
-        const matchingChunk = chunksPlan.find((c) => c.partIndex === partIdx);
+      for (let chunkIdx = 0; chunkIdx < chunksPlan.length; chunkIdx++) {
+        const chunk = chunksPlan[chunkIdx];
+        const chunkNumber = chunkIdx + 1;
+        const part = audioParts[chunk.partIndex];
+        if (!part || !part.audioBlob) {
+          throw new Error(`File audio non disponibile per la traccia ${chunk.partIndex + 1}.`);
+        }
+        const chunkBaseOffset = (part.startOffset || 0) + (chunk.startSeconds || 0);
 
-        // Check if this chunk was already processed and persisted in Dexie
-        if (matchingChunk && matchingChunk.status === 'done' && matchingChunk.data) {
-          onProgress?.(`Parte ${partNumber} già elaborata, recupero dalla memoria locale...`, Math.round(20 + ((partIdx + 0.9) / uploadedFilesMeta.length) * 70));
-          const partData = matchingChunk.data as LectureData;
+        if (chunk.status === 'done' && chunk.data) {
+          onProgress?.(
+            `Chunk ${chunkNumber} di ${chunksPlan.length} già elaborato, recupero dalla memoria locale...`,
+            Math.round(20 + ((chunkIdx + 0.9) / chunksPlan.length) * 70)
+          );
+          const chunkData = chunk.data as LectureData;
           chunkTranscripts.push({
-            partIndex: partIdx,
-            chunkStartSeconds: matchingChunk.startSeconds || 0,
-            cumulativePartOffset: uf.startOffset,
-            segments: partData.timestamped_transcript || [],
+            partIndex: chunk.partIndex,
+            chunkStartSeconds: chunk.startSeconds || 0,
+            cumulativePartOffset: part?.startOffset || 0,
+            segments: chunkData.timestamped_transcript || [],
           });
-          if (partData.glossary) chunkGlossaries.push(partData.glossary);
-          if (partData.potential_exam_questions) chunkQuestions.push(partData.potential_exam_questions);
-          if (partData.study_guide_it) chunkGuides.push(partData.study_guide_it);
-          if (partData.slides_alignment) chunkAlignments.push(partData.slides_alignment);
+          if (chunkData.glossary) chunkGlossaries.push(chunkData.glossary);
+          if (chunkData.potential_exam_questions) chunkQuestions.push(chunkData.potential_exam_questions);
+          if (chunkData.study_guide_it) chunkGuides.push(chunkData.study_guide_it);
+          if (chunkData.slides_alignment) {
+            chunkAlignments.push(chunkData.slides_alignment);
+          }
           continue;
         }
 
-        if (matchingChunk) {
-          await updateProcessingChunkStatus(matchingChunk.id, 'running').catch(console.warn);
-        }
+        await updateProcessingChunkStatus(chunk.id, 'running').catch(console.warn);
 
-        const progressPct = Math.round(20 + ((partIdx + 0.1) / uploadedFilesMeta.length) * 70);
+        const progressPct = Math.round(20 + ((chunkIdx + 0.1) / chunksPlan.length) * 70);
         onProgress?.(
-          `Elaborazione audio parte ${partNumber} di ${uploadedFilesMeta.length} (${uf.fileName})...`,
+          chunksPlan.length > 1
+            ? `Elaborazione chunk ${chunkNumber} di ${chunksPlan.length} (${part.fileName}, ${Math.round(chunk.duration)}s)...`
+            : `Elaborazione audio (${part.fileName}, ${Math.round(chunk.duration)}s)...`,
           progressPct
         );
 
-        const partDuration = Math.round(uf.duration);
-        const partPromptText = `Trascrivi ed elabora questa registrazione audio (Parte ${partNumber} di ${uploadedFilesMeta.length}: "${uf.fileName}") per il corso di "${course}" (lezione: "${title}").
-DURATA ESATTA DELLA TRACCIA: ${partDuration} secondi (~${Math.floor(partDuration / 60)}m ${partDuration % 60}s).
-CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript, start_time_seconds, end_time_seconds in slides_alignment) DEVONO ESSERE RIGOROSAMENTE RELATIVI A QUESTA TRACCIA E COMPRESI TRA 0 E ${partDuration} SECONDI. NESSUN TIMESTAMP PUÒ SUPERARE ${partDuration} SECONDI.${
-          uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment per tutte le slide discusse (da 1 a N). Non omettere alcuna slide trattata.' : ''
-        } Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
+        // Prepare chunk Blob: full part file or sliced sub-chunk
+        const isFullPart = chunk.startSeconds === 0 && Math.round(chunk.duration) >= part.duration;
+        let chunkBlob: Blob | File;
+        let chunkFileName: string;
+        let cacheKey: string;
+
+        if (isFullPart) {
+          chunkBlob = part.audioBlob;
+          chunkFileName = part.fileName;
+          cacheKey = `part_${chunk.partIndex}`;
+        } else {
+          onProgress?.(
+            `Ritaglio audio chunk ${chunkNumber} [${Math.round(chunk.startSeconds)}s - ${Math.round(chunk.endSeconds)}s]...`,
+            progressPct
+          );
+          chunkBlob = await sliceAudioBlob(part.audioBlob, chunk.startSeconds, chunk.endSeconds);
+          chunkFileName = `${part.fileName.replace(/\.[^/.]+$/, '')}_chunk_${chunkNumber}.wav`;
+          cacheKey = `chunk_${chunk.id}`;
+        }
+
+        // Upload chunk to Gemini Files API if not cached
+        let uploadedChunkMeta = chunkAudioUploadCache.get(cacheKey);
+        if (!uploadedChunkMeta) {
+          uploadedChunkMeta = await uploadAudioBlobToGemini(
+            chunkBlob,
+            chunkFileName,
+            apiKey,
+            (stg) => onProgress?.(stg),
+            `Caricamento ${chunkFileName} su Google AI Studio Files API...`
+          );
+          uploadedResourceNames.push(uploadedChunkMeta.fileResourceName);
+          chunkAudioUploadCache.set(cacheKey, uploadedChunkMeta);
+        }
+
+        const chunkDuration = Math.round(chunk.duration);
+        const chunkPromptText = chunksPlan.length > 1
+          ? `Trascrivi ed elabora questo segmento audio (Chunk ${chunkNumber} di ${chunksPlan.length}, Parte ${chunk.partIndex + 1} di ${audioParts.length}: "${chunkFileName}") per il corso di "${course}" (lezione: "${title}").
+DURATA ESATTA DEL SEGMENTO: ${chunkDuration} secondi (~${Math.floor(chunkDuration / 60)}m ${chunkDuration % 60}s).
+CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript, start_time_seconds, end_time_seconds in slides_alignment) DEVONO ESSERE RIGOROSAMENTE RELATIVI A QUESTO SEGMENTO AUDIO E COMPRESI TRA 0 E ${chunkDuration} SECONDI. NESSUN TIMESTAMP PUÒ SUPERARE ${chunkDuration} SECONDI.${
+            uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment per tutte le slide discusse in questo segmento. Non omettere alcuna slide trattata.' : ''
+          } Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`
+          : `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}").
+DURATA ESATTA AUDIO: ${chunkDuration} secondi (~${Math.floor(chunkDuration / 60)}m ${chunkDuration % 60}s).
+CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in timestamped_transcript, "start_time_seconds", "end_time_seconds" in slides_alignment) DEVONO essere RIGOROSAMENTE compresi nell'intervallo [0, ${chunkDuration}]. È severamente vietato produrre timestamp superiori a ${chunkDuration} secondi.${
+            uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment con la massima precisione cronologica (da 1 a N). Nel documento LaTeX, copri tutti gli argomenti principali presenti nelle slide e discussi nell\'audio.' : ''
+          } Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
 
         const userParts: any[] = [
           {
             file_data: {
-              mime_type: uf.mimeType,
-              file_uri: uf.fileUri,
+              mime_type: uploadedChunkMeta.mimeType,
+              file_uri: uploadedChunkMeta.fileUri,
             },
           },
         ];
@@ -615,25 +673,21 @@ CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript
           });
         }
 
-        userParts.push({ text: partPromptText });
+        userParts.push({ text: chunkPromptText });
 
-        let partResponse: Response | null = null;
-        const partErrorLogs: string[] = [];
+        // Call Gemini with model retry
+        let chunkResponse: Response | null = null;
+        const chunkErrorLogs: string[] = [];
 
         for (const model of modelsToTry) {
           onProgress?.(
-            `Analisi parte ${partNumber}/${uploadedFilesMeta.length} con modello ${model}...`,
+            `Analisi chunk ${chunkNumber}/${chunksPlan.length} con modello ${model}...`,
             progressPct
           );
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
           const payload = {
             system_instruction: { parts: [{ text: systemPrompt }] },
-            contents: [
-              {
-                role: 'user',
-                parts: userParts,
-              },
-            ],
+            contents: [{ role: 'user', parts: userParts }],
             generationConfig: {
               response_mime_type: 'application/json',
               response_schema: responseSchema,
@@ -655,7 +709,7 @@ CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript
             }, 2, 1500);
 
             if (res.ok) {
-              partResponse = res;
+              chunkResponse = res;
               successfulModel = model;
               break;
             }
@@ -667,25 +721,23 @@ CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript
               errMsg = errObj.error?.message || errorText;
             } catch {}
 
-            partErrorLogs.push(`${model}: ${errMsg.slice(0, 100)}`);
+            chunkErrorLogs.push(`${model}: ${errMsg.slice(0, 100)}`);
             if (res.status === 401) break;
           } catch (fetchErr: unknown) {
             const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-            partErrorLogs.push(`${model}: ${msg}`);
+            chunkErrorLogs.push(`${model}: ${msg}`);
           }
         }
 
-        if (!partResponse || !partResponse.ok) {
-          if (matchingChunk) {
-            await updateProcessingChunkStatus(matchingChunk.id, 'error', partErrorLogs.join(' | ')).catch(console.warn);
-          }
-          throw new Error(`Errore elaborazione parte ${partNumber}: ${partErrorLogs.join(' | ')}`);
+        if (!chunkResponse || !chunkResponse.ok) {
+          await updateProcessingChunkStatus(chunk.id, 'error', chunkErrorLogs.join(' | ')).catch(console.warn);
+          throw new Error(`Errore elaborazione chunk ${chunkNumber}: ${chunkErrorLogs.join(' | ')}`);
         }
 
-        const partGenData = await partResponse.json();
-        const candidateText = partGenData.candidates?.[0]?.content?.parts?.[0]?.text;
+        const chunkGenData = await chunkResponse.json();
+        const candidateText = chunkGenData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!candidateText) {
-          throw new Error(`Risposta vuota per la parte ${partNumber}.`);
+          throw new Error(`Risposta vuota per il chunk ${chunkNumber}.`);
         }
 
         let cleanJson = candidateText.trim();
@@ -695,24 +747,67 @@ CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript
           cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
         }
 
-        const partData: LectureData = JSON.parse(cleanJson);
-        if (matchingChunk) {
-          await updateProcessingChunkStatus(matchingChunk.id, 'done', undefined, partData).catch(console.warn);
+        const chunkData: LectureData = JSON.parse(cleanJson);
+
+        if (chunkData.timestamped_transcript) {
+          chunkData.timestamped_transcript = chunkData.timestamped_transcript.map((seg) => ({
+            ...seg,
+            text_en: normalizeTechnicalTerminology(seg.text_en),
+            text_it: normalizeTechnicalTerminology(seg.text_it),
+          }));
         }
 
+        if (chunkData.study_guide_it) {
+          chunkData.study_guide_it = injectTimestampPreambleMacro(chunkData.study_guide_it);
+        }
+
+        // Adjust slide alignment timestamps by chunkBaseOffset before caching and consolidating
+        let adjustedChunkAlignment: SlideAlignment[] | undefined = undefined;
+        if (chunkData.slides_alignment) {
+          adjustedChunkAlignment = chunkData.slides_alignment.map((sa) => {
+            const isNotDiscussed = sa.status === 'not_discussed';
+            const startSec =
+              sa.start_time_seconds === null || (isNotDiscussed && sa.start_time_seconds === undefined)
+                ? null
+                : typeof sa.start_time_seconds === 'number'
+                ? Math.max(0, Math.round(chunkBaseOffset + sa.start_time_seconds))
+                : null;
+            const endSec =
+              sa.end_time_seconds === null || (isNotDiscussed && sa.end_time_seconds === undefined)
+                ? null
+                : typeof sa.end_time_seconds === 'number'
+                ? Math.max(0, Math.round(chunkBaseOffset + sa.end_time_seconds))
+                : null;
+            return {
+              ...sa,
+              part: chunk.partIndex,
+              start_time_seconds: startSec,
+              end_time_seconds: endSec,
+            };
+          });
+        }
+
+        const chunkDataToSave: LectureData = {
+          ...chunkData,
+          slides_alignment: adjustedChunkAlignment,
+        };
+
+        await updateProcessingChunkStatus(chunk.id, 'done', undefined, chunkDataToSave).catch(console.warn);
+
         chunkTranscripts.push({
-          partIndex: partIdx,
-          chunkStartSeconds: 0,
-          cumulativePartOffset: uf.startOffset,
-          segments: partData.timestamped_transcript || [],
+          partIndex: chunk.partIndex,
+          chunkStartSeconds: chunk.startSeconds || 0,
+          cumulativePartOffset: part.startOffset,
+          segments: chunkData.timestamped_transcript || [],
         });
-        if (partData.glossary) chunkGlossaries.push(partData.glossary);
-        if (partData.potential_exam_questions) chunkQuestions.push(partData.potential_exam_questions);
-        if (partData.study_guide_it) chunkGuides.push(partData.study_guide_it);
-        if (partData.slides_alignment) chunkAlignments.push(partData.slides_alignment);
+        if (chunkData.glossary) chunkGlossaries.push(chunkData.glossary);
+        if (chunkData.potential_exam_questions) chunkQuestions.push(chunkData.potential_exam_questions);
+        if (chunkData.study_guide_it) chunkGuides.push(chunkData.study_guide_it);
+        if (adjustedChunkAlignment) {
+          chunkAlignments.push(adjustedChunkAlignment);
+        }
       }
 
-      // Step 4: Consolidation Pass on Text & LaTeX
       onProgress?.('Consolidamento finale e verifica guide...', 95);
       const consolidatedTranscript = mergeTranscriptSegments(chunkTranscripts);
       const consolidatedGlossaryData = consolidateGlossary(chunkGlossaries);
@@ -733,159 +828,7 @@ CANONICAL TIME CONTRACT: Tutti i timestamp (start, end in timestamped_transcript
         slides_filename: uploadedPdfMeta ? uploadedPdfMeta.fileName : undefined,
         slides_markdown: extractedPdfMarkdown || undefined,
       };
-      onProgress?.('Elaborazione completata con successo!', 100);
-    } else {
-      // Single Audio File Processing
-      const uf = uploadedFilesMeta[0];
-      const singleMatchingChunk = chunksPlan[0];
 
-      if (singleMatchingChunk && singleMatchingChunk.status === 'done' && singleMatchingChunk.data) {
-        onProgress?.('Risultati già elaborati in precedenza, recupero dalla memoria...', 95);
-        parsedData = singleMatchingChunk.data as LectureData;
-        if (extractedPdfMarkdown && !parsedData.slides_markdown) {
-          parsedData.slides_markdown = extractedPdfMarkdown;
-        }
-      } else {
-        if (singleMatchingChunk) {
-          await updateProcessingChunkStatus(singleMatchingChunk.id, 'running').catch(console.warn);
-        }
-
-        onProgress?.('Trascrizione ed elaborazione accademica con Gemini...', 40);
-
-      const fileDuration = Math.round(uf.duration);
-      const promptText = `Trascrivi ed elabora questa registrazione audio del corso di "${course}" (titolo specificato: "${title}").
-DURATA ESATTA AUDIO: ${fileDuration} secondi (~${Math.floor(fileDuration / 60)}m ${fileDuration % 60}s).
-CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in timestamped_transcript, "start_time_seconds", "end_time_seconds" in slides_alignment) DEVONO essere RIGOROSAMENTE compresi nell'intervallo [0, ${fileDuration}]. È severamente vietato produrre timestamp superiori a ${fileDuration} secondi.${
-        uploadedPdfMeta ? ' Correla inoltre le spiegazioni orali alle pagine del documento PDF allegato valorizzando slides_alignment con la massima precisione cronologica (da 1 a N). Nel documento LaTeX, copri tutti gli argomenti principali presenti nelle slide e discussi nell\'audio.' : ''
-      } Ricorda: basati rigorosamente su quanto ascoltato nell'audio. Restituisci esclusivamente il JSON strutturato secondo lo schema specificato.`;
-
-      const singleUserParts: any[] = [
-        {
-          file_data: {
-            mime_type: uf.mimeType,
-            file_uri: uf.fileUri,
-          },
-        },
-      ];
-
-      if (uploadedPdfMeta) {
-        singleUserParts.push({
-          file_data: {
-            mime_type: 'application/pdf',
-            file_uri: uploadedPdfMeta.fileUri,
-          },
-        });
-      }
-
-      singleUserParts.push({ text: promptText });
-
-      let generationResponse: Response | null = null;
-      const errorLogs: string[] = [];
-
-      for (const model of modelsToTry) {
-        onProgress?.(`Analisi in corso con il modello: ${model}...`, 55);
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const payload = {
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [
-            {
-              role: 'user',
-              parts: singleUserParts,
-            },
-          ],
-          generationConfig: {
-            response_mime_type: 'application/json',
-            response_schema: responseSchema,
-            temperature: 0.2,
-          },
-        };
-
-        try {
-          const response = await retryWithBackoff(async () => {
-            const resp = await fetch(url, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-            if (resp.status === 429 || resp.status === 503) {
-              throw new Error(`Google API quota o sovraccarico temporaneo HTTP ${resp.status}`);
-            }
-            return resp;
-          }, 2, 1500);
-
-          if (response.ok) {
-            generationResponse = response;
-            successfulModel = model;
-            break;
-          }
-
-          const errorText = await response.text().catch(() => '');
-          let errMsg = errorText;
-          try {
-            const errObj = JSON.parse(errorText);
-            errMsg = errObj.error?.message || errorText;
-          } catch {}
-
-          errorLogs.push(`${model}: ${errMsg.slice(0, 120)}`);
-          if (response.status === 401) break;
-        } catch (fetchErr: unknown) {
-          const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-          errorLogs.push(`${model}: ${msg}`);
-        }
-      }
-
-      if (!generationResponse || !generationResponse.ok) {
-        if (singleMatchingChunk) {
-          await updateProcessingChunkStatus(singleMatchingChunk.id, 'error', errorLogs.join(' | ')).catch(console.warn);
-        }
-        const summaryMsg = errorLogs.length > 0 ? errorLogs.join(' | ') : 'Nessuna risposta dai modelli.';
-        throw new Error(`Errore generazione Gemini: ${summaryMsg}`);
-      }
-
-      onProgress?.('Formattazione e validazione LaTeX in corso...', 85);
-      const genData = await generationResponse.json();
-      const candidateText = genData.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!candidateText) {
-        throw new Error('Risposta vuota da Gemini API.');
-      }
-
-      let cleanJson = candidateText.trim();
-      if (cleanJson.startsWith('```json')) {
-        cleanJson = cleanJson.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim();
-      } else if (cleanJson.startsWith('```')) {
-        cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '').trim();
-      }
-
-      parsedData = JSON.parse(cleanJson);
-
-      // Terminology normalization pass
-      if (parsedData.timestamped_transcript) {
-        parsedData.timestamped_transcript = parsedData.timestamped_transcript.map((seg) => ({
-          ...seg,
-          text_en: normalizeTechnicalTerminology(seg.text_en),
-          text_it: normalizeTechnicalTerminology(seg.text_it),
-        }));
-      }
-
-      if (parsedData.study_guide_it) {
-        parsedData.study_guide_it = injectTimestampPreambleMacro(parsedData.study_guide_it);
-      }
-      if (Array.isArray(parsedData.slides_alignment)) {
-        parsedData.slides_alignment = clampAndNormalizeSlideTimestamps(
-          consolidateSlidesAlignment([parsedData.slides_alignment]),
-          totalCalculatedDuration
-        );
-      }
-      if (uploadedPdfMeta) {
-        parsedData.has_slides = true;
-        parsedData.slides_filename = uploadedPdfMeta.fileName;
-      }
-      if (extractedPdfMarkdown) {
-        parsedData.slides_markdown = extractedPdfMarkdown;
-      }
-
-      // Reconcile slide coverage if markdown was parsed
       if (extractedPdfMarkdown && parsedData.slides_alignment) {
         const slideHeadings = parseSlideHeadings(extractedPdfMarkdown);
         if (slideHeadings.length > 0) {
@@ -898,34 +841,35 @@ CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in t
           );
         }
       }
-
-      if (singleMatchingChunk) {
-        await updateProcessingChunkStatus(singleMatchingChunk.id, 'done', undefined, parsedData).catch(console.warn);
-      }
       onProgress?.('Elaborazione completata con successo!', 100);
     }
-  }
+
+    const effectiveSlidesMd = extractedPdfMarkdown || parsedData.slides_markdown || '';
+    const slideHeadings = effectiveSlidesMd ? parseSlideHeadings(effectiveSlidesMd) : [];
+    const expectedSlideCount = slideHeadings.length > 0 ? slideHeadings.length : undefined;
 
     // Run central validation layer
     const validation = validateLectureOutput(
       {
         duration: totalCalculatedDuration,
         audioParts,
-        hasSlides: Boolean(uploadedPdfMeta),
-        slidesFileName: uploadedPdfMeta?.fileName,
-        slidesMarkdown: extractedPdfMarkdown || undefined,
+        hasSlides: Boolean(uploadedPdfMeta || parsedData.has_slides),
+        slidesFileName: uploadedPdfMeta?.fileName || parsedData.slides_filename,
+        slidesMarkdown: effectiveSlidesMd || undefined,
         slidesAlignment: parsedData.slides_alignment,
         data: parsedData,
       },
       {
         totalDuration: totalCalculatedDuration,
         audioParts,
-        slidesMarkdown: extractedPdfMarkdown || undefined,
+        slidesMarkdown: effectiveSlidesMd || undefined,
+        expectedSlideCount,
+        slideHeadings: slideHeadings.length > 0 ? slideHeadings : undefined,
       }
     );
 
     const issues: ProcessingIssue[] = [...(validation.issues || [])];
-    if (uploadedPdfMeta && !extractedPdfMarkdown) {
+    if (uploadedPdfMeta && !effectiveSlidesMd) {
       issues.push({
         severity: 'warning',
         code: 'SLIDES_MARKDOWN_EXTRACTION_FAILED',
@@ -938,7 +882,7 @@ CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in t
       ...validation.errors.map((e) => `[ERRORE] ${e}`),
       ...validation.warnings,
     ];
-    if (uploadedPdfMeta && !extractedPdfMarkdown) {
+    if (uploadedPdfMeta && !effectiveSlidesMd) {
       warnings.push('Estrazione testo Markdown dalle slide non riuscita. Le slide sono visualizzabili in formato PDF.');
     }
 
@@ -948,7 +892,7 @@ CANONICAL TIME CONTRACT: Tutti i timestamp di inizio e fine ("start", "end" in t
       modelUsed: successfulModel,
       totalDuration: totalCalculatedDuration,
       audioParts,
-      status: validation.isValid && validation.warnings.length === 0 ? 'completed' : 'completed_with_warnings',
+      status: resolveLectureFinalStatus(validation, 0, uploadedPdfMeta && !effectiveSlidesMd ? 1 : 0),
       processingWarnings: warnings.length > 0 ? warnings : undefined,
       processingIssues: issues.length > 0 ? issues : undefined,
     };

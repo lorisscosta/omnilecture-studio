@@ -177,11 +177,15 @@ export function validateLectureOutput(
     }
 
     if (s.status !== 'not_discussed') {
-      if (s.start_time_seconds < 0) {
+      if (s.start_time_seconds !== null && s.start_time_seconds < 0) {
         addIssue('error', 'SLIDE_NEGATIVE_START', `Slide ${s.slide_number}: start_time_seconds negativo (${s.start_time_seconds}s).`, 'slides');
         slidesAlignmentValid = false;
       }
-      if (s.start_time_seconds > s.end_time_seconds) {
+      if (
+        s.start_time_seconds !== null &&
+        s.end_time_seconds !== null &&
+        s.start_time_seconds > s.end_time_seconds
+      ) {
         addIssue(
           'error',
           'SLIDE_INVERTED_TIMESTAMPS',
@@ -190,7 +194,7 @@ export function validateLectureOutput(
         );
         slidesAlignmentValid = false;
       }
-      if (totalDuration > 0 && s.end_time_seconds > totalDuration + tolerance) {
+      if (totalDuration > 0 && s.end_time_seconds !== null && s.end_time_seconds > totalDuration + tolerance) {
         addIssue(
           'error',
           'SLIDE_TIMESTAMP_OUT_OF_BOUNDS',
@@ -251,12 +255,13 @@ export function validateLectureOutput(
     addIssue('error', 'LATEX_DOCUMENTCLASS_MISSING', 'Study Guide LaTeX non valida o incompleta (manca \\documentclass).', 'latex');
   }
 
-  const expectedTopics = options.expectedTopics || [
-    'built-in',
-    'math',
-    'random',
-    'composition',
-  ];
+  const expectedTopics =
+    options.expectedTopics ||
+    (options.slideHeadings && options.slideHeadings.length > 0
+      ? options.slideHeadings
+          .map((h) => h.title.replace(/^slide\s*\d+[:\s-]*/i, '').trim())
+          .filter((t) => t.length > 3)
+      : []);
   const coveredTopics: string[] = [];
   const missingTopics: string[] = [];
 
@@ -369,6 +374,24 @@ export function validateLectureOutput(
 }
 
 /**
+ * Resolves canonical lecture status from validation result and optional extra issue counts.
+ * Ensures that validation failures (isValid === false or errors > 0) strictly map to 'error'.
+ */
+export function resolveLectureFinalStatus(
+  validation: LectureValidationResult,
+  extraErrorCount = 0,
+  extraWarningCount = 0
+): 'completed' | 'completed_with_warnings' | 'error' {
+  if (!validation.isValid || validation.status === 'error' || validation.errors.length > 0 || extraErrorCount > 0) {
+    return 'error';
+  }
+  if (validation.hasWarnings || validation.warnings.length > 0 || extraWarningCount > 0) {
+    return 'completed_with_warnings';
+  }
+  return 'completed';
+}
+
+/**
  * Reconciles slide alignment by identifying missing slides:
  * - If a slide was discussed in the gap between existing slides, creates an interpolated alignment entry.
  * - If a slide was never reached / discussed, marks it as status: 'not_discussed'.
@@ -413,8 +436,12 @@ export function reconcileSlideCoverage(
       }
     }
 
-    const gapStart = prevSlide ? prevSlide.end_time_seconds : 0;
-    const gapEnd = nextSlide ? nextSlide.start_time_seconds : audioDuration;
+    const gapStart = (prevSlide && prevSlide.end_time_seconds !== null && prevSlide.end_time_seconds !== undefined)
+      ? prevSlide.end_time_seconds
+      : 0;
+    const gapEnd = (nextSlide && nextSlide.start_time_seconds !== null && nextSlide.start_time_seconds !== undefined)
+      ? nextSlide.start_time_seconds
+      : audioDuration;
 
     // Check if transcript has text relating to this slide
     const searchTerms = [
@@ -452,8 +479,8 @@ export function reconcileSlideCoverage(
         slide_number: num,
         title,
         part: 0,
-        start_time_seconds: 0,
-        end_time_seconds: 0,
+        start_time_seconds: null,
+        end_time_seconds: null,
         summary: 'Slide non discussa nella registrazione audio.',
         status: 'not_discussed',
         needs_review: false,

@@ -137,7 +137,12 @@ describe('slides-alignment: Active slide tracking logic', () => {
     partIndex: number
   ): SlideAlignment | undefined {
     return list.find(
-      (s) => s.part === partIndex && time >= s.start_time_seconds && time <= s.end_time_seconds
+      (s) =>
+        s.part === partIndex &&
+        s.start_time_seconds !== null &&
+        s.end_time_seconds !== null &&
+        time >= s.start_time_seconds &&
+        time <= s.end_time_seconds
     );
   }
 

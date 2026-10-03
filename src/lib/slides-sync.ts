@@ -107,11 +107,14 @@ export function adjustSlideTimestamps(
   if (targetIndex === -1) return [...slides];
 
   const targetPart = slides[targetIndex].part ?? 0;
+  const currentTargetEnd = slides[targetIndex].end_time_seconds;
   const clampedStart = Math.max(0, Math.round(newStartSeconds));
   const clampedEnd =
     typeof newEndSeconds === 'number'
       ? Math.max(clampedStart, Math.round(newEndSeconds))
-      : Math.max(clampedStart, slides[targetIndex].end_time_seconds);
+      : typeof currentTargetEnd === 'number'
+      ? Math.max(clampedStart, currentTargetEnd)
+      : clampedStart + 30;
 
   // Deep clone slides
   const result: SlideAlignment[] = slides.map((s) => ({ ...s }));
@@ -131,10 +134,13 @@ export function adjustSlideTimestamps(
   for (let i = posInPart - 1; i >= 0; i--) {
     const prevIdx = samePartIndices[i];
     const nextIdx = samePartIndices[i + 1];
-    if (result[prevIdx].end_time_seconds > result[nextIdx].start_time_seconds) {
-      result[prevIdx].end_time_seconds = result[nextIdx].start_time_seconds;
-      if (result[prevIdx].start_time_seconds > result[prevIdx].end_time_seconds) {
-        result[prevIdx].start_time_seconds = result[prevIdx].end_time_seconds;
+    const prevEnd = result[prevIdx].end_time_seconds;
+    const nextStart = result[nextIdx].start_time_seconds;
+    if (typeof prevEnd === 'number' && typeof nextStart === 'number' && prevEnd > nextStart) {
+      result[prevIdx].end_time_seconds = nextStart;
+      const prevStart = result[prevIdx].start_time_seconds;
+      if (typeof prevStart === 'number' && prevStart > nextStart) {
+        result[prevIdx].start_time_seconds = nextStart;
       }
     }
   }
@@ -143,10 +149,13 @@ export function adjustSlideTimestamps(
   for (let i = posInPart + 1; i < samePartIndices.length; i++) {
     const prevIdx = samePartIndices[i - 1];
     const currIdx = samePartIndices[i];
-    if (result[currIdx].start_time_seconds < result[prevIdx].end_time_seconds) {
-      const duration = Math.max(0, result[currIdx].end_time_seconds - result[currIdx].start_time_seconds);
-      result[currIdx].start_time_seconds = result[prevIdx].end_time_seconds;
-      result[currIdx].end_time_seconds = result[currIdx].start_time_seconds + duration;
+    const prevEnd = result[prevIdx].end_time_seconds;
+    const currStart = result[currIdx].start_time_seconds;
+    const currEnd = result[currIdx].end_time_seconds;
+    if (typeof prevEnd === 'number' && typeof currStart === 'number' && currStart < prevEnd) {
+      const duration = typeof currEnd === 'number' ? Math.max(0, currEnd - currStart) : 30;
+      result[currIdx].start_time_seconds = prevEnd;
+      result[currIdx].end_time_seconds = prevEnd + duration;
     }
   }
 

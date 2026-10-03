@@ -720,9 +720,20 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                       </span>
                     );
                   })()}
-                  {lec.status === 'error' && (
-                    <span className="text-rose-400 font-semibold">• Errore</span>
-                  )}
+                  {lec.status === 'error' && (() => {
+                    const errorCount = lec.processingIssues?.filter((i) => i.severity === 'error').length || 0;
+                    const titleText =
+                      lec.processingIssues && lec.processingIssues.length > 0
+                        ? lec.processingIssues.map((i) => `[${i.severity.toUpperCase()} - ${i.stage}] ${i.message}`).join('\n')
+                        : lec.errorMessage || 'Errore di validazione o elaborazione';
+
+                    return (
+                      <span className="text-rose-400 font-semibold flex items-center gap-1" title={titleText}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                        • Errore {errorCount > 0 ? `(${errorCount})` : ''}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -971,7 +982,7 @@ Per $M > 64$, il metodo FFT offre un incremento di efficienza di svariati ordini
                 </button>
               </div>
             </div>
-          ) : currentLecture.status === 'error' ? (
+          ) : currentLecture.status === 'error' && !currentLecture.data ? (
             /* View 3: Error State */
             <div className="max-w-md mx-auto my-16 text-center space-y-4 p-8 rounded-2xl bg-zinc-900 border border-rose-900/50">
               <div className="p-4 rounded-full bg-rose-950 border border-rose-800 text-rose-400 w-16 h-16 mx-auto flex items-center justify-center">

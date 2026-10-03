@@ -93,7 +93,21 @@ export const SlidesTab: React.FC<SlidesTabProps> = ({
       const maxEnd = Math.max(...slidesAlignment.map((s) => s.end_time_seconds || 0), 0);
       if (maxEnd > totalDuration + 10) {
         const normalized = clampAndNormalizeSlideTimestamps(slidesAlignment, totalDuration);
-        onUpdateSlides?.(normalized);
+        const isIdentical =
+          normalized.length === slidesAlignment.length &&
+          normalized.every((norm, i) => {
+            const orig = slidesAlignment[i];
+            return (
+              norm.slide_number === orig.slide_number &&
+              norm.start_time_seconds === orig.start_time_seconds &&
+              norm.end_time_seconds === orig.end_time_seconds &&
+              norm.status === orig.status &&
+              norm.needs_review === orig.needs_review
+            );
+          });
+        if (!isIdentical) {
+          onUpdateSlides?.(normalized);
+        }
       }
     }
   }, [totalDuration, slidesAlignment, onUpdateSlides]);

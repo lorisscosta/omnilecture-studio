@@ -21,6 +21,8 @@ export interface WavHeaderInfo {
   byteRate?: number;
   blockAlign?: number;
   bitsPerSample?: number;
+  dataChunkOffset?: number;
+  dataChunkSize?: number;
 }
 
 /**
@@ -38,7 +40,16 @@ export function parseWavHeader(buffer: ArrayBuffer): WavHeaderInfo {
     return { isWav: false };
   }
 
-  // Scan chunks to locate 'fmt ' subchunk
+  let audioFormat: number | undefined;
+  let numChannels: number | undefined;
+  let sampleRate: number | undefined;
+  let byteRate: number | undefined;
+  let blockAlign: number | undefined;
+  let bitsPerSample: number | undefined;
+  let dataChunkOffset: number | undefined;
+  let dataChunkSize: number | undefined;
+
+  // Scan chunks to locate 'fmt ' and 'data' subchunks
   let offset = 12;
   while (offset + 8 <= buffer.byteLength) {
     const chunkId = String.fromCharCode(
@@ -51,28 +62,33 @@ export function parseWavHeader(buffer: ArrayBuffer): WavHeaderInfo {
 
     if (chunkId === 'fmt ') {
       if (offset + 8 + 16 <= buffer.byteLength) {
-        const audioFormat = view.getUint16(offset + 8, true);
-        const numChannels = view.getUint16(offset + 10, true);
-        const sampleRate = view.getUint32(offset + 12, true);
-        const byteRate = view.getUint32(offset + 16, true);
-        const blockAlign = view.getUint16(offset + 20, true);
-        const bitsPerSample = view.getUint16(offset + 22, true);
-        return {
-          isWav: true,
-          audioFormat,
-          numChannels,
-          sampleRate,
-          byteRate,
-          blockAlign,
-          bitsPerSample,
-        };
+        audioFormat = view.getUint16(offset + 8, true);
+        numChannels = view.getUint16(offset + 10, true);
+        sampleRate = view.getUint32(offset + 12, true);
+        byteRate = view.getUint32(offset + 16, true);
+        blockAlign = view.getUint16(offset + 20, true);
+        bitsPerSample = view.getUint16(offset + 22, true);
       }
-      break;
+    } else if (chunkId === 'data') {
+      dataChunkOffset = offset + 8;
+      dataChunkSize = chunkSize;
     }
-    offset += 8 + chunkSize;
+
+    const paddedSize = chunkSize + (chunkSize % 2);
+    offset += 8 + paddedSize;
   }
 
-  return { isWav: true };
+  return {
+    isWav: true,
+    audioFormat,
+    numChannels,
+    sampleRate,
+    byteRate,
+    blockAlign,
+    bitsPerSample,
+    dataChunkOffset,
+    dataChunkSize,
+  };
 }
 
 /**
@@ -83,8 +99,9 @@ export async function checkWavHeader(fileOrBlob: Blob | ArrayBuffer): Promise<Wa
   if (fileOrBlob instanceof ArrayBuffer) {
     buffer = fileOrBlob;
   } else {
-    // Read the first 128 bytes to capture RIFF and fmt chunks
-    const slice = fileOrBlob.slice(0, 128);
+    // Read the first 4096 bytes to capture RIFF, fmt and data chunk headers
+    const sliceLen = Math.min(fileOrBlob.size, 4096);
+    const slice = fileOrBlob.slice(0, sliceLen);
     buffer = await slice.arrayBuffer();
   }
   return parseWavHeader(buffer);
@@ -216,7 +233,10 @@ export async function optimizeAudioFile(
       header.bitsPerSample === 16
     ) {
       const byteRate = header.byteRate || targetSampleRate * 2;
-      const dataSize = Math.max(0, file.size - 44);
+      const dataSize =
+        typeof header.dataChunkSize === 'number' && header.dataChunkSize > 0
+          ? header.dataChunkSize
+          : Math.max(0, file.size - 44);
       const durationSeconds = dataSize / byteRate;
       return {
         file,
@@ -307,4 +327,108 @@ export async function optimizeAudioFile(
     ratio: Math.max(0, ratio),
     durationSeconds,
   };
+}
+
+/**
+ * Slices an audio File or Blob into a standalone, fully playable WAV chunk.
+ * For WAV files with PCM data, performs instantaneous byte slicing with a freshly synthesized WAV header.
+ * For other audio formats (MP3, M4A, etc.), decodes the audio via Web Audio API and encodes the slice.
+ */
+export async function sliceAudioBlob(
+  fileOrBlob: File | Blob,
+  startSeconds: number,
+  endSeconds: number
+): Promise<Blob> {
+  const clampStart = Math.max(0, startSeconds);
+  const clampEnd = Math.max(clampStart, endSeconds);
+  const sliceDurationSec = clampEnd - clampStart;
+
+  try {
+    const header = await checkWavHeader(fileOrBlob);
+    if (
+      header.isWav &&
+      header.audioFormat === 1 &&
+      header.byteRate &&
+      header.blockAlign &&
+      header.sampleRate &&
+      header.numChannels &&
+      header.bitsPerSample &&
+      typeof header.dataChunkOffset === 'number'
+    ) {
+      const byteRate = header.byteRate;
+      const blockAlign = header.blockAlign;
+      const totalPcmSize = header.dataChunkSize || Math.max(0, fileOrBlob.size - header.dataChunkOffset);
+
+      const rawStartByte = Math.floor(clampStart * byteRate);
+      const alignedStartByte = Math.floor(rawStartByte / blockAlign) * blockAlign;
+
+      const rawEndByte = Math.min(totalPcmSize, Math.floor(clampEnd * byteRate));
+      const alignedEndByte = Math.floor(rawEndByte / blockAlign) * blockAlign;
+
+      const slicedPcmSize = Math.max(0, alignedEndByte - alignedStartByte);
+
+      // Create valid 44-byte WAV header
+      const headerBuffer = new ArrayBuffer(44);
+      const view = new DataView(headerBuffer);
+
+      // RIFF chunk descriptor
+      view.setUint8(0, 0x52); view.setUint8(1, 0x49); view.setUint8(2, 0x46); view.setUint8(3, 0x46); // 'RIFF'
+      view.setUint32(4, 36 + slicedPcmSize, true);
+      view.setUint8(8, 0x57); view.setUint8(9, 0x41); view.setUint8(10, 0x56); view.setUint8(11, 0x45); // 'WAVE'
+
+      // fmt sub-chunk
+      view.setUint8(12, 0x66); view.setUint8(13, 0x6d); view.setUint8(14, 0x74); view.setUint8(15, 0x20); // 'fmt '
+      view.setUint32(16, 16, true);
+      view.setUint16(20, header.audioFormat, true);
+      view.setUint16(22, header.numChannels, true);
+      view.setUint32(24, header.sampleRate, true);
+      view.setUint32(28, header.byteRate, true);
+      view.setUint16(32, header.blockAlign, true);
+      view.setUint16(34, header.bitsPerSample, true);
+
+      // data sub-chunk
+      view.setUint8(36, 0x64); view.setUint8(37, 0x61); view.setUint8(38, 0x74); view.setUint8(39, 0x61); // 'data'
+      view.setUint32(40, slicedPcmSize, true);
+
+      const pcmDataSlice = fileOrBlob.slice(
+        header.dataChunkOffset + alignedStartByte,
+        header.dataChunkOffset + alignedEndByte
+      );
+
+      return new Blob([headerBuffer, pcmDataSlice], { type: 'audio/wav' });
+    }
+  } catch {
+    // If WAV fast-path header inspection fails, fall through to Web Audio API
+  }
+
+  // Web Audio API decoding fallback for MP3, AAC, M4A, etc.
+  const arrayBuffer = await fileOrBlob.arrayBuffer();
+  const AudioCtx =
+    typeof window !== 'undefined'
+      ? window.AudioContext || (window as any).webkitAudioContext
+      : null;
+
+  if (!AudioCtx) {
+    throw new Error('Web Audio API non disponibile per il ritaglio audio.');
+  }
+
+  const audioCtx = new AudioCtx();
+  try {
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const sampleRate = audioBuffer.sampleRate;
+    const startSample = Math.min(audioBuffer.length, Math.floor(clampStart * sampleRate));
+    const endSample = Math.min(audioBuffer.length, Math.floor(clampEnd * sampleRate));
+    const sliceSampleCount = Math.max(0, endSample - startSample);
+
+    const offlineCtx = new OfflineAudioContext(1, sliceSampleCount, 16000);
+    const source = offlineCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(offlineCtx.destination);
+    source.start(0, clampStart, sliceDurationSec);
+
+    const renderedBuffer = await offlineCtx.startRendering();
+    return encodeWavBlob(renderedBuffer);
+  } finally {
+    await audioCtx.close().catch(() => {});
+  }
 }
